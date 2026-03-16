@@ -1,32 +1,59 @@
-import { useLanguage } from "@/contexts/LanguageContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Users, 
-  Briefcase, 
-  CheckCircle2, 
-  TrendingUp,
-  BrainCircuit,
-  MapPin,
-  Clock,
-  AlertTriangle
+  Users, Briefcase, CheckCircle2, TrendingUp,
+  BrainCircuit, MapPin, Clock, AlertTriangle,
+  Wallet, Package, ShoppingCart, Building2
 } from "lucide-react";
-import { MainLayout } from "@/components/layout/MainLayout";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { ProjectActivity } from "@/components/dashboard/ProjectActivity";
-import { AIInsights } from "@/components/dashboard/AIInsights";
+import { MainLayout } from "../../components/layout/MainLayout";
+import { StatCard } from "../../components/dashboard/StatCard";
+import { ProjectActivity } from "../../components/dashboard/ProjectActivity";
+import { AIInsights } from "../../components/dashboard/AIInsights";
+
+// Replicating an Odoo-like App Grid launcher for the Dashboard
+const apps = [
+  { id: 'crm', icon: Users, color: 'bg-blue-500' },
+  { id: 'sales', icon: ShoppingCart, color: 'bg-emerald-500' },
+  { id: 'purchases', icon: Package, color: 'bg-indigo-500' },
+  { id: 'accounting', icon: Wallet, color: 'bg-amber-500' },
+  { id: 'projects', icon: Briefcase, color: 'bg-purple-500' },
+  { id: 'inventory', icon: Package, color: 'bg-cyan-500' },
+  { id: 'hr', icon: Users, color: 'bg-rose-500' },
+  { id: 'multi_tenant', icon: Building2, color: 'bg-slate-700' },
+];
 
 export default function Dashboard() {
   const { t } = useLanguage();
 
   return (
     <MainLayout>
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{t('dash.overview')}</h1>
             <p className="text-muted-foreground mt-1">
-              {t('dash.welcome')}, Ahmed Engineer.
+              {t('dash.welcome')}, Ahmed.
             </p>
+          </div>
+        </div>
+
+        {/* Odoo-style App Grid */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">{t('dash.apps')}</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+            {apps.map((app) => {
+              const Icon = app.icon;
+              return (
+                <div key={app.id} className="flex flex-col items-center gap-2 group cursor-pointer">
+                  <div className={`w-16 h-16 rounded-2xl ${app.color} text-white flex items-center justify-center shadow-sm group-hover:shadow-md transition-all group-hover:-translate-y-1`}>
+                    <Icon className="w-8 h-8" />
+                  </div>
+                  <span className="text-xs font-medium text-center text-muted-foreground group-hover:text-foreground transition-colors">
+                    {t(`nav.${app.id}`)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -34,29 +61,29 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
             title={t('dash.active_projects')}
-            value="24"
+            value="42"
             trend="+12% from last month"
             icon={Briefcase}
             trendUp={true}
           />
           <StatCard 
             title={t('dash.pending_approvals')}
-            value="18"
-            trend="5 require immediate action"
+            value="128"
+            trend="15 require immediate action"
             icon={CheckCircle2}
             trendUp={false}
           />
           <StatCard 
             title={t('dash.engineers_field')}
-            value="142"
-            trend="87% attendance rate today"
+            value="340"
+            trend="92% attendance rate today"
             icon={MapPin}
             trendUp={true}
           />
           <StatCard 
             title={t('dash.revenue')}
-            value="$2.4M"
-            trend="+18% year over year"
+            value="$12.4M"
+            trend="+24% year over year"
             icon={TrendingUp}
             trendUp={true}
           />
@@ -94,7 +121,7 @@ export default function Dashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-amber-500" />
-                  HSE Alerts
+                  System Alerts
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -102,8 +129,15 @@ export default function Dashboard() {
                   <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/50">
                     <Clock className="w-5 h-5 text-amber-600 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Equipment Maintenance Due</p>
-                      <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">Crane #42 at Riyadh Metro Site requires scheduled maintenance in 2 days.</p>
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Payroll Processing</p>
+                      <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">Pending approval for 3 branches before end of month.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100 dark:bg-red-950/20 dark:border-red-900/50">
+                    <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-red-900 dark:text-red-200">Inventory Low</p>
+                      <p className="text-xs text-red-700/80 dark:text-red-400/80 mt-1">Steel stock at Riyadh warehouse is below minimum threshold.</p>
                     </div>
                   </div>
                 </div>
