@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
+import CRMModule from "@/pages/modules/crm/index";
 
 function Router() {
   return (
@@ -26,9 +27,7 @@ function Router() {
       </Route>
 
       {/* Business & Finance */}
-      <Route path="/crm">
-        {() => <ModulePlaceholder moduleId="crm" title="CRM" description="Customer Relationship Management and lead tracking." mockDataCols={['Customer', 'Company', 'Email', 'Phone', 'Stage', 'Owner']} />}
-      </Route>
+      <Route path="/crm" component={CRMModule} />
       <Route path="/sales">
         {() => <ModulePlaceholder moduleId="sales" title="Sales" description="Quotations, sales orders, and invoicing." mockDataCols={['Order ID', 'Customer', 'Date', 'Total', 'Status']} />}
       </Route>
