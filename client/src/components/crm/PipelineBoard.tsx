@@ -24,11 +24,11 @@ export function PipelineBoard() {
   const [leads, setLeads] = useState(INITIAL_LEADS);
 
   const STAGES = [
-    { id: 'new', title: t('crm.pipe.stage.new'), color: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
-    { id: 'qualified', title: t('crm.pipe.stage.qualified'), color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
-    { id: 'proposal', title: t('crm.pipe.stage.proposal'), color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
-    { id: 'negotiation', title: t('crm.pipe.stage.negotiation'), color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
-    { id: 'won', title: t('crm.pipe.stage.won'), color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
+    { id: 'new', title: t('crm.pipe.stage.new'), color: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700', stripe: 'bg-slate-400 dark:bg-slate-500' },
+    { id: 'qualified', title: t('crm.pipe.stage.qualified'), color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800', stripe: 'bg-blue-500' },
+    { id: 'proposal', title: t('crm.pipe.stage.proposal'), color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800', stripe: 'bg-amber-500' },
+    { id: 'negotiation', title: t('crm.pipe.stage.negotiation'), color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800', stripe: 'bg-purple-500' },
+    { id: 'won', title: t('crm.pipe.stage.won'), color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800', stripe: 'bg-emerald-500' },
   ];
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -99,16 +99,20 @@ export function PipelineBoard() {
                       draggable
                       onDragStart={(e) => handleDragStart(e, lead.id)}
                       className={cn(
-                        "bg-card p-3 rounded-lg border shadow-sm cursor-grab hover:shadow-md transition-shadow",
+                        "bg-card rounded-lg border shadow-sm cursor-grab hover:shadow-md transition-shadow overflow-hidden flex flex-col",
                         stage.border
                       )}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="font-semibold text-sm line-clamp-2 leading-tight">{lead.title}</div>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 -mr-1 -mt-1 text-muted-foreground">
-                          <MoreHorizontal className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      {/* Colored Stripe Indicator */}
+                      <div className={cn("h-1.5 w-full shrink-0", stage.stripe)}></div>
+                      
+                      <div className="p-3">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="font-semibold text-sm line-clamp-2 leading-tight">{lead.title}</div>
+                          <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 -mr-1 -mt-1 text-muted-foreground">
+                            <MoreHorizontal className="h-3 w-3" />
+                          </Button>
+                        </div>
                       
                       <div className="text-xs text-muted-foreground mb-3">{lead.client}</div>
                       
@@ -135,6 +139,7 @@ export function PipelineBoard() {
                       <div className="flex items-center gap-1 mt-2 text-[10px] text-muted-foreground font-medium">
                         <Calendar className="w-3 h-3" />
                         {lead.date}
+                      </div>
                       </div>
                     </div>
                   ))}
