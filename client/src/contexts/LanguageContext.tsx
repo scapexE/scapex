@@ -62,15 +62,64 @@ const translations: Record<string, Record<Language, string>> = {
   'dash.recent_activities': { en: 'Recent Activities', ar: 'الأنشطة الأخيرة' },
   'dash.ai_insights': { en: 'AI Insights', ar: 'رؤى الذكاء الاصطناعي' },
   'dash.apps': { en: 'SCAPE Apps', ar: 'تطبيقات سكيب' },
+
+  // Common Actions
+  'action.create_new': { en: 'Create New', ar: 'إنشاء جديد' },
+  'action.export': { en: 'Export', ar: 'تصدير' },
+  'action.search': { en: 'Search...', ar: 'البحث...' },
+  'action.filter': { en: 'Filter', ar: 'تصفية' },
+  'action.previous': { en: 'Previous', ar: 'السابق' },
+  'action.next': { en: 'Next', ar: 'التالي' },
+  'action.showing': { en: 'Showing', ar: 'عرض' },
+  'action.to': { en: 'to', ar: 'إلى' },
+  'action.of': { en: 'of', ar: 'من' },
+  'action.entries': { en: 'entries', ar: 'سجلات' },
+
+  // CRM Module
+  'crm.desc': { en: 'Manage leads, opportunities, customers, and sales activities.', ar: 'إدارة العملاء المحتملين والفرص والعملاء وأنشطة المبيعات.' },
+  'crm.new_lead': { en: 'New Lead', ar: 'عميل محتمل جديد' },
+  'crm.tab.pipeline': { en: 'Pipeline', ar: 'مسار المبيعات' },
+  'crm.tab.customers': { en: 'Customers', ar: 'العملاء' },
+  'crm.tab.analytics': { en: 'Analytics', ar: 'التحليلات' },
+
+  // CRM Pipeline
+  'crm.pipe.search': { en: 'Search opportunities...', ar: 'البحث في الفرص...' },
+  'crm.pipe.total_value': { en: 'Total Pipeline Value:', ar: 'إجمالي قيمة المسار:' },
+  'crm.pipe.stage.new': { en: 'New Leads', ar: 'عملاء جدد' },
+  'crm.pipe.stage.qualified': { en: 'Qualified', ar: 'مؤهلون' },
+  'crm.pipe.stage.proposal': { en: 'Proposal Sent', ar: 'تم إرسال المقترح' },
+  'crm.pipe.stage.negotiation': { en: 'Negotiation', ar: 'تفاوض' },
+  'crm.pipe.stage.won': { en: 'Won', ar: 'مكتسبة' },
+
+  // CRM Customers
+  'crm.cust.search': { en: 'Search customers, contacts, or industries...', ar: 'البحث عن العملاء أو جهات الاتصال أو المجالات...' },
+  'crm.cust.total': { en: 'Total Customers', ar: 'إجمالي العملاء' },
+  'crm.cust.col.company': { en: 'Company', ar: 'الشركة' },
+  'crm.cust.col.contact': { en: 'Primary Contact', ar: 'جهة الاتصال الرئيسية' },
+  'crm.cust.col.industry': { en: 'Industry', ar: 'المجال' },
+  'crm.cust.col.status': { en: 'Status', ar: 'الحالة' },
+  'crm.cust.col.actions': { en: 'Actions', ar: 'إجراءات' },
+  
+  // CRM Dashboard
+  'crm.dash.active_leads': { en: 'Total Active Leads', ar: 'إجمالي العملاء النشطين' },
+  'crm.dash.active_leads.trend': { en: '+12 this week', ar: '+12 هذا الأسبوع' },
+  'crm.dash.pipe_value': { en: 'Total Pipeline Value', ar: 'إجمالي قيمة المسار' },
+  'crm.dash.pipe_value.trend': { en: '+5.2% from last month', ar: '+5.2% عن الشهر الماضي' },
+  'crm.dash.win_rate': { en: 'Win Rate', ar: 'معدل الفوز' },
+  'crm.dash.win_rate.trend': { en: '-2.1% from last month', ar: '-2.1% عن الشهر الماضي' },
+  'crm.dash.revenue_ytd': { en: 'Revenue Won (YTD)', ar: 'الإيرادات المحققة (منذ بداية العام)' },
+  'crm.dash.revenue_ytd.trend': { en: 'On track for $20M target', ar: 'في المسار الصحيح لهدف 20 مليون دولار' },
+  'crm.dash.chart.title': { en: 'Revenue vs Pipeline (6 Months)', ar: 'الإيرادات مقابل المسار (6 أشهر)' },
+  'crm.dash.sources.title': { en: 'Lead Sources', ar: 'مصادر العملاء' },
+  'crm.dash.top_performers': { en: 'Top Performers', ar: 'أفضل المؤدين' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('ar'); // Default to Arabic as requested for SCAPE
+  const [language, setLanguage] = useState<Language>('ar');
 
   useEffect(() => {
-    // Update document direction
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = language;
   }, [language]);

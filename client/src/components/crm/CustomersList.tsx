@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,21 +29,23 @@ const CUSTOMERS = [
 ];
 
 export function CustomersList() {
+  const { t, dir } = useLanguage();
+
   return (
     <Card className="flex-1 border-border/50 shadow-sm overflow-hidden flex flex-col h-full">
       <CardHeader className="p-4 border-b border-border/50 bg-card">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search customers, contacts, or industries..." className="pl-9 h-9 bg-secondary/50 border-0" />
+              <Search className={cn("absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground", dir === 'rtl' ? "right-3" : "left-3")} />
+              <Input placeholder={t('crm.cust.search')} className={cn("h-9 bg-secondary/50 border-0", dir === 'rtl' ? "pr-9" : "pl-9")} />
             </div>
             <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
               <Filter className="h-4 w-4" />
             </Button>
           </div>
           <div className="text-sm text-muted-foreground font-medium">
-            245 Total Customers
+            245 {t('crm.cust.total')}
           </div>
         </div>
       </CardHeader>
@@ -54,11 +57,11 @@ export function CustomersList() {
               <TableHead className="w-12 text-center">
                 <input type="checkbox" className="rounded border-border" />
               </TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Primary Contact</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className={dir === 'rtl' ? 'text-right' : 'text-left'}>{t('crm.cust.col.company')}</TableHead>
+              <TableHead className={dir === 'rtl' ? 'text-right' : 'text-left'}>{t('crm.cust.col.contact')}</TableHead>
+              <TableHead className={dir === 'rtl' ? 'text-right' : 'text-left'}>{t('crm.cust.col.industry')}</TableHead>
+              <TableHead className={dir === 'rtl' ? 'text-right' : 'text-left'}>{t('crm.cust.col.status')}</TableHead>
+              <TableHead className={dir === 'rtl' ? 'text-left' : 'text-right'}>{t('crm.cust.col.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -67,7 +70,7 @@ export function CustomersList() {
                 <TableCell className="text-center">
                   <input type="checkbox" className="rounded border-border" />
                 </TableCell>
-                <TableCell>
+                <TableCell className={dir === 'rtl' ? 'text-right' : 'text-left'}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
                       <Building className="w-5 h-5 text-primary" />
@@ -84,19 +87,19 @@ export function CustomersList() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className={dir === 'rtl' ? 'text-right' : 'text-left'}>
                   <div className="text-sm font-medium">{customer.contact}</div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
                     <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {customer.email}</span>
-                    <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {customer.phone}</span>
+                    <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> <span dir="ltr">{customer.phone}</span></span>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className={dir === 'rtl' ? 'text-right' : 'text-left'}>
                   <Badge variant="secondary" className="font-normal bg-secondary/80">
                     {customer.industry}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className={dir === 'rtl' ? 'text-right' : 'text-left'}>
                   <Badge 
                     variant="outline" 
                     className={cn(
@@ -109,8 +112,8 @@ export function CustomersList() {
                     {customer.status.charAt(0).toUpperCase() + customer.status.slice(1)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <TableCell className={dir === 'rtl' ? 'text-left' : 'text-right'}>
+                  <div className={cn("flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity", dir === 'rtl' ? "justify-start" : "justify-end")}>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10">
                       <ExternalLink className="h-4 w-4" />
                     </Button>
@@ -126,14 +129,14 @@ export function CustomersList() {
       </div>
       
       <div className="border-t border-border/50 p-3 flex items-center justify-between text-xs text-muted-foreground bg-card">
-        <span>Showing 1 to 8 of 245 entries</span>
+        <span>{t('action.showing')} 1 {t('action.to')} 8 {t('action.of')} 245 {t('action.entries')}</span>
         <div className="flex gap-1">
-          <Button variant="outline" size="sm" disabled className="h-7 px-2 text-xs">Previous</Button>
+          <Button variant="outline" size="sm" disabled className="h-7 px-2 text-xs">{t('action.previous')}</Button>
           <Button variant="outline" size="sm" className="h-7 w-7 p-0 bg-primary text-primary-foreground border-primary">1</Button>
           <Button variant="outline" size="sm" className="h-7 w-7 p-0">2</Button>
           <Button variant="outline" size="sm" className="h-7 w-7 p-0">3</Button>
           <span className="px-2 py-1">...</span>
-          <Button variant="outline" size="sm" className="h-7 px-2 text-xs">Next</Button>
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs">{t('action.next')}</Button>
         </div>
       </div>
     </Card>

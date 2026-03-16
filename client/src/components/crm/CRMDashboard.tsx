@@ -1,7 +1,9 @@
+import { useLanguage } from "../../contexts/LanguageContext";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "../dashboard/StatCard";
 import { Users, Target, CheckCircle2, TrendingUp } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, Legend } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
 const MONTHLY_DATA = [
   { name: 'Jan', won: 1200000, pipeline: 3500000 },
@@ -20,35 +22,37 @@ const LEAD_SOURCES = [
 ];
 
 export function CRMDashboard() {
+  const { t, dir } = useLanguage();
+
   return (
     <div className="flex flex-col gap-6 pb-6">
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
-          title="Total Active Leads"
+          title={t('crm.dash.active_leads')}
           value="148"
-          trend="+12 this week"
+          trend={t('crm.dash.active_leads.trend')}
           icon={Users}
           trendUp={true}
         />
         <StatCard 
-          title="Total Pipeline Value"
+          title={t('crm.dash.pipe_value')}
           value="$17.85M"
-          trend="+5.2% from last month"
+          trend={t('crm.dash.pipe_value.trend')}
           icon={Target}
           trendUp={true}
         />
         <StatCard 
-          title="Win Rate"
+          title={t('crm.dash.win_rate')}
           value="34.5%"
-          trend="-2.1% from last month"
+          trend={t('crm.dash.win_rate.trend')}
           icon={CheckCircle2}
           trendUp={false}
         />
         <StatCard 
-          title="Revenue Won (YTD)"
+          title={t('crm.dash.revenue_ytd')}
           value="$12.6M"
-          trend="On track for $20M target"
+          trend={t('crm.dash.revenue_ytd.trend')}
           icon={TrendingUp}
           trendUp={true}
         />
@@ -58,10 +62,10 @@ export function CRMDashboard() {
         {/* Pipeline vs Won Chart */}
         <Card className="lg:col-span-2 shadow-sm border-border/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Revenue vs Pipeline (6 Months)</CardTitle>
+            <CardTitle className="text-base">{t('crm.dash.chart.title')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full mt-4">
+            <div className="h-[300px] w-full mt-4" dir="ltr"> {/* Charts usually render better in LTR */}
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={MONTHLY_DATA} margin={{ top: 10, right: 10, left: 20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
@@ -90,7 +94,7 @@ export function CRMDashboard() {
         {/* Lead Sources */}
         <Card className="shadow-sm border-border/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Lead Sources</CardTitle>
+            <CardTitle className="text-base">{t('crm.dash.sources.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 mt-4">
@@ -102,7 +106,7 @@ export function CRMDashboard() {
                   </div>
                   <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                     <div 
-                      className="h-full rounded-full" 
+                      className={cn("h-full rounded-full", dir === 'rtl' ? "float-right" : "float-left")} 
                       style={{ 
                         width: `${source.value}%`,
                         backgroundColor: index === 0 ? 'hsl(var(--primary))' : 
@@ -116,7 +120,7 @@ export function CRMDashboard() {
             </div>
 
             <div className="mt-8 pt-4 border-t border-border/50">
-              <h4 className="text-sm font-medium mb-3">Top Performers</h4>
+              <h4 className="text-sm font-medium mb-3">{t('crm.dash.top_performers')}</h4>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

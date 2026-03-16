@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,15 +9,6 @@ import {
   Clock, Calendar, AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// Mock Data
-const STAGES = [
-  { id: 'new', title: 'New Leads', color: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
-  { id: 'qualified', title: 'Qualified', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
-  { id: 'proposal', title: 'Proposal Sent', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
-  { id: 'negotiation', title: 'Negotiation', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
-  { id: 'won', title: 'Won', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
-];
 
 const INITIAL_LEADS = [
   { id: '1', title: 'Al-Faisaliyah Tower HVAC Upgrade', client: 'Saudi Binladin Group', value: '$1.2M', stage: 'new', priority: 'high', nextAction: 'Call to schedule site visit', date: 'Oct 15' },
@@ -29,10 +20,17 @@ const INITIAL_LEADS = [
 ];
 
 export function PipelineBoard() {
+  const { t, dir } = useLanguage();
   const [leads, setLeads] = useState(INITIAL_LEADS);
 
-  // Note: For a real app we'd use dnd-kit or react-beautiful-dnd, but for a fast mockup 
-  // we'll implement simple HTML5 drag and drop
+  const STAGES = [
+    { id: 'new', title: t('crm.pipe.stage.new'), color: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
+    { id: 'qualified', title: t('crm.pipe.stage.qualified'), color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
+    { id: 'proposal', title: t('crm.pipe.stage.proposal'), color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
+    { id: 'negotiation', title: t('crm.pipe.stage.negotiation'), color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
+    { id: 'won', title: t('crm.pipe.stage.won'), color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
+  ];
+
   const handleDragStart = (e: React.DragEvent, id: string) => {
     e.dataTransfer.setData("leadId", id);
   };
@@ -56,15 +54,15 @@ export function PipelineBoard() {
       <div className="flex items-center justify-between pb-4 shrink-0">
         <div className="flex items-center gap-2 w-full max-w-md">
           <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search opportunities..." className="pl-9 h-9 bg-card" />
+            <Search className={cn("absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground", dir === 'rtl' ? "right-3" : "left-3")} />
+            <Input placeholder={t('crm.pipe.search')} className={cn("h-9 bg-card", dir === 'rtl' ? "pr-9" : "pl-9")} />
           </div>
           <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 bg-card">
             <Filter className="h-4 w-4" />
           </Button>
         </div>
         <div className="text-sm font-medium text-muted-foreground hidden sm:block">
-          Total Pipeline Value: <span className="text-foreground">$17.85M</span>
+          {t('crm.pipe.total_value')} <span className="text-foreground">$17.85M</span>
         </div>
       </div>
 

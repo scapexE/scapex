@@ -1,6 +1,6 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 interface ModulePlaceholderProps {
   moduleId: string;
@@ -44,12 +45,12 @@ export function ModulePlaceholder({ moduleId, title, description, mockDataCols }
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-              Export
+              <Download className={cn("w-4 h-4", dir === 'rtl' ? "ml-2" : "mr-2")} />
+              {t('action.export')}
             </Button>
             <Button size="sm" className="bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-              Create New
+              <Plus className={cn("w-4 h-4", dir === 'rtl' ? "ml-2" : "mr-2")} />
+              {t('action.create_new')}
             </Button>
           </div>
         </div>
@@ -59,10 +60,10 @@ export function ModulePlaceholder({ moduleId, title, description, mockDataCols }
           <CardContent className="p-3 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative w-full sm:w-80">
-                <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground ${dir === 'rtl' ? 'right-3' : 'left-3'}`} />
+                <Search className={cn("absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground", dir === 'rtl' ? "right-3" : "left-3")} />
                 <Input 
-                  placeholder={`Search ${title}...`} 
-                  className={`h-9 bg-secondary/50 border-0 ${dir === 'rtl' ? 'pr-9' : 'pl-9'}`}
+                  placeholder={`${t('action.search')} ${title}...`} 
+                  className={cn("h-9 bg-secondary/50 border-0", dir === 'rtl' ? "pr-9" : "pl-9")}
                 />
               </div>
               <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
@@ -93,7 +94,7 @@ export function ModulePlaceholder({ moduleId, title, description, mockDataCols }
                     <input type="checkbox" className="rounded border-border" />
                   </TableHead>
                   {mockDataCols.map((col, i) => (
-                    <TableHead key={i} className="whitespace-nowrap font-semibold">
+                    <TableHead key={i} className={cn("whitespace-nowrap font-semibold", dir === 'rtl' ? 'text-right' : 'text-left')}>
                       {col}
                     </TableHead>
                   ))}
@@ -108,7 +109,7 @@ export function ModulePlaceholder({ moduleId, title, description, mockDataCols }
                       <input type="checkbox" className="rounded border-border" />
                     </TableCell>
                     {mockDataCols.map((_, colIndex) => (
-                      <TableCell key={colIndex}>
+                      <TableCell key={colIndex} className={dir === 'rtl' ? 'text-right' : 'text-left'}>
                         <div className="h-4 w-3/4 bg-secondary rounded animate-pulse opacity-50" style={{ width: `${Math.random() * 40 + 40}%` }}></div>
                       </TableCell>
                     ))}
@@ -123,14 +124,14 @@ export function ModulePlaceholder({ moduleId, title, description, mockDataCols }
             </Table>
           </div>
           <div className="border-t border-border/50 p-3 flex items-center justify-between text-xs text-muted-foreground bg-secondary/20">
-            <span>Showing 1 to 10 of 2,450 entries</span>
+            <span>{t('action.showing')} 1 {t('action.to')} 10 {t('action.of')} 2,450 {t('action.entries')}</span>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled className="h-7 px-2">Previous</Button>
+              <Button variant="outline" size="sm" disabled className="h-7 px-2">{t('action.previous')}</Button>
               <Button variant="outline" size="sm" className="h-7 px-2 bg-background">1</Button>
               <Button variant="outline" size="sm" className="h-7 px-2">2</Button>
               <Button variant="outline" size="sm" className="h-7 px-2">3</Button>
               <span className="px-2 py-1">...</span>
-              <Button variant="outline" size="sm" className="h-7 px-2">Next</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2">{t('action.next')}</Button>
             </div>
           </div>
         </Card>

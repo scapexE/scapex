@@ -17,22 +17,22 @@ export default function CRMModule() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('nav.crm')}</h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              Manage leads, opportunities, customers, and sales activities.
+              {t('crm.desc')}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" className="bg-primary hover:bg-primary/90">
               <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-              New Lead
+              {t('crm.new_lead')}
             </Button>
           </div>
         </div>
 
         <Tabs defaultValue="pipeline" className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-full sm:w-auto self-start border-border/50 bg-secondary/50">
-            <TabsTrigger value="pipeline" className="flex-1 sm:flex-none data-[state=active]:bg-background">Pipeline</TabsTrigger>
-            <TabsTrigger value="customers" className="flex-1 sm:flex-none data-[state=active]:bg-background">Customers</TabsTrigger>
-            <TabsTrigger value="dashboard" className="flex-1 sm:flex-none data-[state=active]:bg-background">Analytics</TabsTrigger>
+            <TabsTrigger value="pipeline" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('crm.tab.pipeline')}</TabsTrigger>
+            <TabsTrigger value="customers" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('crm.tab.customers')}</TabsTrigger>
+            <TabsTrigger value="dashboard" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('crm.tab.analytics')}</TabsTrigger>
           </TabsList>
           
           <div className="flex-1 mt-4 overflow-hidden relative">
