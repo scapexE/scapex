@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
 import CRMModule from "@/pages/modules/crm/index";
 import ProjectsModule from "@/pages/modules/projects/index";
+import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 
 function Router() {
   return (
@@ -58,9 +59,7 @@ function Router() {
       <Route path="/government">
         {() => <ModulePlaceholder moduleId="government" title="Government Entities" description="Permits, municipality interactions, and compliance tracking." mockDataCols={['Permit No.', 'Entity', 'Project', 'Issue Date', 'Expiry Date', 'Status']} />}
       </Route>
-      <Route path="/smart-proposal">
-        {() => <ModulePlaceholder moduleId="smart_proposal" title="Smart Proposal" description="AI-generated technical and commercial proposals." mockDataCols={['Proposal ID', 'Client', 'Project Type', 'Value', 'Generated Date', 'Status']} />}
-      </Route>
+      <Route path="/smart-proposal" component={SmartProposalModule} />
 
       {/* HR & Personnel */}
       <Route path="/hr">
