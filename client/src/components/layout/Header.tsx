@@ -17,14 +17,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function Header() {
+export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { t, language, toggleLanguage, dir } = useLanguage();
   const { theme, setTheme } = useTheme();
 
   return (
     <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-6 sticky top-0 z-40">
       <div className="flex items-center gap-4 flex-1">
-        <Button variant="ghost" size="icon" className="md:hidden">
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
         </Button>
         

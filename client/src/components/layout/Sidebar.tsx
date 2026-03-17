@@ -5,9 +5,10 @@ import {
   LayoutDashboard, Users, Briefcase, PenTool, CheckSquare, Landmark,
   Smartphone, MapPin, Settings, ShieldAlert, FileText,
   PieChart, BrainCircuit, Lightbulb, ShoppingCart, Truck, Wallet,
-  Banknote, Package, Building2, Globe, FileKey2, HardHat
+  Banknote, Package, Building2, Globe, FileKey2, HardHat, X
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 
 const menuCategories = [
   {
@@ -64,21 +65,50 @@ const menuCategories = [
   }
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  setIsOpen?: (isOpen: boolean) => void;
+}
+
+export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const [location] = useLocation();
   const { t, dir } = useLanguage();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border hidden md:flex flex-col">
-      {/* Logo Area */}
-      <div className="h-16 flex items-center px-6 border-b border-sidebar-border bg-sidebar-accent/30 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-xl">S</span>
+    <>
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsOpen?.(false)}
+        />
+      )}
+      
+      {/* Sidebar Content */}
+      <aside className={cn(
+        "fixed inset-y-0 z-50 w-72 bg-sidebar border-x border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0",
+        dir === 'rtl' ? "right-0" : "left-0",
+        isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full md:translate-x-0" : "-translate-x-full md:translate-x-0")
+      )}>
+        {/* Logo Area */}
+        <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border bg-sidebar-accent/30 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-white font-bold text-xl">S</span>
+            </div>
+            <span className="text-sidebar-foreground font-bold text-xl tracking-tight">SCAPE ERP</span>
           </div>
-          <span className="text-sidebar-foreground font-bold text-xl tracking-tight">SCAPE ERP</span>
+          
+          {/* Mobile Close Button */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden text-sidebar-foreground"
+            onClick={() => setIsOpen?.(false)}
+          >
+            <X className="h-5 w-5" />
+          </Button>
         </div>
-      </div>
 
       {/* Navigation Menu */}
       <ScrollArea className="flex-1 py-4">
@@ -132,5 +162,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }
