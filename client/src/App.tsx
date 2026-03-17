@@ -11,8 +11,8 @@ import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
 import CRMModule from "@/pages/modules/crm/index";
 import ProjectsModule from "@/pages/modules/projects/index";
 import SmartProposalModule from "@/pages/modules/smart-proposal/index";
-
 import SalesModule from "@/pages/modules/sales/index";
+import ClientPortalModule from "@/pages/modules/client-portal/index";
 
 function Router() {
   return (
@@ -29,6 +29,9 @@ function Router() {
       <Route path="/companies">
         {() => <ModulePlaceholder moduleId="multi_tenant" title="Company Management" description="Multi-tenant branch and subsidiary management." mockDataCols={['Branch Name', 'Location', 'Manager', 'Employees', 'Status']} />}
       </Route>
+
+      {/* System & Portals */}
+      <Route path="/client-portal" component={ClientPortalModule} />
 
       {/* Business & Finance */}
       <Route path="/crm" component={CRMModule} />
