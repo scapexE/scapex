@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { 
   Search, Filter, Mail, Phone, MapPin, ExternalLink,
-  MoreVertical, Building, Star
+  MoreVertical, Building, Star, MessageSquare
 } from "lucide-react";
 import {
   Table,
@@ -16,6 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppAction } from "./actions/WhatsAppAction";
+import { EmailAction } from "./actions/EmailAction";
 
 const CUSTOMERS = [
   { id: '1', name: 'Saudi Binladin Group', industry: 'Construction', contact: 'Ahmed Al-Rashid', email: 'ahmed@sbg.com.sa', phone: '+966 50 123 4567', status: 'active', rating: 5 },
@@ -114,9 +116,27 @@ export function CustomersList() {
                 </TableCell>
                 <TableCell className={dir === 'rtl' ? 'text-left' : 'text-right'}>
                   <div className={cn("flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity", dir === 'rtl' ? "justify-start" : "justify-end")}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                    
+                    <WhatsAppAction 
+                      customerName={customer.contact} 
+                      phoneNumber={customer.phone} 
+                      trigger={
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100">
+                          <MessageSquare className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
+                    
+                    <EmailAction 
+                      customerName={customer.contact} 
+                      email={customer.email} 
+                      trigger={
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100">
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
+
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
