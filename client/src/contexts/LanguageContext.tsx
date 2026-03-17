@@ -112,6 +112,28 @@ const translations: Record<string, Record<Language, string>> = {
   'crm.dash.chart.title': { en: 'Revenue vs Pipeline (6 Months)', ar: 'الإيرادات مقابل المسار (6 أشهر)' },
   'crm.dash.sources.title': { en: 'Lead Sources', ar: 'مصادر العملاء' },
   'crm.dash.top_performers': { en: 'Top Performers', ar: 'أفضل المؤدين' },
+
+  // Projects Module
+  'proj.desc': { en: 'Manage project lifecycles, timelines, and milestones.', ar: 'إدارة دورة حياة المشاريع والجداول الزمنية والمعالم.' },
+  'proj.tab.timeline': { en: 'Gantt Timeline', ar: 'المخطط الزمني (Gantt)' },
+  'proj.tab.list': { en: 'Projects List', ar: 'قائمة المشاريع' },
+  'proj.tab.kanban': { en: 'Tasks Board', ar: 'لوحة المهام' },
+  
+  'proj.timeline.title': { en: 'Project Timeline (Gantt)', ar: 'المخطط الزمني للمشروع (Gantt)' },
+  'proj.timeline.project_name': { en: 'Project / Phase', ar: 'المشروع / المرحلة' },
+  
+  'proj.status.completed': { en: 'Completed', ar: 'مكتمل' },
+  'proj.status.in_progress': { en: 'In Progress', ar: 'قيد التنفيذ' },
+  'proj.status.pending': { en: 'Pending', ar: 'قيد الانتظار' },
+  'proj.status.delayed': { en: 'Delayed', ar: 'متأخر' },
+  'proj.status.active': { en: 'Active', ar: 'نشط' },
+  
+  'proj.phase.planning': { en: 'Planning', ar: 'التخطيط' },
+  'proj.phase.design': { en: 'Design', ar: 'التصميم' },
+  'proj.phase.submission': { en: 'Submission', ar: 'التقديم' },
+  'proj.phase.approval': { en: 'Approval', ar: 'الموافقة' },
+  'proj.phase.construction': { en: 'Construction', ar: 'التنفيذ / البناء' },
+  'proj.phase.handover': { en: 'Handover', ar: 'التسليم' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);

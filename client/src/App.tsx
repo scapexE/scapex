@@ -9,6 +9,7 @@ import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
 import CRMModule from "@/pages/modules/crm/index";
+import ProjectsModule from "@/pages/modules/projects/index";
 
 function Router() {
   return (
@@ -39,9 +40,7 @@ function Router() {
       </Route>
 
       {/* Operations */}
-      <Route path="/projects">
-        {() => <ModulePlaceholder moduleId="projects" title="Project Management" description="Project planning, tasks, timesheets, and resource allocation." mockDataCols={['Project Name', 'Client', 'Manager', 'Start Date', 'Deadline', 'Progress', 'Status']} />}
-      </Route>
+      <Route path="/projects" component={ProjectsModule} />
       <Route path="/inventory">
         {() => <ModulePlaceholder moduleId="inventory" title="Inventory" description="Warehouse management, stock transfers, and valuation." mockDataCols={['Item Code', 'Product Name', 'Category', 'On Hand', 'Reserved', 'Location']} />}
       </Route>
