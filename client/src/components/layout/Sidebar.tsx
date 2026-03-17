@@ -123,7 +123,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               <span className="text-white font-bold text-xl">S</span>
             </div>
             <span className="text-sidebar-foreground font-bold text-xl tracking-tight">
-              SCAPE Cloud
+              Scapex
             </span>
           </div>
 
@@ -192,21 +192,22 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               <p className="text-xs text-sidebar-foreground/50 truncate">
                 System Admin | HQ
               </p>
-              <div style={{ color: "#fff", textAlign: "center" }}>
-                           </div>
+              <div style={{ color: "#fff", textAlign: "center" }}></div>
             </div>
           </div>
-          <div style={{
-        position: "absolute",
-          bottom: "10px",
-          width: "100%",
-          textAlign: "center",
-          fontSize: "12px",
-          opacity: 0.5,
-          color: "#fff",
-          direction: "ltr"
-          }}>
-           © 2026 SCAPE. All rights reserved.
+          <div
+            style={{
+              position: "absolute",
+              bottom: "10px",
+              width: "100%",
+              textAlign: "center",
+              fontSize: "12px",
+              opacity: 0.5,
+              color: "#fff",
+              direction: "ltr",
+            }}
+          >
+            © 2026 SCAPE. All rights reserved.
           </div>
         </div>
       </aside>
