@@ -94,6 +94,11 @@ const translations: Record<string, Record<Language, string>> = {
   // CRM Customers
   'crm.cust.search': { en: 'Search customers, contacts, or industries...', ar: 'البحث عن العملاء أو جهات الاتصال أو المجالات...' },
   'crm.cust.total': { en: 'Total Customers', ar: 'إجمالي العملاء' },
+  'crm.cust.selected': { en: 'selected', ar: 'محدد' },
+  'crm.cust.bulk_whatsapp': { en: 'Send Bulk WhatsApp', ar: 'إرسال واتساب جماعي' },
+  'crm.cust.bulk_email': { en: 'Send Bulk Email', ar: 'إرسال بريد جماعي' },
+  'crm.cust.export': { en: 'Export Data', ar: 'تصدير البيانات' },
+  'crm.cust.copy': { en: 'Copy Details', ar: 'نسخ البيانات' },
   'crm.cust.col.company': { en: 'Company', ar: 'الشركة' },
   'crm.cust.col.contact': { en: 'Primary Contact', ar: 'جهة الاتصال الرئيسية' },
   'crm.cust.col.industry': { en: 'Industry', ar: 'المجال' },
