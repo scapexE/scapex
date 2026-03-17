@@ -12,6 +12,7 @@ import CRMModule from "@/pages/modules/crm/index";
 import ProjectsModule from "@/pages/modules/projects/index";
 import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 import SalesModule from "@/pages/modules/sales/index";
+import AccountingModule from "@/pages/modules/accounting/index";
 import ClientPortalModule from "@/pages/modules/client-portal/index";
 
 function Router() {
@@ -39,9 +40,7 @@ function Router() {
       <Route path="/purchases">
         {() => <ModulePlaceholder moduleId="purchases" title="Purchases" description="Purchase orders, RFQs, and vendor management." mockDataCols={['PO Number', 'Vendor', 'Order Date', 'Total Amount', 'Status']} />}
       </Route>
-      <Route path="/accounting">
-        {() => <ModulePlaceholder moduleId="accounting" title="Accounting" description="General ledger, chart of accounts, and financial statements." mockDataCols={['Journal Entry', 'Account', 'Partner', 'Debit', 'Credit', 'Status']} />}
-      </Route>
+      <Route path="/accounting" component={AccountingModule} />
 
       {/* Operations */}
       <Route path="/projects" component={ProjectsModule} />

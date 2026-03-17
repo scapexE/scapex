@@ -152,6 +152,19 @@ const translations: Record<string, Record<Language, string>> = {
   'sales.contract.type': { en: 'Type', ar: 'كتابة التوقيع' },
   'sales.contract.clear': { en: 'Clear', ar: 'مسح' },
   'sales.contract.confirm': { en: 'Confirm & Sign', ar: 'تأكيد وتوقيع' },
+
+  // Accounting Module
+  'acc.desc': { en: 'Manage general ledger, chart of accounts, journal entries, and financial reports.', ar: 'إدارة دفتر الأستاذ العام، دليل الحسابات، قيود اليومية، والتقارير المالية.' },
+  'acc.tab.dashboard': { en: 'Overview', ar: 'نظرة عامة' },
+  'acc.tab.coa': { en: 'Chart of Accounts', ar: 'دليل الحسابات' },
+  'acc.tab.journal': { en: 'Journal Entries', ar: 'قيود اليومية' },
+  'acc.tab.reports': { en: 'Financial Reports', ar: 'التقارير المالية' },
+  'acc.tab.taxes': { en: 'Taxes & VAT', ar: 'الضرائب والقيمة المضافة' },
+  
+  'acc.dash.revenue': { en: 'Total Revenue', ar: 'إجمالي الإيرادات' },
+  'acc.dash.expenses': { en: 'Total Expenses', ar: 'إجمالي المصروفات' },
+  'acc.dash.profit': { en: 'Net Profit', ar: 'صافي الربح' },
+  'acc.dash.cash': { en: 'Cash Flow', ar: 'التدفق النقدي' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
