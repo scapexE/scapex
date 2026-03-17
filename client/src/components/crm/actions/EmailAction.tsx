@@ -18,12 +18,14 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface EmailActionProps {
-  customerName: string;
-  email: string;
+  customerName?: string;
+  email?: string;
+  selectedCount?: number;
+  isBulk?: boolean;
   trigger?: React.ReactNode;
 }
 
-export function EmailAction({ customerName, email, trigger }: EmailActionProps) {
+export function EmailAction({ customerName, email, selectedCount, isBulk, trigger }: EmailActionProps) {
   const { dir } = useLanguage();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -34,8 +36,8 @@ export function EmailAction({ customerName, email, trigger }: EmailActionProps) 
     toast({
       title: dir === 'rtl' ? "تم إرسال البريد الإلكتروني" : "Email Sent",
       description: dir === 'rtl' 
-        ? `تم إرسال البريد الإلكتروني إلى ${customerName}` 
-        : `Email sent to ${customerName}`,
+        ? (isBulk ? `تم إرسال البريد الإلكتروني إلى ${selectedCount} جهة اتصال` : `تم إرسال البريد الإلكتروني إلى ${customerName}`) 
+        : (isBulk ? `Email sent to ${selectedCount} contacts` : `Email sent to ${customerName}`),
     });
     setOpen(false);
     setSubject("");
@@ -58,18 +60,18 @@ export function EmailAction({ customerName, email, trigger }: EmailActionProps) 
             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
               <Mail className="w-4 h-4 text-blue-600" />
             </div>
-            {dir === 'rtl' ? "إرسال بريد إلكتروني" : "Send Email"}
+            {dir === 'rtl' ? (isBulk ? "إرسال بريد إلكتروني جماعي" : "إرسال بريد إلكتروني") : (isBulk ? "Send Bulk Email" : "Send Email")}
           </DialogTitle>
           <DialogDescription className={dir === 'rtl' ? "text-right" : "text-left"}>
             {dir === 'rtl' 
-              ? `إرسال بريد إلكتروني إلى ${customerName}` 
-              : `Send an email to ${customerName}`}
+              ? (isBulk ? `إرسال بريد إلكتروني إلى ${selectedCount} جهة اتصال محددة. استخدم {name} لتخصيص الرسالة بالاسم.` : `إرسال بريد إلكتروني إلى ${customerName}`) 
+              : (isBulk ? `Send an email to ${selectedCount} selected contacts. Use {name} to personalize the message.` : `Send an email to ${customerName}`)}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4" dir={dir}>
           <div className="space-y-2">
             <Label>{dir === 'rtl' ? "إلى:" : "To:"}</Label>
-            <Input value={email} disabled className="bg-secondary/50" />
+            <Input value={isBulk ? `${selectedCount} ${dir === 'rtl' ? "مستلمين" : "recipients"}` : email} disabled className="bg-secondary/50" />
           </div>
           <div className="space-y-2">
             <Label>{dir === 'rtl' ? "الموضوع:" : "Subject:"}</Label>
@@ -90,14 +92,18 @@ export function EmailAction({ customerName, email, trigger }: EmailActionProps) 
           </div>
           
           {/* Mock Template Selection */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => setMessage(prev => prev + " {name}")} className="text-xs h-7">
+              {dir === 'rtl' ? "+ إدراج الاسم" : "+ Insert Name"}
+            </Button>
+            <div className="w-px h-7 bg-border mx-1" />
             <Button variant="secondary" size="sm" onClick={() => {
               setSubject(dir === 'rtl' ? "عرض سعر: مشروع البنية التحتية" : "Proposal: Infrastructure Project");
-              setMessage(dir === 'rtl' ? "عزيزي العميل،\n\nتجدون مرفق طيه العرض الفني والمالي الخاص بالمشروع.\n\nمع التحية،\nفريق المبيعات" : "Dear Client,\n\nPlease find attached the technical and commercial proposal for the project.\n\nBest regards,\nSales Team");
-            }} className="text-xs">
+              setMessage(dir === 'rtl' ? "عزيزي/عزيزتي {name}،\n\nتجدون مرفق طيه العرض الفني والمالي الخاص بالمشروع.\n\nمع التحية،\nفريق المبيعات" : "Dear {name},\n\nPlease find attached the technical and commercial proposal for the project.\n\nBest regards,\nSales Team");
+            }} className="text-xs h-7">
               {dir === 'rtl' ? "نموذج عرض سعر" : "Proposal Template"}
             </Button>
-            <Button variant="secondary" size="sm" className="text-xs gap-1">
+            <Button variant="secondary" size="sm" className="text-xs h-7 gap-1">
               <Paperclip className="w-3 h-3" />
               {dir === 'rtl' ? "إرفاق ملف" : "Attach File"}
             </Button>

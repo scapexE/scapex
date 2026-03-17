@@ -138,14 +138,26 @@ export function CustomersList() {
             </Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950" onClick={handleBulkWhatsApp}>
-              <MessageSquare className="w-3 h-3" />
-              <span className="hidden sm:inline">{t('crm.cust.bulk_whatsapp')}</span>
-            </Button>
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950" onClick={handleBulkEmail}>
-              <Mail className="w-3 h-3" />
-              <span className="hidden sm:inline">{t('crm.cust.bulk_email')}</span>
-            </Button>
+            <WhatsAppAction 
+              selectedCount={selectedIds.length} 
+              isBulk={true}
+              trigger={
+                <Button size="sm" variant="outline" className="h-8 gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950">
+                  <MessageSquare className="w-3 h-3" />
+                  <span className="hidden sm:inline">{t('crm.cust.bulk_whatsapp')}</span>
+                </Button>
+              }
+            />
+            <EmailAction 
+              selectedCount={selectedIds.length} 
+              isBulk={true}
+              trigger={
+                <Button size="sm" variant="outline" className="h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950">
+                  <Mail className="w-3 h-3" />
+                  <span className="hidden sm:inline">{t('crm.cust.bulk_email')}</span>
+                </Button>
+              }
+            />
             <div className="w-px h-4 bg-border mx-1"></div>
             <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={handleCopyData}>
               <Copy className="w-3 h-3" />
