@@ -14,6 +14,7 @@ import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 import SalesModule from "@/pages/modules/sales/index";
 import AccountingModule from "@/pages/modules/accounting/index";
 import ClientPortalModule from "@/pages/modules/client-portal/index";
+import DMSModule from "@/pages/modules/dms/index";
 
 function Router() {
   return (
@@ -81,9 +82,7 @@ function Router() {
       </Route>
 
       {/* System & Portals */}
-      <Route path="/dms">
-        {() => <ModulePlaceholder moduleId="dms" title="Document Management" description="Centralized document storage, indexing, and access control." mockDataCols={['Document No.', 'Title', 'Category', 'Version', 'Uploaded Date', 'Size']} />}
-      </Route>
+      <Route path="/dms" component={DMSModule} />
       <Route path="/client-portal">
         {() => <ModulePlaceholder moduleId="client_portal" title="Client Portal" description="External access configuration for clients and stakeholders." mockDataCols={['Portal User', 'Client Company', 'Assigned Projects', 'Last Login', 'Access Level', 'Status']} />}
       </Route>
