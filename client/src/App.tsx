@@ -12,6 +12,8 @@ import CRMModule from "@/pages/modules/crm/index";
 import ProjectsModule from "@/pages/modules/projects/index";
 import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 
+import SalesModule from "@/pages/modules/sales/index";
+
 function Router() {
   return (
     <Switch>
@@ -30,9 +32,7 @@ function Router() {
 
       {/* Business & Finance */}
       <Route path="/crm" component={CRMModule} />
-      <Route path="/sales">
-        {() => <ModulePlaceholder moduleId="sales" title="Sales" description="Quotations, sales orders, and invoicing." mockDataCols={['Order ID', 'Customer', 'Date', 'Total', 'Status']} />}
-      </Route>
+      <Route path="/sales" component={SalesModule} />
       <Route path="/purchases">
         {() => <ModulePlaceholder moduleId="purchases" title="Purchases" description="Purchase orders, RFQs, and vendor management." mockDataCols={['PO Number', 'Vendor', 'Order Date', 'Total Amount', 'Status']} />}
       </Route>

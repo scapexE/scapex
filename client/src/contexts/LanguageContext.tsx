@@ -134,6 +134,19 @@ const translations: Record<string, Record<Language, string>> = {
   'proj.phase.approval': { en: 'Approval', ar: 'الموافقة' },
   'proj.phase.construction': { en: 'Construction', ar: 'التنفيذ / البناء' },
   'proj.phase.handover': { en: 'Handover', ar: 'التسليم' },
+
+  // Sales Module
+  'sales.desc': { en: 'Manage sales orders, quotations, and client contracts.', ar: 'إدارة عروض الأسعار، طلبات المبيعات، وعقود العملاء.' },
+  'sales.tab.quotations': { en: 'Quotations', ar: 'عروض الأسعار' },
+  'sales.tab.orders': { en: 'Sales Orders', ar: 'طلبات المبيعات' },
+  'sales.tab.contracts': { en: 'Contracts', ar: 'العقود' },
+  'sales.contract.signed': { en: 'Signed', ar: 'مُوقّع' },
+  'sales.contract.pending': { en: 'Pending Signature', ar: 'بانتظار التوقيع' },
+  'sales.contract.sign': { en: 'Sign Contract', ar: 'توقيع العقد' },
+  'sales.contract.draw': { en: 'Draw', ar: 'رسم التوقيع' },
+  'sales.contract.type': { en: 'Type', ar: 'كتابة التوقيع' },
+  'sales.contract.clear': { en: 'Clear', ar: 'مسح' },
+  'sales.contract.confirm': { en: 'Confirm & Sign', ar: 'تأكيد وتوقيع' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
