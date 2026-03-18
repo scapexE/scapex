@@ -30,7 +30,9 @@ import GovernmentModule from "@/pages/modules/government/index";
 import BIModule from "@/pages/modules/bi/index";
 import AIControlModule from "@/pages/modules/ai-control/index";
 import ServiceCatalogModule from "@/pages/modules/service-catalog/index";
-import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
+import CompaniesModule from "@/pages/modules/companies/index";
+import ApprovalsModule from "@/pages/modules/approvals/index";
+import MobileAppModule from "@/pages/modules/mobile-app/index";
 
 function Router() {
   return (
@@ -44,16 +46,7 @@ function Router() {
       {/* Core & Analytics */}
       <Route path="/ai-control" component={AIControlModule} />
       <Route path="/bi" component={BIModule} />
-      <Route path="/companies">
-        {() => (
-          <ModulePlaceholder
-            moduleId="multi_tenant"
-            title="Company Management"
-            description="Multi-tenant branch and subsidiary management."
-            mockDataCols={["Branch Name","Location","Manager","Employees","Status"]}
-          />
-        )}
-      </Route>
+      <Route path="/companies" component={CompaniesModule} />
 
       {/* Business & Finance */}
       <Route path="/crm" component={CRMModule} />
@@ -68,16 +61,7 @@ function Router() {
 
       {/* Engineering */}
       <Route path="/engineering" component={EngineeringModule} />
-      <Route path="/approvals">
-        {() => (
-          <ModulePlaceholder
-            moduleId="approvals"
-            title="Approvals"
-            description="Centralized hub for all multi-level workflow approvals."
-            mockDataCols={["Request ID","Type","Requester","Date Submitted","Current Stage","Action"]}
-          />
-        )}
-      </Route>
+      <Route path="/approvals" component={ApprovalsModule} />
       <Route path="/government" component={GovernmentModule} />
       <Route path="/smart-proposal" component={SmartProposalModule} />
       <Route path="/service-catalog" component={ServiceCatalogModule} />
@@ -87,16 +71,7 @@ function Router() {
       <Route path="/payroll" component={PayrollModule} />
       <Route path="/attendance" component={AttendanceModule} />
       <Route path="/hse" component={HSEModule} />
-      <Route path="/mobile-app">
-        {() => (
-          <ModulePlaceholder
-            moduleId="mobile_app"
-            title="Engineers Mobile App"
-            description="Configuration and access control for the site engineer mobile app."
-            mockDataCols={["Device ID","User","App Version","Last Sync","Location","Status"]}
-          />
-        )}
-      </Route>
+      <Route path="/mobile-app" component={MobileAppModule} />
 
       {/* System & Portals */}
       <Route path="/dms" component={DMSModule} />
