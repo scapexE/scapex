@@ -31,7 +31,8 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { type SystemUser, ROLE_LABELS } from "@/lib/permissions";
+import { type SystemUser, ROLE_LABELS, ROLE_DEFAULTS } from "@/lib/permissions";
+import { useActiveRole } from "@/contexts/ActiveRoleContext";
 
 const menuCategories = [
   {
@@ -99,13 +100,22 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const { t, dir } = useLanguage();
 
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const { activeRole, isMultiRole } = useActiveRole();
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    sessionStorage.removeItem("activeRole");
     window.location.href = "/";
   };
 
+  // When the user has multiple roles and has selected an active role,
+  // show only items accessible by BOTH the active role defaults AND the user's custom permissions.
+  // When single role, use all user permissions as before.
   const userPerms = currentUser?.permissions || [];
+  const effectivePerms = isMultiRole && activeRole
+    ? userPerms.filter((p) => ROLE_DEFAULTS[activeRole as keyof typeof ROLE_DEFAULTS]?.includes(p))
+    : userPerms;
+
   const visibleCategories = menuCategories.map((cat) => ({
     ...cat,
     items: cat.items.filter((item) => {
@@ -113,9 +123,9 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       if (currentUser.role === "admin") return true;
       // Users with approve_registrations can also access the users page
       if (item.id === "users") {
-        return userPerms.includes("users") || userPerms.includes("approve_registrations");
+        return effectivePerms.includes("users") || userPerms.includes("approve_registrations");
       }
-      return userPerms.includes(item.id);
+      return effectivePerms.includes(item.id);
     }),
   })).filter((cat) => cat.items.length > 0);
 
@@ -215,7 +225,8 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 {currentUser?.name ?? "Guest"}
               </p>
               <p className="text-xs text-sidebar-foreground/50 truncate">
-                {currentUser ? ROLE_LABELS[currentUser.role]?.ar : ""}
+                {activeRole ? ROLE_LABELS[activeRole]?.ar : currentUser ? ROLE_LABELS[currentUser.role]?.ar : ""}
+                {isMultiRole && <span className="opacity-60"> · متعدد الأدوار</span>}
               </p>
             </div>
             <Button
