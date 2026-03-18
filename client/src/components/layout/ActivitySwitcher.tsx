@@ -4,13 +4,16 @@ import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { ChevronDown, Check, Layers } from "lucide-react";
+import type { SystemUser } from "@/lib/permissions";
 
 export function ActivitySwitcher() {
-  const { activities, activeActivity, setActiveActivity } = useBusinessActivity();
+  const { userActivities, activeActivity, setActiveActivity } = useBusinessActivity();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const active = activities.filter((a) => a.active);
+  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const isAdmin = currentUser?.role === "admin";
+
   const colors = activeActivity
     ? ACTIVITY_COLOR_MAP[activeActivity.color as ActivityColor]
     : null;
@@ -23,6 +26,31 @@ export function ActivitySwitcher() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // If user has only one activity and is not admin, auto-select and hide switcher
+  if (!isAdmin && userActivities.length <= 1) {
+    if (userActivities.length === 1 && activeActivity?.id !== userActivities[0].id) {
+      setActiveActivity(userActivities[0]);
+    }
+    if (userActivities.length === 0) return null;
+    const act = userActivities[0];
+    const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor];
+    return (
+      <div className="px-3 mb-1.5">
+        <div className={cn(
+          "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg border",
+          c.border, c.bg
+        )}>
+          <div className={cn("w-5 h-5 rounded-md flex items-center justify-center shrink-0", c.badge)}>
+            <ActivityIcon name={act.icon} className={cn("w-3 h-3", c.text)} />
+          </div>
+          <p className={cn("flex-1 text-right text-[11px] font-semibold truncate leading-none", c.text)}>
+            {act.nameAr}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={ref} className="px-3 mb-1.5">
@@ -65,30 +93,32 @@ export function ActivitySwitcher() {
       {/* ── Dropdown ───────────────────────────────────────── */}
       {open && (
         <div className="mt-1 rounded-xl border border-sidebar-border/70 overflow-hidden shadow-xl bg-sidebar/95 backdrop-blur-sm">
-          {/* "All" option */}
-          <button
-            onClick={() => { setActiveActivity(null); setOpen(false); }}
-            className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2 text-right transition-colors",
-              !activeActivity
-                ? "bg-sidebar-accent text-sidebar-foreground"
-                : "hover:bg-sidebar-accent/60 text-sidebar-foreground/70"
-            )}
-          >
-            <div className="w-6 h-6 rounded-md bg-sidebar-accent/80 flex items-center justify-center shrink-0">
-              <Layers className="w-3.5 h-3.5 text-sidebar-foreground/60" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate">جميع الأنشطة</p>
-              <p className="text-[10px] text-sidebar-foreground/40 truncate">بدون تصفية</p>
-            </div>
-            {!activeActivity && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-          </button>
+          {/* "All" option — only for admins */}
+          {isAdmin && (
+            <button
+              onClick={() => { setActiveActivity(null); setOpen(false); }}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-3 py-2 text-right transition-colors",
+                !activeActivity
+                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  : "hover:bg-sidebar-accent/60 text-sidebar-foreground/70"
+              )}
+            >
+              <div className="w-6 h-6 rounded-md bg-sidebar-accent/80 flex items-center justify-center shrink-0">
+                <Layers className="w-3.5 h-3.5 text-sidebar-foreground/60" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">جميع الأنشطة</p>
+                <p className="text-[10px] text-sidebar-foreground/40 truncate">بدون تصفية</p>
+              </div>
+              {!activeActivity && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+            </button>
+          )}
 
-          {active.length > 0 && <div className="h-px bg-sidebar-border/50 mx-2.5" />}
+          {isAdmin && userActivities.length > 0 && <div className="h-px bg-sidebar-border/50 mx-2.5" />}
 
           {/* Activity list */}
-          {active.map((activity) => {
+          {userActivities.map((activity) => {
             const c = ACTIVITY_COLOR_MAP[activity.color as ActivityColor];
             const isSelected = activeActivity?.id === activity.id;
             return (
@@ -111,9 +141,11 @@ export function ActivitySwitcher() {
                   )}>
                     {activity.nameAr}
                   </p>
-                  <p className="text-[10px] text-sidebar-foreground/40 truncate">
-                    {activity.modules.length} وحدة
-                  </p>
+                  {(activity.companyNameAr || activity.companyNameEn) && (
+                    <p className="text-[10px] text-sidebar-foreground/40 truncate">
+                      {activity.companyNameAr || activity.companyNameEn}
+                    </p>
+                  )}
                 </div>
                 {isSelected && <Check className={cn("w-3.5 h-3.5 shrink-0", c.text)} />}
               </button>

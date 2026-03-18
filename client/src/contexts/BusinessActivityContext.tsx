@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
 import {
   type BusinessActivity,
   getActivities, saveActivities,
@@ -11,6 +11,8 @@ import { type SystemUser } from "@/lib/permissions";
 interface BusinessActivityContextValue {
   activities: BusinessActivity[];
   setActivities: (list: BusinessActivity[]) => void;
+  /** Activities visible to the current user (filtered by assignment for non-admins) */
+  userActivities: BusinessActivity[];
   activeActivity: BusinessActivity | null;
   setActiveActivity: (a: BusinessActivity | null) => void;
   assignments: ActivityUserAssignment[];
@@ -28,18 +30,41 @@ export function BusinessActivityProvider({
   children: ReactNode;
   currentUser: SystemUser | null;
 }) {
+  const isAdmin = currentUser?.role === "admin";
+  const userId = currentUser?.id ?? null;
+
   const [activities, setActivitiesState] = useState<BusinessActivity[]>(() => getActivities());
   const [assignments, setAssignmentsState] = useState<ActivityUserAssignment[]>(() => getActivityAssignments());
+
+  /** Compute activities visible to this user */
+  const userActivities = useMemo<BusinessActivity[]>(() => {
+    if (isAdmin) return activities.filter((a) => a.active);
+    if (!userId) return [];
+    return activities.filter((a) => {
+      if (!a.active) return false;
+      const asgn = assignments.find((x) => x.activityId === a.id);
+      return asgn?.userIds.includes(userId) ?? false;
+    });
+  }, [activities, assignments, isAdmin, userId]);
 
   const [activeActivity, setActiveActivityState] = useState<BusinessActivity | null>(() => {
     const storedId = getActiveActivityId();
     const list = getActivities();
+    const initAssignments = getActivityAssignments();
+
+    const isUserVisible = (a: BusinessActivity) => {
+      if (!a.active) return false;
+      if (isAdmin) return true;
+      if (!userId) return false;
+      const asgn = initAssignments.find((x) => x.activityId === a.id);
+      return asgn?.userIds.includes(userId) ?? false;
+    };
+
     if (storedId) {
-      const found = list.find((a) => a.id === storedId && a.active);
+      const found = list.find((a) => a.id === storedId && isUserVisible(a));
       if (found) return found;
     }
-    // Default: first active activity the user is assigned to, or first overall for admin
-    return list.find((a) => a.active) ?? null;
+    return list.find(isUserVisible) ?? null;
   });
 
   const setActivities = (list: BusinessActivity[]) => {
@@ -57,10 +82,10 @@ export function BusinessActivityProvider({
     setActiveActivityId(a?.id ?? null);
   };
 
-  const getUserActivityIds = (userId: string): string[] => {
+  const getUserActivityIds = (uid: string): string[] => {
     const result: string[] = [];
     for (const a of assignments) {
-      if (a.userIds.includes(userId)) result.push(a.activityId);
+      if (a.userIds.includes(uid)) result.push(a.activityId);
     }
     return result;
   };
@@ -74,6 +99,7 @@ export function BusinessActivityProvider({
       value={{
         activities,
         setActivities,
+        userActivities,
         activeActivity,
         setActiveActivity,
         assignments,
