@@ -29,12 +29,12 @@ export function CompanyServicesManager() {
   const [company, setCompany] = useState<Company>(getActiveCompany());
   const [expandedActivities, setExpandedActivities] = useState<Set<string>>(new Set());
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
-  const [editMode, setEditMode] = useState<
-    | null
-    | { type: "activity"; id: string; data: CompanyActivity }
-    | { type: "service"; activityId: string; id: string; data: CompanyService }
-    | { type: "specialization"; activityId: string; serviceId: string; id: string; data: ServiceSpecialization }
-  >(null);
+  const [editingItem, setEditingItem] = useState<{
+    type: "activity" | "service" | "specialization";
+    activityId?: string;
+    serviceId?: string;
+    id: string;
+  } | null>(null);
 
   const toggleActivity = (id: string) => {
     setExpandedActivities((prev) => {
@@ -133,6 +133,46 @@ export function CompanyServicesManager() {
     setCompany({ ...company, activities });
   };
 
+  const updateActivityName = (id: string, field: "nameAr" | "nameEn", value: string) => {
+    const activities = company.activities.map((a) =>
+      a.id === id ? { ...a, [field]: value } : a
+    );
+    setCompany({ ...company, activities });
+  };
+
+  const updateServiceName = (activityId: string, serviceId: string, field: "nameAr" | "nameEn", value: string) => {
+    const activities = company.activities.map((a) =>
+      a.id === activityId
+        ? {
+            ...a,
+            services: a.services.map((s) => (s.id === serviceId ? { ...s, [field]: value } : s)),
+          }
+        : a
+    );
+    setCompany({ ...company, activities });
+  };
+
+  const updateSpecializationName = (activityId: string, serviceId: string, specId: string, field: "nameAr" | "nameEn", value: string) => {
+    const activities = company.activities.map((a) =>
+      a.id === activityId
+        ? {
+            ...a,
+            services: a.services.map((s) =>
+              s.id === serviceId
+                ? {
+                    ...s,
+                    specializations: s.specializations.map((sp) =>
+                      sp.id === specId ? { ...sp, [field]: value } : sp
+                    ),
+                  }
+                : s
+            ),
+          }
+        : a
+    );
+    setCompany({ ...company, activities });
+  };
+
   return (
     <div className="space-y-5">
       {/* Company header */}
@@ -192,13 +232,14 @@ export function CompanyServicesManager() {
           {company.activities.map((activity) => {
             const Icon = ICONS[activity.iconName] ?? Briefcase;
             const isExpanded = expandedActivities.has(activity.id);
+            const isEditing = editingItem?.type === "activity" && editingItem.id === activity.id;
             return (
               <Card key={activity.id} className="border-border/50">
                 <CardHeader className="py-3 px-4 bg-secondary/20 border-b border-border/40">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <button
                       onClick={() => toggleActivity(activity.id)}
-                      className="flex items-center gap-2 flex-1 text-start"
+                      className="flex items-center gap-2 shrink-0"
                     >
                       {isExpanded ? (
                         <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -213,14 +254,44 @@ export function CompanyServicesManager() {
                       >
                         <Icon className="w-4 h-4" />
                       </div>
-                      <div>
-                        <p className="font-semibold text-sm">{isRtl ? activity.nameAr : activity.nameEn}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.services.length} {isRtl ? "خدمة" : "service(s)"}
-                        </p>
-                      </div>
                     </button>
-                    <div className="flex gap-1">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      {isEditing ? (
+                        <>
+                          <Input
+                            value={activity.nameAr}
+                            onChange={(e) => updateActivityName(activity.id, "nameAr", e.target.value)}
+                            className="h-7 text-sm"
+                            placeholder={isRtl ? "الاسم بالعربي" : "Name (Arabic)"}
+                            autoFocus
+                          />
+                          <Input
+                            value={activity.nameEn}
+                            onChange={(e) => updateActivityName(activity.id, "nameEn", e.target.value)}
+                            className="h-7 text-sm"
+                            placeholder={isRtl ? "الاسم بالإنجليزي" : "Name (English)"}
+                          />
+                        </>
+                      ) : (
+                        <div onClick={() => setEditingItem({ type: "activity", id: activity.id })} className="cursor-pointer hover:bg-secondary/30 rounded px-2 py-1">
+                          <p className="font-semibold text-sm">{isRtl ? activity.nameAr : activity.nameEn}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.services.length} {isRtl ? "خدمة" : "service(s)"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {isEditing && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-emerald-600"
+                          onClick={() => setEditingItem(null)}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -246,12 +317,13 @@ export function CompanyServicesManager() {
                     {/* Services */}
                     {activity.services.map((service) => {
                       const isServiceExpanded = expandedServices.has(service.id);
+                      const isServiceEditing = editingItem?.type === "service" && editingItem.id === service.id;
                       return (
                         <div key={service.id} className="ms-6 border-s-2 border-border/40 ps-4 space-y-2">
-                          <div className="flex items-center justify-between bg-secondary/30 rounded-lg p-2">
+                          <div className="flex items-center justify-between gap-2 bg-secondary/30 rounded-lg p-2">
                             <button
                               onClick={() => toggleService(service.id)}
-                              className="flex items-center gap-2 flex-1 text-start"
+                              className="flex items-center gap-2 shrink-0"
                             >
                               {isServiceExpanded ? (
                                 <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
@@ -259,12 +331,44 @@ export function CompanyServicesManager() {
                                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                               )}
                               <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
-                              <p className="text-sm font-medium">{isRtl ? service.nameAr : service.nameEn}</p>
-                              <Badge variant="outline" className="text-[10px]">
-                                {service.specializations.length} {isRtl ? "تخصص" : "spec(s)"}
-                              </Badge>
                             </button>
-                            <div className="flex gap-1">
+                            <div className="flex-1 min-w-0">
+                              {isServiceEditing ? (
+                                <div className="space-y-1">
+                                  <Input
+                                    value={service.nameAr}
+                                    onChange={(e) => updateServiceName(activity.id, service.id, "nameAr", e.target.value)}
+                                    className="h-6 text-xs"
+                                    placeholder={isRtl ? "الاسم بالعربي" : "Name (Arabic)"}
+                                    autoFocus
+                                  />
+                                  <Input
+                                    value={service.nameEn}
+                                    onChange={(e) => updateServiceName(activity.id, service.id, "nameEn", e.target.value)}
+                                    className="h-6 text-xs"
+                                    placeholder={isRtl ? "الاسم بالإنجليزي" : "Name (English)"}
+                                  />
+                                </div>
+                              ) : (
+                                <div onClick={() => setEditingItem({ type: "service", activityId: activity.id, id: service.id })} className="cursor-pointer hover:bg-secondary/50 rounded px-2 py-0.5 flex items-center gap-2">
+                                  <p className="text-sm font-medium">{isRtl ? service.nameAr : service.nameEn}</p>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {service.specializations.length} {isRtl ? "تخصص" : "spec(s)"}
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              {isServiceEditing && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-emerald-600"
+                                  onClick={() => setEditingItem(null)}
+                                >
+                                  <Check className="w-3 h-3" />
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -287,25 +391,60 @@ export function CompanyServicesManager() {
                           {/* Specializations */}
                           {isServiceExpanded && service.specializations.length > 0 && (
                             <div className="ms-4 space-y-1">
-                              {service.specializations.map((spec) => (
-                                <div
-                                  key={spec.id}
-                                  className="flex items-center justify-between text-xs bg-secondary/20 rounded px-2 py-1.5"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Tags className="w-3 h-3 text-muted-foreground" />
-                                    <span>{isRtl ? spec.nameAr : spec.nameEn}</span>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-5 w-5 p-0 text-red-600"
-                                    onClick={() => deleteSpecialization(activity.id, service.id, spec.id)}
+                              {service.specializations.map((spec) => {
+                                const isSpecEditing = editingItem?.type === "specialization" && editingItem.id === spec.id;
+                                return (
+                                  <div
+                                    key={spec.id}
+                                    className="flex items-center justify-between gap-2 text-xs bg-secondary/20 rounded px-2 py-1.5"
                                   >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              ))}
+                                    <Tags className="w-3 h-3 text-muted-foreground shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      {isSpecEditing ? (
+                                        <div className="space-y-1">
+                                          <Input
+                                            value={spec.nameAr}
+                                            onChange={(e) => updateSpecializationName(activity.id, service.id, spec.id, "nameAr", e.target.value)}
+                                            className="h-5 text-[10px]"
+                                            placeholder={isRtl ? "الاسم بالعربي" : "Name (Arabic)"}
+                                            autoFocus
+                                          />
+                                          <Input
+                                            value={spec.nameEn}
+                                            onChange={(e) => updateSpecializationName(activity.id, service.id, spec.id, "nameEn", e.target.value)}
+                                            className="h-5 text-[10px]"
+                                            placeholder={isRtl ? "الاسم بالإنجليزي" : "Name (English)"}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <span onClick={() => setEditingItem({ type: "specialization", activityId: activity.id, serviceId: service.id, id: spec.id })} className="cursor-pointer hover:bg-secondary/50 rounded px-1 py-0.5 block">
+                                          {isRtl ? spec.nameAr : spec.nameEn}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1 shrink-0">
+                                      {isSpecEditing && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-5 w-5 p-0 text-emerald-600"
+                                          onClick={() => setEditingItem(null)}
+                                        >
+                                          <Check className="w-2.5 h-2.5" />
+                                        </Button>
+                                      )}
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-5 w-5 p-0 text-red-600"
+                                        onClick={() => deleteSpecialization(activity.id, service.id, spec.id)}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
