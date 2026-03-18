@@ -514,16 +514,16 @@ ${FONT_IMPORT}${BASE_CSS}
 .co-name-en { font-size:13px; font-weight:500; color:#4a5568; line-height:1.25; margin-top:2px; }
 .co-vat { font-size:9px; color:#94a3b8; margin-top:4px; }
 .divider { border:none; border-top:2px solid #1e40af; margin:10px 0; }
-.doc-num-block { direction:ltr; text-align:left; margin-bottom:10px; }
+.doc-num-block { direction:ltr; text-align:left; margin-bottom:6px; }
 .doc-num { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; }
-.doc-date { font-size:11px; color:#64748b; margin-top:2px; }
-.doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; padding-bottom:5px; border-bottom:2px solid #1e40af; margin-bottom:12px; }
-.intro-box { background:#f0f7ff; ${isRtl ? "border-right:4px solid #1e40af; border-radius:0 6px 6px 0;" : "border-left:4px solid #1e40af; border-radius:6px 0 0 6px;"} padding:9px 14px; font-size:12px; line-height:1.8; color:#1e3a5f; margin-bottom:12px; }
-.sec-title { font-size:11px; font-weight:700; color:#1e40af; margin-bottom:5px; padding-bottom:3px; border-bottom:1px solid #bfdbfe; letter-spacing:0.4px; }
-.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.doc-date { font-size:11px; color:#64748b; margin-top:1px; }
+.doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; margin-bottom:8px; }
+.intro-box { background:#f0f7ff; ${isRtl ? "border-right:4px solid #1e40af; border-radius:0 6px 6px 0;" : "border-left:4px solid #1e40af; border-radius:6px 0 0 6px;"} padding:8px 14px; font-size:12px; line-height:1.7; color:#1e3a5f; margin-bottom:8px; }
+.sec-title { font-size:11px; font-weight:700; color:#1e40af; margin-bottom:4px; padding-bottom:2px; border-bottom:1px solid #bfdbfe; letter-spacing:0.4px; }
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; }
 .info-item label { font-size:9px; color:#64748b; display:block; }
 .info-item span { font-size:12px; font-weight:500; }
-.scope-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:5px; padding:10px; font-size:12px; line-height:1.7; margin-bottom:12px; }
+.scope-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:5px; padding:8px; font-size:12px; line-height:1.7; margin-bottom:8px; }
 table { width:100%; border-collapse:collapse; margin-bottom:12px; }
 thead th { background:#1e40af; color:white; padding:8px 5px; font-size:11px; font-weight:600; border:1px solid #1e40af; }
 tbody tr:nth-child(even) { background:#f8fafc; }
@@ -562,9 +562,8 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 <div class="doc-num-block" dir="ltr">
   <div class="doc-num">${proposal.proposalNumber}</div>
   <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
-  <div class="doc-date">${isRtl ? "صالح حتى:" : "Valid Until:"} ${validUntil}</div>
 </div>
-<div class="doc-title" dir="${dir}">${isRtl ? `عرض سعر — ${svc.labelAr}` : `QUOTATION — ${svc.labelEn}`}</div>
+<div class="doc-title" dir="${dir}">${isRtl ? `عرض سعر · ${svc.labelAr}` : `QUOTATION · ${svc.labelEn}`}</div>
 <div class="sec-title">${isRtl ? "معلومات العميل والمشروع" : "CLIENT & PROJECT INFORMATION"}</div>
 
 <div class="info-grid">

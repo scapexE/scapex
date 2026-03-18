@@ -14,7 +14,7 @@ import {
   Save, Send, FilePlus2, Trash2, Plus, X, Clock, User, Phone,
   Mail, Percent, FileSignature, Printer, TrendingUp, BarChart2,
   ChevronDown, ChevronUp, Eye, ClipboardList, CreditCard, Lightbulb,
-  AlertCircle, CheckCheck, FileCheck,
+  AlertCircle, CheckCheck, FileCheck, Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,7 @@ import {
   getPriceSuggestions,
   printProposal, printContract,
 } from "@/lib/proposals";
+import { getActiveCompany } from "@/lib/company-services";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw,
@@ -504,7 +505,18 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
   const [proposal, setProposal] = useState<Proposal>(init);
   const [showPriceSugg, setShowPriceSugg] = useState(false);
   const [showScope, setShowScope] = useState(true);
+  const [showServicePicker, setShowServicePicker] = useState(false);
   const svc = SERVICE_META[proposal.serviceType];
+
+  // Map serviceType index to company activity services
+  const activityServices = (() => {
+    try {
+      const acts = getActiveCompany().activities;
+      const idx = SERVICE_TYPES.findIndex((s) => s.id === proposal.serviceType);
+      if (idx >= 0 && idx < acts.length) return acts[idx].services;
+    } catch {}
+    return [];
+  })();
   const st = STATUS_META[proposal.status];
 
   const upd = (field: keyof Proposal, val: unknown) => {
@@ -609,8 +621,12 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
               <FileSignature className="w-3.5 h-3.5" />{isRtl ? "عرض العقد" : "View Contract"}
             </Button>
           )}
-          {/* Print */}
-          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => printProposal(proposal, isRtl)}>
+          {/* Print — saves first to ensure latest data */}
+          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => {
+            const saved = { ...proposal, updatedAt: new Date().toISOString() };
+            onSave(saved);
+            printProposal(saved, isRtl);
+          }}>
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة PDF" : "Print PDF"}
           </Button>
           {/* Price suggestions toggle */}
@@ -780,7 +796,62 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
             <CardHeader className="py-3 px-4 border-b border-border/40 bg-secondary/20">
               <CardTitle className="text-sm flex items-center justify-between">
                 <span className="flex items-center gap-2"><Calculator className="w-4 h-4 text-muted-foreground" />{isRtl ? "جدول بنود الأعمال والأسعار" : "Work Items & Pricing"}</span>
-                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={addItem}><Plus className="w-3 h-3" />{isRtl ? "إضافة بند" : "Add Item"}</Button>
+                <div className="flex items-center gap-1.5 relative">
+                  {/* Add Services button */}
+                  {activityServices.length > 0 && (
+                    <div className="relative">
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                        onClick={() => setShowServicePicker(!showServicePicker)}>
+                        <Briefcase className="w-3 h-3" />{isRtl ? "إضافة خدمات" : "Add Services"}
+                        <ChevronDown className="w-3 h-3" />
+                      </Button>
+                      {showServicePicker && (
+                        <div className="absolute top-full mt-1 z-50 bg-background border border-border/50 rounded-xl shadow-xl w-72 p-2 space-y-1" style={{ [isRtl ? "right" : "left"]: 0 }}>
+                          <p className="text-[10px] text-muted-foreground px-2 py-1 font-semibold uppercase tracking-wide">
+                            {isRtl ? `خدمات ${svc.labelAr}` : `${svc.labelEn} Services`}
+                          </p>
+                          {activityServices.map((service) => (
+                            <div key={service.id}>
+                              <button
+                                className="w-full text-start px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-secondary/60 rounded-lg transition-colors"
+                                onClick={() => {
+                                  upd("items", [...proposal.items, {
+                                    id: generateId(),
+                                    descAr: service.nameAr,
+                                    descEn: service.nameEn,
+                                    qty: 1, unit: isRtl ? "مقطوع / Lump Sum" : "Lump Sum",
+                                    unitPrice: 0, total: 0,
+                                  }]);
+                                  setShowServicePicker(false);
+                                }}
+                              >
+                                + {isRtl ? service.nameAr : service.nameEn}
+                              </button>
+                              {service.specializations.map((spec) => (
+                                <button key={spec.id}
+                                  className="w-full text-start px-4 py-1 text-xs text-muted-foreground hover:bg-secondary/40 rounded-lg transition-colors"
+                                  onClick={() => {
+                                    upd("items", [...proposal.items, {
+                                      id: generateId(),
+                                      descAr: spec.nameAr,
+                                      descEn: spec.nameEn,
+                                      qty: 1, unit: isRtl ? "مقطوع / Lump Sum" : "Lump Sum",
+                                      unitPrice: 0, total: 0,
+                                    }]);
+                                    setShowServicePicker(false);
+                                  }}
+                                >
+                                  ↳ {isRtl ? spec.nameAr : spec.nameEn}
+                                </button>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={addItem}><Plus className="w-3 h-3" />{isRtl ? "إضافة بند" : "Add Item"}</Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
