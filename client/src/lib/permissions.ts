@@ -74,8 +74,8 @@ export const ROLE_DEFAULTS: Record<Role, string[]> = {
     "projects", "inventory", "equipment", "engineering",
     "approvals", "government", "smart_proposal", "bi",
   ],
-  accountant: ["dashboard", "accounting", "purchases", "sales"],
-  engineer:   ["dashboard", "projects", "engineering", "approvals", "equipment", "attendance", "hse"],
+  accountant: ["dashboard", "accounting", "purchases", "sales", "smart_proposal"],
+  engineer:   ["dashboard", "projects", "engineering", "approvals", "equipment", "attendance", "hse", "smart_proposal", "crm"],
   hr_manager: ["dashboard", "hr", "payroll", "attendance", "mobile_app"],
   client:     ["dashboard", "client_portal"],
   viewer:     ["dashboard"],
@@ -102,9 +102,12 @@ export function canApproveRegistrations(user: SystemUser | null): boolean {
   return user.role === "admin" || (user.permissions || []).includes("approve_registrations");
 }
 
+const PERMISSIONS_VERSION = "v3";
+
 export function getUsers(): SystemUser[] {
   const saved = localStorage.getItem("users");
-  if (!saved) return initDefaultUsers();
+  const storedVersion = localStorage.getItem("users_version");
+  if (!saved || storedVersion !== PERMISSIONS_VERSION) return initDefaultUsers();
   try {
     const users = JSON.parse(saved);
     if (!Array.isArray(users) || users.length === 0) return initDefaultUsers();
@@ -135,6 +138,15 @@ function initDefaultUsers(): SystemUser[] {
     },
   ];
   localStorage.setItem("users", JSON.stringify(defaults));
+  localStorage.setItem("users_version", PERMISSIONS_VERSION);
+  const storedUser = localStorage.getItem("user");
+  if (storedUser) {
+    try {
+      const u = JSON.parse(storedUser) as SystemUser;
+      const refreshed = defaults.find((d) => d.id === u.id);
+      if (refreshed) localStorage.setItem("user", JSON.stringify(refreshed));
+    } catch {}
+  }
   return defaults;
 }
 

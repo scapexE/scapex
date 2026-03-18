@@ -25,9 +25,11 @@ export interface ActivityUserAssignment {
   userIds: string[];
 }
 
-const ACTIVITIES_KEY      = "scapex_activities";
-const ASSIGNMENTS_KEY     = "scapex_activity_assignments";
-const ACTIVE_ACTIVITY_KEY = "scapex_active_activity";
+const ACTIVITIES_KEY         = "scapex_activities";
+const ACTIVITIES_VERSION_KEY = "scapex_activities_version";
+const ACTIVITIES_VERSION     = "v2";
+const ASSIGNMENTS_KEY        = "scapex_activity_assignments";
+const ACTIVE_ACTIVITY_KEY    = "scapex_active_activity";
 
 export const ACTIVITY_COLOR_MAP: Record<ActivityColor, {
   bg: string; border: string; text: string; badge: string; dot: string;
@@ -63,17 +65,17 @@ export const DEFAULT_ACTIVITIES: BusinessActivity[] = [
   {
     id: generateId("env_consulting"), nameAr: "استشارات بيئية", nameEn: "Environmental Consultancy",
     color: "emerald", icon: "Leaf", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","government","hse","dms","hr","payroll","attendance","bi"],
+    modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"],
   },
   {
     id: generateId("safety_consulting"), nameAr: "استشارات سلامة", nameEn: "Safety Consultancy",
     color: "amber", icon: "ShieldAlert", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","projects","government","hse","dms","hr","payroll","attendance","bi"],
+    modules: ["dashboard","crm","sales","accounting","projects","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"],
   },
   {
     id: generateId("safety_services"), nameAr: "خدمات سلامة", nameEn: "Safety Services",
     color: "orange", icon: "Flame", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","equipment","hse","attendance","mobile_app","hr","payroll","dms"],
+    modules: ["dashboard","crm","sales","accounting","purchases","equipment","smart_proposal","hse","attendance","mobile_app","hr","payroll","dms"],
   },
   {
     id: generateId("contracting"), nameAr: "مقاولات", nameEn: "Contracting",
@@ -83,11 +85,17 @@ export const DEFAULT_ACTIVITIES: BusinessActivity[] = [
   {
     id: generateId("metal_recycling"), nameAr: "تدوير المعادن", nameEn: "Metal Recycling",
     color: "teal", icon: "RefreshCcw", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","inventory","equipment","hr","payroll","attendance","hse","dms","bi"],
+    modules: ["dashboard","crm","sales","accounting","purchases","inventory","equipment","smart_proposal","hr","payroll","attendance","hse","dms","bi"],
   },
 ];
 
 export function getActivities(): BusinessActivity[] {
+  const storedVersion = localStorage.getItem(ACTIVITIES_VERSION_KEY);
+  if (storedVersion !== ACTIVITIES_VERSION) {
+    localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(DEFAULT_ACTIVITIES));
+    localStorage.setItem(ACTIVITIES_VERSION_KEY, ACTIVITIES_VERSION);
+    return DEFAULT_ACTIVITIES;
+  }
   try {
     const stored = localStorage.getItem(ACTIVITIES_KEY);
     if (stored) return JSON.parse(stored) as BusinessActivity[];
