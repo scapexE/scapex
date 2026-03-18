@@ -13,7 +13,8 @@ import { StatCard } from "../../components/dashboard/StatCard";
 import { ProjectActivity } from "../../components/dashboard/ProjectActivity";
 import { AIInsights } from "../../components/dashboard/AIInsights";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
-import type { SystemUser } from "@/lib/permissions";
+import { useActiveRole } from "@/contexts/ActiveRoleContext";
+import { ROLE_DEFAULTS, type SystemUser } from "@/lib/permissions";
 
 // All possible apps — each maps to a module ID
 const ALL_APPS = [
@@ -41,25 +42,32 @@ const ALL_APPS = [
   { id: "users",         icon: UserCog,      color: "bg-slate-500",   path: "/users" },
 ];
 
-// Inner component — rendered inside MainLayout, so context is available
+// Inner component — rendered inside MainLayout so all contexts are available
 function DashboardContent() {
   const { t } = useLanguage();
   const { activeActivity } = useBusinessActivity();
+  const { activeRole, isMultiRole } = useActiveRole();
 
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
   const userPerms = currentUser?.permissions || [];
 
+  // Step 1: filter by active role (mirrors Sidebar logic)
+  const roleFilteredPerms = isMultiRole && activeRole
+    ? userPerms.filter((p) => ROLE_DEFAULTS[activeRole as keyof typeof ROLE_DEFAULTS]?.includes(p))
+    : userPerms;
+
+  // Step 2: filter by active activity's enabled modules
   const activityModules = activeActivity?.modules ?? null;
+  const effectivePerms = activityModules
+    ? roleFilteredPerms.filter((p) => activityModules.includes(p))
+    : roleFilteredPerms;
 
   const visibleApps = ALL_APPS.filter((app) => {
     if (isAdmin) {
       return activityModules ? activityModules.includes(app.id) : true;
     }
-    const hasPerm = userPerms.includes(app.id);
-    if (!hasPerm) return false;
-    if (activityModules) return activityModules.includes(app.id);
-    return true;
+    return effectivePerms.includes(app.id);
   });
 
   return (

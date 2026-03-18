@@ -56,15 +56,15 @@ const translations: Record<string, Record<Language, string>> = {
   'header.profile': { en: 'Profile', ar: 'الملف الشخصي' },
 
   // Dashboard Overview
-  'dash.welcome': { en: 'Welcome back', ar: 'مرحباً بعودتك' },
-  'dash.overview': { en: 'Enterprise Overview', ar: 'نظرة عامة على المؤسسة' },
+  'dash.welcome': { en: 'Welcome back', ar: 'أهلاً بك' },
+  'dash.overview': { en: 'Executive Dashboard', ar: 'لوحة القيادة التنفيذية' },
   'dash.active_projects': { en: 'Active Projects', ar: 'المشاريع النشطة' },
   'dash.pending_approvals': { en: 'Pending Approvals', ar: 'موافقات قيد الانتظار' },
   'dash.engineers_field': { en: 'Engineers in Field', ar: 'المهندسون في الميدان' },
   'dash.revenue': { en: 'Monthly Revenue', ar: 'الإيرادات الشهرية' },
-  'dash.recent_activities': { en: 'Recent Activities', ar: 'الأنشطة الأخيرة' },
+  'dash.recent_activities': { en: 'Recent Activities', ar: 'آخر المستجدات' },
   'dash.ai_insights': { en: 'AI Insights', ar: 'رؤى الذكاء الاصطناعي' },
-  'dash.apps': { en: 'SCAPE Apps', ar: 'تطبيقات سكيب' },
+  'dash.apps': { en: 'My Workspace', ar: 'وحداتك المتاحة' },
 
   // Common Actions
   'action.create_new': { en: 'Create New', ar: 'إنشاء جديد' },
