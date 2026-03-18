@@ -34,12 +34,57 @@ const SYSTEM_STATS = [
   { icon: Shield, value: "RBAC", ar: "نظام صلاحيات", en: "Access Control" },
 ];
 
+export interface AboutSettings {
+  companyNameAr: string;
+  companyNameEn: string;
+  descriptionAr: string;
+  descriptionEn: string;
+  address: string;
+  addressEn: string;
+  phone1: string;
+  phone2: string;
+  email1: string;
+  email2: string;
+  workingHoursAr: string;
+  workingHoursEn: string;
+  twitterHandle: string;
+  linkedinUrl: string;
+  whatsapp: string;
+}
+
+export const DEFAULT_ABOUT: AboutSettings = {
+  companyNameAr: "شركة سكيبكس للحلول التقنية",
+  companyNameEn: "Scapex Technology Solutions",
+  descriptionAr: "سكيبكس هو نظام متكامل لإدارة موارد المؤسسات (ERP) مصمم خصيصاً للسوق السعودي. يوفر النظام 22 وحدة عمل تغطي جميع احتياجات الشركات من إدارة العملاء والمبيعات والمشتريات والمحاسبة والموارد البشرية والمشاريع الهندسية والسلامة المهنية وغيرها. يتميز بدعم كامل للغتين العربية والإنجليزية مع واجهة حديثة ونظام صلاحيات متقدم.",
+  descriptionEn: "Scapex is a comprehensive Enterprise Resource Planning (ERP) system designed specifically for the Saudi market. The platform provides 22 business modules covering all enterprise needs including CRM, Sales, Purchasing, Accounting, HR, Engineering Projects, HSE, and more. It features full Arabic/English bilingual support with a modern interface and advanced role-based access control.",
+  address: "المملكة العربية السعودية، الرياض\nطريق الملك فهد، برج المملكة\nالطابق 25، مكتب 2510",
+  addressEn: "Kingdom of Saudi Arabia, Riyadh\nKing Fahd Road, Kingdom Tower\nFloor 25, Office 2510",
+  phone1: "+966 11 234 5678",
+  phone2: "+966 50 123 4567",
+  email1: "info@scapex.sa",
+  email2: "support@scapex.sa",
+  workingHoursAr: "الأحد – الخميس: 8:00 ص – 5:00 م",
+  workingHoursEn: "Sun – Thu: 8:00 AM – 5:00 PM",
+  twitterHandle: "@scapex_sa",
+  linkedinUrl: "https://linkedin.com/company/scapex",
+  whatsapp: "+966501234567",
+};
+
+export function getAboutData(): AboutSettings {
+  try {
+    const stored = localStorage.getItem("scapex_about_settings");
+    if (stored) return { ...DEFAULT_ABOUT, ...JSON.parse(stored) };
+  } catch {}
+  return DEFAULT_ABOUT;
+}
+
 export default function AboutModule() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const t = (ar: string, en: string) => isRtl ? ar : en;
   const { toast } = useToast();
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const aboutData = getAboutData();
 
   const [supportForm, setSupportForm] = useState({
     name: currentUser?.name || "",
@@ -125,10 +170,7 @@ export default function AboutModule() {
               </div>
               <CardContent className="p-6">
                 <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-about-description">
-                  {t(
-                    "سكايبكس هو نظام متكامل لإدارة موارد المؤسسات (ERP) مصمم خصيصاً للسوق السعودي. يوفر النظام 22 وحدة عمل تغطي جميع احتياجات الشركات من إدارة العملاء والمبيعات والمشتريات والمحاسبة والموارد البشرية والمشاريع الهندسية والسلامة المهنية وغيرها. يتميز بدعم كامل للغتين العربية والإنجليزية مع واجهة حديثة ونظام صلاحيات متقدم.",
-                    "Scapex is a comprehensive Enterprise Resource Planning (ERP) system designed specifically for the Saudi market. The platform provides 22 business modules covering all enterprise needs including CRM, Sales, Purchasing, Accounting, HR, Engineering Projects, HSE, and more. It features full Arabic/English bilingual support with a modern interface and advanced role-based access control."
-                  )}
+                  {t(aboutData.descriptionAr, aboutData.descriptionEn)}
                 </p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -265,7 +307,7 @@ export default function AboutModule() {
                     <div>
                       <p className="text-xs text-muted-foreground">{t("اسم الشركة", "Company")}</p>
                       <p className="text-sm font-medium" data-testid="text-company-name">
-                        {t("شركة سكايبكس للحلول التقنية", "Scapex Technology Solutions")}
+                        {t(aboutData.companyNameAr || "شركة سكيبكس للحلول التقنية", aboutData.companyNameEn || "Scapex Technology Solutions")}
                       </p>
                     </div>
                   </div>
@@ -276,11 +318,8 @@ export default function AboutModule() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">{t("العنوان", "Address")}</p>
-                      <p className="text-sm font-medium" data-testid="text-address">
-                        {t(
-                          "المملكة العربية السعودية، الرياض\nطريق الملك فهد، برج المملكة\nالطابق 25، مكتب 2510",
-                          "Kingdom of Saudi Arabia, Riyadh\nKing Fahd Road, Kingdom Tower\nFloor 25, Office 2510"
-                        )}
+                      <p className="text-sm font-medium whitespace-pre-line" data-testid="text-address">
+                        {t(aboutData.address, aboutData.addressEn)}
                       </p>
                     </div>
                   </div>
@@ -291,8 +330,8 @@ export default function AboutModule() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">{t("الهاتف", "Phone")}</p>
-                      <p className="text-sm font-medium" dir="ltr" data-testid="text-phone">+966 11 234 5678</p>
-                      <p className="text-sm font-medium" dir="ltr">+966 50 123 4567</p>
+                      <p className="text-sm font-medium" dir="ltr" data-testid="text-phone">{aboutData.phone1}</p>
+                      {aboutData.phone2 && <p className="text-sm font-medium" dir="ltr">{aboutData.phone2}</p>}
                     </div>
                   </div>
 
@@ -302,8 +341,8 @@ export default function AboutModule() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">{t("البريد الإلكتروني", "Email")}</p>
-                      <p className="text-sm font-medium" dir="ltr" data-testid="text-email">info@scapex.sa</p>
-                      <p className="text-sm font-medium" dir="ltr">support@scapex.sa</p>
+                      <p className="text-sm font-medium" dir="ltr" data-testid="text-email">{aboutData.email1}</p>
+                      {aboutData.email2 && <p className="text-sm font-medium" dir="ltr">{aboutData.email2}</p>}
                     </div>
                   </div>
 
@@ -314,7 +353,7 @@ export default function AboutModule() {
                     <div>
                       <p className="text-xs text-muted-foreground">{t("ساعات العمل", "Working Hours")}</p>
                       <p className="text-sm font-medium" data-testid="text-hours">
-                        {t("الأحد – الخميس: 8:00 ص – 5:00 م", "Sun – Thu: 8:00 AM – 5:00 PM")}
+                        {t(aboutData.workingHoursAr, aboutData.workingHoursEn)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {t("الدعم الفني: 24/7", "Technical Support: 24/7")}
@@ -332,47 +371,53 @@ export default function AboutModule() {
                   <h3 className="text-lg font-bold">{t("تابعنا", "Follow Us")}</h3>
                 </div>
 
-                <a
-                  href="https://twitter.com/scapex_sa"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  data-testid="link-twitter"
-                >
-                  <Twitter className="w-5 h-5 text-sky-500" />
-                  <div>
-                    <p className="text-sm font-medium">Twitter / X</p>
-                    <p className="text-xs text-muted-foreground">@scapex_sa</p>
-                  </div>
-                </a>
+                {aboutData.twitterHandle && (
+                  <a
+                    href={`https://twitter.com/${aboutData.twitterHandle.replace("@","")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    data-testid="link-twitter"
+                  >
+                    <Twitter className="w-5 h-5 text-sky-500" />
+                    <div>
+                      <p className="text-sm font-medium">Twitter / X</p>
+                      <p className="text-xs text-muted-foreground">{aboutData.twitterHandle}</p>
+                    </div>
+                  </a>
+                )}
 
-                <a
-                  href="https://linkedin.com/company/scapex"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  data-testid="link-linkedin"
-                >
-                  <Linkedin className="w-5 h-5 text-blue-600" />
-                  <div>
-                    <p className="text-sm font-medium">LinkedIn</p>
-                    <p className="text-xs text-muted-foreground">Scapex Solutions</p>
-                  </div>
-                </a>
+                {aboutData.linkedinUrl && (
+                  <a
+                    href={aboutData.linkedinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    data-testid="link-linkedin"
+                  >
+                    <Linkedin className="w-5 h-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium">LinkedIn</p>
+                      <p className="text-xs text-muted-foreground">{t(aboutData.companyNameAr, aboutData.companyNameEn)}</p>
+                    </div>
+                  </a>
+                )}
 
-                <a
-                  href="https://wa.me/966501234567"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  data-testid="link-whatsapp"
-                >
-                  <MessageSquare className="w-5 h-5 text-green-500" />
-                  <div>
-                    <p className="text-sm font-medium">WhatsApp</p>
-                    <p className="text-xs text-muted-foreground" dir="ltr">+966 50 123 4567</p>
-                  </div>
-                </a>
+                {aboutData.whatsapp && (
+                  <a
+                    href={`https://wa.me/${aboutData.whatsapp.replace(/[^0-9]/g,"")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    data-testid="link-whatsapp"
+                  >
+                    <MessageSquare className="w-5 h-5 text-green-500" />
+                    <div>
+                      <p className="text-sm font-medium">WhatsApp</p>
+                      <p className="text-xs text-muted-foreground" dir="ltr">{aboutData.whatsapp}</p>
+                    </div>
+                  </a>
+                )}
               </CardContent>
             </Card>
 

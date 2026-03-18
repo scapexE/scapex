@@ -746,6 +746,27 @@ export default function Login() {
             🌐 {language === "ar" ? "English" : "عربي"}
           </button>
         </div>
+
+        <div style={{
+          marginTop: "16px", padding: "14px 16px", borderRadius: "10px",
+          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "12px", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>
+            {[
+              { icon: "📊", v: isRtl ? "22 وحدة عمل" : "22 Modules" },
+              { icon: "🌐", v: isRtl ? "عربي / إنجليزي" : "AR / EN" },
+              { icon: "🔒", v: isRtl ? "نظام صلاحيات" : "RBAC" },
+              { icon: "🏢", v: isRtl ? "متعدد الشركات" : "Multi-Tenant" },
+            ].map((item, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ fontSize: "13px" }}>{item.icon}</span> {item.v}
+              </span>
+            ))}
+          </div>
+          <p style={{ textAlign: "center", fontSize: "10px", color: "rgba(255,255,255,0.2)", marginTop: "8px" }}>
+            {isRtl ? "نظام إدارة موارد المؤسسات المتكامل — مصمم للسوق السعودي" : "Integrated ERP System — Designed for the Saudi Market"}
+          </p>
+        </div>
       </div>
     </div>
   );

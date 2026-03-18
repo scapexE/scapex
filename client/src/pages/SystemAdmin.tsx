@@ -20,8 +20,9 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
-  ChevronDown, Check, Image, Link as LinkIcon, Ban, Building2,
+  ChevronDown, Check, Image, Link as LinkIcon, Ban, Building2, Info, MapPin, Globe,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   type BusinessActivity, type ActivityColor, ACTIVITY_COLOR_MAP,
@@ -34,6 +35,7 @@ import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { CompanyServicesManager } from "@/components/system-admin/CompanyServicesManager";
+import { type AboutSettings, DEFAULT_ABOUT, getAboutData } from "@/pages/modules/about/index";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MODULE_CATEGORIES: Record<string, { ar: string; en: string }> = {
@@ -597,6 +599,114 @@ function ActivityAssignmentCard({
 }
 
 // ─── Inner Content ────────────────────────────────────────────────────────────
+function AboutSettingsPanel() {
+  const { dir } = useLanguage();
+  const isRtl = dir === "rtl";
+  const t2 = (ar: string, en: string) => isRtl ? ar : en;
+  const { toast } = useToast();
+  const [form, setForm] = useState<AboutSettings>(getAboutData());
+
+  const update = (key: keyof AboutSettings, val: string) => setForm({ ...form, [key]: val });
+
+  const handleSave = () => {
+    localStorage.setItem("scapex_about_settings", JSON.stringify(form));
+    toast({
+      title: t2("تم الحفظ", "Saved"),
+      description: t2("تم تحديث معلومات صفحة حول النظام بنجاح", "About page info updated successfully"),
+    });
+  };
+
+  const handleReset = () => {
+    setForm(DEFAULT_ABOUT);
+    localStorage.removeItem("scapex_about_settings");
+    toast({ title: t2("تم الاستعادة", "Reset"), description: t2("تمت استعادة القيم الافتراضية", "Default values restored") });
+  };
+
+  const Field = ({ label, value, field, textarea }: { label: string; value: string; field: keyof AboutSettings; textarea?: boolean }) => (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-medium">{label}</Label>
+      {textarea ? (
+        <Textarea value={value} onChange={(e) => update(field, e.target.value)} rows={3} className="text-sm" />
+      ) : (
+        <Input value={value} onChange={(e) => update(field, e.target.value)} className="text-sm" />
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6" dir={dir}>
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-primary" />
+            {t2("معلومات الشركة", "Company Info")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={t2("اسم الشركة (عربي)", "Company Name (Arabic)")} value={form.companyNameAr} field="companyNameAr" />
+            <Field label={t2("اسم الشركة (إنجليزي)", "Company Name (English)")} value={form.companyNameEn} field="companyNameEn" />
+          </div>
+          <Field label={t2("وصف النظام (عربي)", "System Description (Arabic)")} value={form.descriptionAr} field="descriptionAr" textarea />
+          <Field label={t2("وصف النظام (إنجليزي)", "System Description (English)")} value={form.descriptionEn} field="descriptionEn" textarea />
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-primary" />
+            {t2("العنوان والتواصل", "Address & Contact")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={t2("العنوان (عربي)", "Address (Arabic)")} value={form.address} field="address" textarea />
+            <Field label={t2("العنوان (إنجليزي)", "Address (English)")} value={form.addressEn} field="addressEn" textarea />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={t2("الهاتف الرئيسي", "Primary Phone")} value={form.phone1} field="phone1" />
+            <Field label={t2("هاتف إضافي", "Secondary Phone")} value={form.phone2} field="phone2" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={t2("البريد الرئيسي", "Primary Email")} value={form.email1} field="email1" />
+            <Field label={t2("بريد الدعم الفني", "Support Email")} value={form.email2} field="email2" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={t2("ساعات العمل (عربي)", "Working Hours (Arabic)")} value={form.workingHoursAr} field="workingHoursAr" />
+            <Field label={t2("ساعات العمل (إنجليزي)", "Working Hours (English)")} value={form.workingHoursEn} field="workingHoursEn" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="w-4 h-4 text-primary" />
+            {t2("التواصل الاجتماعي", "Social Media")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Field label="Twitter / X" value={form.twitterHandle} field="twitterHandle" />
+            <Field label="LinkedIn URL" value={form.linkedinUrl} field="linkedinUrl" />
+            <Field label="WhatsApp" value={form.whatsapp} field="whatsapp" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center gap-3 justify-end">
+        <Button variant="outline" onClick={handleReset} data-testid="button-reset-about">
+          {t2("استعادة الافتراضي", "Reset to Default")}
+        </Button>
+        <Button onClick={handleSave} data-testid="button-save-about">
+          {t2("حفظ التغييرات", "Save Changes")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SystemAdminContent() {
   const { t, dir } = useLanguage();
   const isRtl = dir === 'rtl';
@@ -719,7 +829,7 @@ function SystemAdminContent() {
       </div>
 
       <Tabs defaultValue="activities" dir={dir}>
-        <TabsList className="grid grid-cols-3 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-4 w-full max-w-3xl">
           <TabsTrigger value="activities" className="gap-2 text-xs sm:text-sm">
             <Layers className="w-4 h-4" /> {t("sa.tab.activities")}
           </TabsTrigger>
@@ -728,6 +838,9 @@ function SystemAdminContent() {
           </TabsTrigger>
           <TabsTrigger value="assignments" className="gap-2 text-xs sm:text-sm">
             <UserCheck className="w-4 h-4" /> {t("sa.tab.users")}
+          </TabsTrigger>
+          <TabsTrigger value="about-settings" className="gap-2 text-xs sm:text-sm">
+            <Info className="w-4 h-4" /> {dir === "rtl" ? "حول النظام" : "About"}
           </TabsTrigger>
         </TabsList>
 
@@ -835,6 +948,11 @@ function SystemAdminContent() {
               />
             ))}
           </div>
+        </TabsContent>
+
+        {/* ── About Settings ──────────────────── */}
+        <TabsContent value="about-settings" className="mt-6">
+          <AboutSettingsPanel />
         </TabsContent>
       </Tabs>
 
