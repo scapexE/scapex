@@ -172,8 +172,9 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               <span className="text-white font-bold text-lg">S</span>
             </div>
             <div className="min-w-0">
-              <p className="text-sidebar-foreground font-bold text-lg tracking-tight leading-tight">
+              <p className="text-sidebar-foreground font-bold text-lg tracking-tight leading-tight flex items-baseline gap-1.5">
                 Scapex
+                <span className="text-[9px] font-normal text-sidebar-foreground/40 tracking-normal">V1.2</span>
               </p>
               <p className="text-sidebar-foreground/50 text-[10px] leading-tight truncate">
                 {dir === "rtl" ? "منصة إدارة الأعمال الذكية" : "Smart Business Platform"}
@@ -266,7 +267,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             </Button>
           </div>
           <div className="text-center text-[10px] opacity-40 text-sidebar-foreground">
-            © 2026 Scapex · Smart Business Platform
+            © 2026 Scapex V1.2 · Smart Business Platform
           </div>
         </div>
       </aside>

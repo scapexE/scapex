@@ -1,13 +1,17 @@
-# Scapex — Smart Business Management Platform (ERP)
+# Scapex V1.2 — Smart Business Management Platform (ERP)
 
 ## Architecture
+- **Version**: V1.2
 - **Frontend**: React + TypeScript + Vite, wouter routing, shadcn/ui + Tailwind CSS
 - **Backend**: Express (port 5000) — serves API routes + static files
 - **Database**: PostgreSQL with Drizzle ORM — 62 tables covering all modules
 - **DB Connection**: `server/db.ts` — pooled connection via `DATABASE_URL`
 - **Schema**: `shared/schema.ts` — comprehensive schema with multi-tenant support (`company_id` on all tables)
 - **Languages**: Full Arabic (RTL) + English (LTR) bilingual — toggled via `useLanguage()` hook
-- **Auth**: localStorage-based sessions with RBAC + multi-activity permissions
+- **Auth**: localStorage-based sessions with RBAC + multi-activity permissions + email verification
+- **Dark Mode**: Full dark/light mode with clear card borders and distinct background/card contrast
+- **Client Portal**: 6 color themes (Default, Ocean, Forest, Royal, Sunset, Slate) + dark mode toggle
+- **Auth Features**: Forgot password (verification code), email verification on registration, admin approval flow
 
 ## Credentials
 | Role | Email | Password |

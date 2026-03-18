@@ -374,7 +374,9 @@ export default function Login() {
             justifyContent: "center", margin: "0 auto 10px",
             fontSize: "26px", fontWeight: "bold",
           }}>S</div>
-          <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>Scapex</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>
+            Scapex <span style={{ fontSize: "10px", fontWeight: "400", color: "#6b7280", verticalAlign: "super" }}>V1.2</span>
+          </h1>
           <p style={{ color: "#6b7280", fontSize: "13px", marginTop: "3px" }}>
             {isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Management Platform"}
           </p>
