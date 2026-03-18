@@ -326,6 +326,198 @@ export function getPriceSuggestions(serviceType: ServiceType): PriceSuggestion {
   };
 }
 
+// ─── Market Benchmark & Smart Price Analysis ──────────────────────────────────
+
+export type PriceRegion = "riyadh" | "jeddah" | "dammam" | "medina" | "abha" | "other";
+export type ProjectSize  = "small" | "medium" | "large" | "mega";
+
+interface MarketBand { low: number; mid: number; high: number; unit: string; unitAr: string; }
+
+// Saudi market reference prices (SAR) — 2024-2025
+const MARKET_REFERENCE: Record<ServiceType, {
+  multipliers: Record<PriceRegion, number>;
+  sizeFactors:  Record<ProjectSize, number>;
+  items: Record<string, MarketBand>;
+}> = {
+  eng_consulting: {
+    multipliers: { riyadh: 1.0, jeddah: 0.95, dammam: 0.9, medina: 0.85, abha: 0.8, other: 0.75 },
+    sizeFactors:  { small: 0.6, medium: 1.0, large: 1.5, mega: 2.2 },
+    items: {
+      "drawings":       { low: 25000, mid: 45000, high: 75000, unit: "Project", unitAr: "مشروع" },
+      "supervision":    { low: 4500,  mid: 6500,  high: 10000, unit: "Month",   unitAr: "شهر"   },
+      "permits":        { low: 18000, mid: 28000, high: 45000, unit: "Project", unitAr: "مشروع" },
+      "inspection":     { low: 5000,  mid: 8500,  high: 14000, unit: "Report",  unitAr: "تقرير" },
+      "feasibility":    { low: 30000, mid: 55000, high: 90000, unit: "Study",   unitAr: "دراسة" },
+    },
+  },
+  environmental: {
+    multipliers: { riyadh: 1.0, jeddah: 1.05, dammam: 1.1, medina: 0.85, abha: 0.8, other: 0.75 },
+    sizeFactors:  { small: 0.6, medium: 1.0, large: 1.4, mega: 2.0 },
+    items: {
+      "eia":            { low: 35000, mid: 55000, high: 90000, unit: "Study",   unitAr: "دراسة"  },
+      "waste_plan":     { low: 12000, mid: 18000, high: 28000, unit: "Plan",    unitAr: "مخطط"   },
+      "monitoring":     { low: 7000,  mid: 9500,  high: 15000, unit: "Quarter", unitAr: "ربع"    },
+      "compliance":     { low: 3500,  mid: 5500,  high: 8500,  unit: "Report",  unitAr: "تقرير"  },
+      "audit":          { low: 20000, mid: 32000, high: 50000, unit: "Project", unitAr: "مشروع"  },
+    },
+  },
+  safety_consulting: {
+    multipliers: { riyadh: 1.0, jeddah: 0.95, dammam: 1.05, medina: 0.85, abha: 0.8, other: 0.75 },
+    sizeFactors:  { small: 0.55, medium: 1.0, large: 1.4, mega: 2.0 },
+    items: {
+      "hse_plan":       { low: 15000, mid: 22000, high: 35000, unit: "Plan",   unitAr: "خطة"    },
+      "risk_assess":    { low: 10000, mid: 15000, high: 25000, unit: "Report", unitAr: "تقرير"  },
+      "training":       { low: 8000,  mid: 12000, high: 20000, unit: "Course", unitAr: "دورة"   },
+      "site_inspect":   { low: 2500,  mid: 3500,  high: 5500,  unit: "Month",  unitAr: "شهر"    },
+      "hazop":          { low: 18000, mid: 28000, high: 45000, unit: "Study",  unitAr: "دراسة"  },
+    },
+  },
+  safety_services: {
+    multipliers: { riyadh: 1.0, jeddah: 0.95, dammam: 1.0, medina: 0.85, abha: 0.8, other: 0.75 },
+    sizeFactors:  { small: 0.6, medium: 1.0, large: 1.3, mega: 1.8 },
+    items: {
+      "safety_officer": { low: 6000,  mid: 8000,  high: 12000, unit: "Month",  unitAr: "شهر"    },
+      "signs":          { low: 4000,  mid: 6500,  high: 10000, unit: "Set",    unitAr: "مجموعة" },
+      "ppe":            { low: 500,   mid: 850,   high: 1500,  unit: "Kit",    unitAr: "طقم"    },
+      "reports":        { low: 800,   mid: 1200,  high: 2000,  unit: "Report", unitAr: "تقرير"  },
+    },
+  },
+  contracting: {
+    multipliers: { riyadh: 1.0, jeddah: 1.05, dammam: 0.95, medina: 0.9, abha: 0.85, other: 0.8 },
+    sizeFactors:  { small: 0.5, medium: 1.0, large: 1.6, mega: 2.5 },
+    items: {
+      "excavation":     { low: 55,    mid: 85,    high: 140,   unit: "m³",     unitAr: "م³"    },
+      "concrete":       { low: 400,   mid: 550,   high: 750,   unit: "m³",     unitAr: "م³"    },
+      "masonry":        { low: 80,    mid: 120,   high: 180,   unit: "m²",     unitAr: "م²"    },
+      "finishing":      { low: 50,    mid: 75,    high: 120,   unit: "m²",     unitAr: "م²"    },
+      "pm":             { low: 20000, mid: 35000, high: 60000, unit: "Project", unitAr: "مشروع" },
+    },
+  },
+  metal_recycling: {
+    multipliers: { riyadh: 1.0, jeddah: 1.0, dammam: 1.1, medina: 0.85, abha: 0.8, other: 0.75 },
+    sizeFactors:  { small: 0.6, medium: 1.0, large: 1.4, mega: 2.0 },
+    items: {
+      "processing":     { low: 800,   mid: 1200,  high: 1800,  unit: "Ton",    unitAr: "طن"    },
+      "sorting":        { low: 250,   mid: 350,   high: 500,   unit: "Ton",    unitAr: "طن"    },
+      "certification":  { low: 3500,  mid: 5500,  high: 8500,  unit: "Set",    unitAr: "مجموعة" },
+      "transport":      { low: 1200,  mid: 1800,  high: 2800,  unit: "Trip",   unitAr: "رحلة"  },
+    },
+  },
+};
+
+export type PriceLevel = "low" | "fair" | "high" | "unknown";
+
+export interface PriceAnalysisItem {
+  descAr: string; descEn: string;
+  unitPrice: number; total: number;
+  level: PriceLevel;
+  marketLow: number; marketMid: number; marketHigh: number;
+  suggestionAr: string; suggestionEn: string;
+}
+
+export interface ProposalPriceAnalysis {
+  items: PriceAnalysisItem[];
+  totalLevel: PriceLevel;
+  competitiveScore: number; // 0-100
+  marketMin: number; marketMax: number; marketMid: number;
+  summaryAr: string; summaryEn: string;
+  region: PriceRegion;
+  projectSize: ProjectSize;
+}
+
+function detectPriceLevel(price: number, low: number, mid: number, high: number): PriceLevel {
+  if (price <= 0) return "unknown";
+  if (price < low * 0.85) return "low";
+  if (price > high * 1.15) return "high";
+  return "fair";
+}
+
+export function analyzeProposalPrices(
+  proposal: Proposal,
+  region: PriceRegion = "riyadh",
+  size: ProjectSize   = "medium",
+): ProposalPriceAnalysis {
+  const ref    = MARKET_REFERENCE[proposal.serviceType];
+  const mult   = ref.multipliers[region];
+  const factor = ref.sizeFactors[size];
+  const bands  = Object.values(ref.items);
+  const mLow   = Math.round(bands.reduce((s, b) => s + b.low, 0) * mult * factor);
+  const mMid   = Math.round(bands.reduce((s, b) => s + b.mid, 0) * mult * factor);
+  const mHigh  = Math.round(bands.reduce((s, b) => s + b.high, 0) * mult * factor);
+
+  const analyzedItems: PriceAnalysisItem[] = proposal.items.map((item) => {
+    // try to match against known items
+    const allBands = Object.values(ref.items);
+    // pick the closest band based on price magnitude
+    const sorted = [...allBands].sort((a, b) => Math.abs(a.mid - item.unitPrice) - Math.abs(b.mid - item.unitPrice));
+    const best   = sorted[0] ?? { low: item.unitPrice * 0.7, mid: item.unitPrice, high: item.unitPrice * 1.4 };
+    const adjLow  = Math.round(best.low  * mult * factor);
+    const adjMid  = Math.round(best.mid  * mult * factor);
+    const adjHigh = Math.round(best.high * mult * factor);
+    const level   = detectPriceLevel(item.unitPrice, adjLow, adjMid, adjHigh);
+    const suggestionAr = level === "low"
+      ? `السعر منخفض — المتوسط السوقي ${adjMid.toLocaleString()} ر.س. فكّر في رفع السعر لتغطية التكاليف.`
+      : level === "high"
+      ? `السعر مرتفع — المتوسط السوقي ${adjMid.toLocaleString()} ر.س. قد يُضعف تنافسية العرض.`
+      : `السعر تنافسي ضمن نطاق السوق (${adjLow.toLocaleString()} — ${adjHigh.toLocaleString()} ر.س).`;
+    const suggestionEn = level === "low"
+      ? `Price is low — market avg SAR ${adjMid.toLocaleString()}. Consider raising to cover costs.`
+      : level === "high"
+      ? `Price is high — market avg SAR ${adjMid.toLocaleString()}. May reduce competitiveness.`
+      : `Competitive price within market range (SAR ${adjLow.toLocaleString()} — ${adjHigh.toLocaleString()}).`;
+    return { descAr: item.descAr, descEn: item.descEn, unitPrice: item.unitPrice, total: item.total, level, marketLow: adjLow, marketMid: adjMid, marketHigh: adjHigh, suggestionAr, suggestionEn };
+  });
+
+  const fairCount = analyzedItems.filter((i) => i.level === "fair").length;
+  const score = analyzedItems.length > 0 ? Math.round((fairCount / analyzedItems.length) * 100) : 0;
+  const totalLevel = proposal.subtotal < mLow * 0.85 ? "low" : proposal.subtotal > mHigh * 1.15 ? "high" : "fair";
+  const summaryAr = totalLevel === "fair"
+    ? `إجمالي العرض (${proposal.subtotal.toLocaleString()} ر.س) تنافسي ضمن النطاق السوقي لمنطقة ${region === "riyadh" ? "الرياض" : region === "jeddah" ? "جدة" : region === "dammam" ? "الدمام" : "السوق السعودي"}.`
+    : totalLevel === "low"
+    ? `إجمالي العرض (${proposal.subtotal.toLocaleString()} ر.س) أقل من متوسط السوق. تحقق من تغطية التكاليف الفعلية.`
+    : `إجمالي العرض (${proposal.subtotal.toLocaleString()} ر.س) أعلى من المتوسط. تأكد من تبرير الأسعار للعميل.`;
+  const summaryEn = totalLevel === "fair"
+    ? `Total (SAR ${proposal.subtotal.toLocaleString()}) is competitive for ${region} market.`
+    : totalLevel === "low"
+    ? `Total (SAR ${proposal.subtotal.toLocaleString()}) is below market average. Check cost coverage.`
+    : `Total (SAR ${proposal.subtotal.toLocaleString()}) is above average. Justify pricing to client.`;
+  return { items: analyzedItems, totalLevel, competitiveScore: score, marketMin: mLow, marketMax: mHigh, marketMid: mMid, summaryAr, summaryEn, region, projectSize: size };
+}
+
+export function getSmartPricing(
+  serviceType: ServiceType,
+  region: PriceRegion,
+  size: ProjectSize,
+): AITemplate {
+  const ref    = MARKET_REFERENCE[serviceType];
+  const mult   = ref.multipliers[region];
+  const factor = ref.sizeFactors[size];
+  const base   = generateAITemplate(serviceType, "المشروع", true);
+  return {
+    ...base,
+    items: base.items.map((item) => {
+      const adjusted = Math.round(item.unitPrice * mult * factor);
+      return { ...item, unitPrice: adjusted, total: Math.round(adjusted * item.qty) };
+    }),
+  };
+}
+
+export const REGION_META: Record<PriceRegion, { labelAr: string; labelEn: string }> = {
+  riyadh: { labelAr: "الرياض",   labelEn: "Riyadh"   },
+  jeddah: { labelAr: "جدة",      labelEn: "Jeddah"   },
+  dammam: { labelAr: "الدمام",   labelEn: "Dammam"   },
+  medina: { labelAr: "المدينة",  labelEn: "Madinah"  },
+  abha:   { labelAr: "أبها",     labelEn: "Abha"     },
+  other:  { labelAr: "مدينة أخرى", labelEn: "Other" },
+};
+
+export const SIZE_META: Record<ProjectSize, { labelAr: string; labelEn: string; descAr: string; descEn: string }> = {
+  small:  { labelAr: "صغير",  labelEn: "Small",  descAr: "أقل من 500 ألف ر.س",     descEn: "Below SAR 500K"   },
+  medium: { labelAr: "متوسط", labelEn: "Medium", descAr: "500 ألف – 2 مليون ر.س", descEn: "SAR 500K – 2M"   },
+  large:  { labelAr: "كبير",  labelEn: "Large",  descAr: "2 مليون – 10 ملايين ر.س", descEn: "SAR 2M – 10M" },
+  mega:   { labelAr: "ضخم",   labelEn: "Mega",   descAr: "أكثر من 10 ملايين ر.س",  descEn: "Above SAR 10M"   },
+};
+
 // ─── Contract Generation ──────────────────────────────────────────────────────
 
 function buildClauses(serviceType: ServiceType, projectName: string, total: number): ContractClause[] {
@@ -608,7 +800,7 @@ ${(() => {
   ${proposal.notes ? `<div class="notes-box"><strong>${isRtl ? "ملاحظات:" : "Notes:"}</strong><br/>${proposal.notes}</div>` : "<div></div>"}
 </div>
 <div class="sig-grid">
-  <div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">${isRtl ? "شركة سكابكس — التوقيع والختم" : "Scapex — Signature & Stamp"}</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">${isRtl ? coNameAr : coNameEn} — ${isRtl ? "التوقيع والختم" : "Signature & Stamp"}</div></div>
   <div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">${proposal.clientName} — ${isRtl ? "التوقيع والختم" : "Signature & Stamp"}</div></div>
 </div>
 <div class="footer">${isRtl ? `تم إنشاء هذا العرض من منصة Scapex الذكية لإدارة الأعمال` : `Generated from Scapex Smart Business Management Platform`}</div>
@@ -624,6 +816,24 @@ export function printContract(contract: Contract, isRtl: boolean): void {
   const svc = SERVICE_META[contract.serviceType];
   const fmt = (n: number) => n.toLocaleString();
   const date = new Date(contract.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
+
+  // ── Read active company data ──────────────────────────────────────────────
+  let cNameAr = "شركة سكيب للاستشارات والخدمات الهندسية";
+  let cNameEn = "Scapex Consulting & Engineering Services";
+  let cVat    = "300123456700003";
+  let cLogoUrl = ""; let cLogoColor = "#1e40af"; let cLogoChar = "S";
+  try {
+    const raw = localStorage.getItem("scapex_companies");
+    if (raw) {
+      const cos = JSON.parse(raw) as Array<{id:string;nameAr:string;nameEn:string;vatNumber?:string;logoUrl?:string;logoColor?:string}>;
+      const aid = localStorage.getItem("scapex_active_company");
+      const co  = aid ? cos.find((c) => c.id === aid) : cos[0];
+      if (co) { cNameAr = co.nameAr; cNameEn = co.nameEn; cVat = co.vatNumber||cVat; cLogoUrl = co.logoUrl||""; cLogoColor = co.logoColor||"#1e40af"; cLogoChar = co.nameEn?.charAt(0)?.toUpperCase()||"S"; }
+    }
+  } catch {}
+  const cLogoHtml = cLogoUrl
+    ? `<img src="${cLogoUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:8px;" />`
+    : `<div style="background:${cLogoColor};color:white;width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:bold;">${cLogoChar}</div>`;
 
   const clausesHtml = contract.clauses.map((c) => `
     <div style="margin-bottom:16px;padding:14px;background:#f8fafc;border-radius:8px;border-${isRtl ? "right" : "left"}:4px solid #1e40af;">
@@ -662,16 +872,17 @@ tbody tr:nth-child(even) { background:#f8fafc; }
 <div class="page">
 <div class="header">
   <div class="logo-row">
-    <div class="logo">S</div>
+    ${cLogoHtml}
     <div style="text-align:${isRtl ? "right" : "left"}">
-      <div style="font-size:18px;font-weight:700;color:#1e40af;">Scapex</div>
-      <div style="font-size:11px;color:#64748b;">${isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Platform"}</div>
+      <div style="font-size:16px;font-weight:700;color:#1a202c;">${isRtl ? cNameAr : cNameEn}</div>
+      <div style="font-size:11px;color:#4a5568;">${isRtl ? cNameEn : cNameAr}</div>
+      <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${isRtl ? `الرقم الضريبي: ${cVat}` : `VAT No: ${cVat}`}</div>
     </div>
   </div>
   <div style="font-size:20px;font-weight:700;color:#1e40af;margin-bottom:4px;">${isRtl ? "عقد تقديم خدمات" : "SERVICE CONTRACT"}</div>
   <div style="font-size:13px;color:#374151;">${isRtl ? svc.labelAr : svc.labelEn}</div>
   <div style="font-size:14px;font-weight:600;color:#374151;margin-top:6px;">${isRtl ? "رقم العقد:" : "Contract No:"} ${contract.contractNumber}</div>
-  <div style="font-size:12px;color:#64748b;margin-top:3px;">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
+  <div style="font-size:12px;font-weight:700;color:#1e40af;font-family:monospace;margin-top:3px;">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
 </div>
 <div class="sec-title">${isRtl ? "أطراف العقد" : "CONTRACT PARTIES"}</div>
 <div class="parties">

@@ -21,11 +21,12 @@ import { useToast } from "@/hooks/use-toast";
 import {
   type ServiceType, type Proposal, type ProposalItem,
   type ProposalStatus, type Contract,
-  SERVICE_META, STATUS_META,
+  type PriceRegion, type ProjectSize, type ProposalPriceAnalysis,
+  SERVICE_META, STATUS_META, REGION_META, SIZE_META,
   generateAITemplate, generateId, generateProposalNumber,
   saveProposal, getProposals, deleteProposal,
   generateContractFromProposal, saveContract, getContracts,
-  getPriceSuggestions,
+  getPriceSuggestions, analyzeProposalPrices, getSmartPricing,
   printProposal, printContract,
 } from "@/lib/proposals";
 import { getActiveCompany } from "@/lib/company-services";
@@ -233,6 +234,101 @@ function PriceSuggestionPanel({ serviceType, isRtl, onApply }: {
   );
 }
 
+// ─── Smart Price Analyzer ─────────────────────────────────────────────────────
+function SmartPriceAnalyzer({ proposal, isRtl }: { proposal: Proposal; isRtl: boolean }) {
+  const [region, setRegion] = useState<PriceRegion>("riyadh");
+  const [size, setSize]     = useState<ProjectSize>("medium");
+  const [analysis, setAnalysis] = useState<ProposalPriceAnalysis | null>(null);
+
+  const run = () => setAnalysis(analyzeProposalPrices(proposal, region, size));
+
+  const levelColor = (l: string) =>
+    l === "fair"    ? "text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800"
+    : l === "low"   ? "text-amber-600  bg-amber-50  border-amber-200  dark:bg-amber-950/30  dark:border-amber-800"
+    : l === "high"  ? "text-red-600    bg-red-50    border-red-200    dark:bg-red-950/30    dark:border-red-800"
+    : "text-muted-foreground bg-secondary/30 border-border/40";
+  const levelIcon = (l: string) => l === "fair" ? "✓" : l === "low" ? "↓" : l === "high" ? "↑" : "?";
+  const levelLabelAr = (l: string) => l === "fair" ? "تنافسي" : l === "low" ? "منخفض" : l === "high" ? "مرتفع" : "غير محدد";
+  const levelLabelEn = (l: string) => l === "fair" ? "Competitive" : l === "low" ? "Low" : l === "high" ? "High" : "Unknown";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 flex-wrap">
+        <div className="flex-1 min-w-[140px]">
+          <Label className="text-xs text-muted-foreground">{isRtl ? "المنطقة" : "Region"}</Label>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {(Object.entries(REGION_META) as [PriceRegion, {labelAr:string;labelEn:string}][]).map(([k,m]) => (
+              <button key={k} onClick={() => { setRegion(k); setAnalysis(null); }}
+                className={cn("px-2 py-0.5 rounded text-[10px] border font-medium transition-all",
+                  region === k ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/30")}>
+                {isRtl ? m.labelAr : m.labelEn}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 min-w-[140px]">
+          <Label className="text-xs text-muted-foreground">{isRtl ? "حجم المشروع" : "Project Size"}</Label>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {(Object.entries(SIZE_META) as [ProjectSize, {labelAr:string;labelEn:string;descAr:string;descEn:string}][]).map(([k,m]) => (
+              <button key={k} onClick={() => { setSize(k); setAnalysis(null); }}
+                className={cn("px-2 py-0.5 rounded text-[10px] border font-medium transition-all",
+                  size === k ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/30")}>
+                {isRtl ? m.labelAr : m.labelEn}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <button onClick={run}
+        className="w-full py-2 rounded-lg border-2 border-primary bg-primary/5 text-primary text-sm font-bold hover:bg-primary/10 transition-colors flex items-center justify-center gap-2">
+        <BarChart2 className="w-4 h-4" />
+        {isRtl ? "تحليل الأسعار الآن" : "Analyze Prices Now"}
+      </button>
+
+      {analysis && (
+        <div className="space-y-3 animate-in fade-in duration-300">
+          {/* Overall score */}
+          <div className={cn("rounded-xl border p-3", levelColor(analysis.totalLevel))}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold">{isRtl ? "التقييم الكلي للعرض" : "Overall Proposal Rating"}</span>
+              <span className="text-lg font-bold">{analysis.competitiveScore}%</span>
+            </div>
+            <p className="text-xs leading-relaxed">{isRtl ? analysis.summaryAr : analysis.summaryEn}</p>
+            <div className="mt-2 flex gap-3 text-[10px]">
+              <span>{isRtl ? "أدنى سوق:" : "Market Min:"} <strong>{analysis.marketMin.toLocaleString()}</strong></span>
+              <span>{isRtl ? "متوسط:" : "Mid:"} <strong>{analysis.marketMid.toLocaleString()}</strong></span>
+              <span>{isRtl ? "أعلى سوق:" : "Max:"} <strong>{analysis.marketMax.toLocaleString()}</strong></span>
+            </div>
+          </div>
+          {/* Per-item analysis */}
+          {analysis.items.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">{isRtl ? "تحليل البنود" : "Item Analysis"}</p>
+              {analysis.items.map((item, i) => (
+                <div key={i} className="rounded-lg border border-border/40 p-2.5 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium truncate flex-1">{isRtl ? item.descAr : item.descEn}</span>
+                    <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-bold shrink-0", levelColor(item.level))}>
+                      {levelIcon(item.level)} {isRtl ? levelLabelAr(item.level) : levelLabelEn(item.level)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span>{isRtl ? "السعر:" : "Price:"} <strong className="text-foreground font-mono">{item.unitPrice.toLocaleString()}</strong></span>
+                    <span>|</span>
+                    <span>{isRtl ? "سوق:" : "Market:"} {item.marketLow.toLocaleString()} – {item.marketHigh.toLocaleString()}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{isRtl ? item.suggestionAr : item.suggestionEn}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Create Proposal ──────────────────────────────────────────────────────────
 function CreateProposal({ isRtl, onCreated, onCancel }: {
   isRtl: boolean; onCreated: (p: Proposal) => void; onCancel: () => void;
@@ -248,6 +344,8 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
   const [useAI, setUseAI] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPrices, setShowPrices] = useState(false);
+  const [region, setRegion] = useState<PriceRegion>("riyadh");
+  const [projectSize, setProjectSize] = useState<ProjectSize>("medium");
 
   // Read CRM/Sales prefill
   useEffect(() => {
@@ -272,7 +370,7 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
     }
     setIsGenerating(true);
     setTimeout(() => {
-      const template = useAI ? generateAITemplate(selectedService, projectDesc, isRtl) : null;
+      const template = useAI ? getSmartPricing(selectedService, region, projectSize) : null;
       const subtotal = template ? template.items.reduce((s, i) => s + i.total, 0) : 0;
       const vatAmount = Math.round(subtotal * 15 / 100);
       const now = new Date().toISOString();
@@ -406,8 +504,8 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
             <Card className="border-border/50">
               <CardHeader className="pb-3 border-b border-border/40 bg-secondary/20">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  {isRtl ? "تفاصيل المشروع والذكاء الاصطناعي" : "Project Details & AI"}
+                  <Bot className="w-4 h-4 text-primary" />
+                  {isRtl ? "تفاصيل المشروع وإعدادات الذكاء الاصطناعي" : "Project Details & AI Settings"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
@@ -424,10 +522,46 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
                       <Wand2 className="w-3 h-3 me-0.5" />{isRtl ? "يُغذّي الذكاء الاصطناعي" : "Feeds AI Engine"}
                     </Badge>
                   </Label>
-                  <Textarea className="mt-1.5 bg-secondary/30 min-h-[110px] resize-none"
-                    placeholder={isRtl ? "صف المشروع: المساحة، نوع الأعمال، المتطلبات الخاصة، الموقع، المدة المطلوبة..." : "Describe the project: area, scope, special requirements, location, duration..."}
+                  <Textarea className="mt-1.5 bg-secondary/30 min-h-[100px] resize-none"
+                    placeholder={isRtl ? "صف المشروع: المساحة، نوع الأعمال، المتطلبات الخاصة، المدة المطلوبة..." : "Describe the project: area, scope, special requirements, duration..."}
                     value={projectDesc} onChange={(e) => setProjectDesc(e.target.value)} />
                 </div>
+
+                {/* Smart AI Settings */}
+                <div className="rounded-xl border border-primary/20 bg-primary/3 p-3 space-y-3">
+                  <p className="text-xs font-bold text-primary flex items-center gap-1.5">
+                    <Wand2 className="w-3.5 h-3.5" />
+                    {isRtl ? "إعدادات الأسعار الذكية" : "Smart Pricing Settings"}
+                  </p>
+                  {/* Region */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">{isRtl ? "منطقة المشروع" : "Project Region"}</Label>
+                    <div className="mt-1.5 grid grid-cols-3 gap-1">
+                      {(Object.entries(REGION_META) as [PriceRegion, {labelAr:string;labelEn:string}][]).map(([k, m]) => (
+                        <button key={k} type="button" onClick={() => setRegion(k)}
+                          className={cn("py-1.5 px-2 rounded-lg border text-xs font-medium transition-all",
+                            region === k ? "border-primary bg-primary/10 text-primary" : "border-border/50 bg-secondary/20 text-muted-foreground hover:border-primary/40")}>
+                          {isRtl ? m.labelAr : m.labelEn}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Project size */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">{isRtl ? "حجم / قيمة المشروع" : "Project Size / Value"}</Label>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1">
+                      {(Object.entries(SIZE_META) as [ProjectSize, {labelAr:string;labelEn:string;descAr:string;descEn:string}][]).map(([k, m]) => (
+                        <button key={k} type="button" onClick={() => setProjectSize(k)}
+                          className={cn("py-1.5 px-2 rounded-lg border text-start transition-all",
+                            projectSize === k ? "border-primary bg-primary/10" : "border-border/50 bg-secondary/20 hover:border-primary/40")}>
+                          <p className={cn("text-xs font-semibold", projectSize === k ? "text-primary" : "text-foreground")}>{isRtl ? m.labelAr : m.labelEn}</p>
+                          <p className="text-[10px] text-muted-foreground">{isRtl ? m.descAr : m.descEn}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* AI Toggle */}
                 <div className={cn("flex items-center justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all", useAI ? "border-primary bg-primary/5" : "border-border/40 bg-secondary/20")}
                   onClick={() => setUseAI(!useAI)}>
@@ -437,7 +571,7 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
                     </div>
                     <div>
                       <p className="text-sm font-semibold">{isRtl ? "توليد البنود بالذكاء الاصطناعي" : "AI-Generated Items & Pricing"}</p>
-                      <p className="text-xs text-muted-foreground">{isRtl ? "بنود وأسعار تلقائية بناءً على نوع الخدمة" : "Auto items & prices based on service type"}</p>
+                      <p className="text-xs text-muted-foreground">{isRtl ? "أسعار مُعدَّلة حسب المنطقة وحجم المشروع" : "Prices adjusted per region & project size"}</p>
                     </div>
                   </div>
                   <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0", useAI ? "border-primary bg-primary" : "border-border")}>
@@ -449,10 +583,10 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
                 <Button className="w-full h-11 font-bold gap-2" onClick={handleCreate} disabled={isGenerating || !projectDesc.trim()}>
                   {isGenerating ? (
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      {isRtl ? "جاري التوليد بالذكاء الاصطناعي..." : "Generating with AI..."}</>
+                      {isRtl ? "جاري التوليد الذكي..." : "Generating with Smart AI..."}</>
                   ) : (
                     <>{useAI ? <Bot className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                      {useAI ? (isRtl ? "توليد عرض السعر بالذكاء الاصطناعي" : "Generate AI Proposal") : (isRtl ? "إنشاء عرض سعر" : "Create Proposal")}</>
+                      {useAI ? (isRtl ? "توليد عرض سعر ذكي" : "Generate Smart Proposal") : (isRtl ? "إنشاء عرض سعر" : "Create Proposal")}</>
                   )}
                 </Button>
               </CardFooter>
@@ -504,6 +638,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
   const { toast } = useToast();
   const [proposal, setProposal] = useState<Proposal>(init);
   const [showPriceSugg, setShowPriceSugg] = useState(false);
+  const [priceTab, setPriceTab] = useState<"suggest"|"analyze">("suggest");
   const [showScope, setShowScope] = useState(true);
   const [showServicePicker, setShowServicePicker] = useState(false);
   const svc = SERVICE_META[proposal.serviceType];
@@ -629,9 +764,16 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
           }}>
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة PDF" : "Print PDF"}
           </Button>
-          {/* Price suggestions toggle */}
-          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-amber-600 border-amber-300" onClick={() => setShowPriceSugg(!showPriceSugg)}>
-            <Lightbulb className="w-3.5 h-3.5" />{isRtl ? "الأسعار" : "Prices"}
+          {/* Price analysis toggle */}
+          <Button size="sm" variant="outline"
+            className={cn("gap-1.5 h-8 transition-colors", showPriceSugg && priceTab === "suggest" ? "text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/20" : "text-amber-600 border-amber-300")}
+            onClick={() => { setPriceTab("suggest"); setShowPriceSugg(prev => priceTab === "suggest" ? !prev : true); }}>
+            <Lightbulb className="w-3.5 h-3.5" />{isRtl ? "اقتراحات" : "Suggest"}
+          </Button>
+          <Button size="sm" variant="outline"
+            className={cn("gap-1.5 h-8 transition-colors", showPriceSugg && priceTab === "analyze" ? "text-primary border-primary/40 bg-primary/5" : "text-primary/70 border-primary/30")}
+            onClick={() => { setPriceTab("analyze"); setShowPriceSugg(prev => priceTab === "analyze" ? !prev : true); }}>
+            <BarChart2 className="w-3.5 h-3.5" />{isRtl ? "تحليل ذكي" : "Analyze"}
           </Button>
           <Button size="sm" className="gap-1.5 h-8" onClick={handleSave}>
             <Save className="w-3.5 h-3.5" />{isRtl ? "حفظ" : "Save"}
@@ -741,12 +883,28 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
             </CardContent>
           </Card>
 
-          {/* Price suggestions panel */}
+          {/* Price analysis panel */}
           {showPriceSugg && (
-            <Card className="border-amber-200/60 bg-amber-50/30 dark:bg-amber-950/10">
+            <Card className={cn("transition-colors", priceTab === "suggest" ? "border-amber-200/60 bg-amber-50/30 dark:bg-amber-950/10" : "border-primary/20 bg-primary/3")}>
+              <CardHeader className="py-2 px-4 border-b border-border/30">
+                <div className="flex gap-1">
+                  <button onClick={() => setPriceTab("suggest")}
+                    className={cn("flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all", priceTab === "suggest" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" : "text-muted-foreground hover:bg-secondary/40")}>
+                    <Lightbulb className="w-3 h-3" />{isRtl ? "اقتراحات الأسعار" : "Price Suggestions"}
+                  </button>
+                  <button onClick={() => setPriceTab("analyze")}
+                    className={cn("flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all", priceTab === "analyze" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary/40")}>
+                    <BarChart2 className="w-3 h-3" />{isRtl ? "المحلل الذكي" : "Smart Analyzer"}
+                  </button>
+                </div>
+              </CardHeader>
               <CardContent className="p-4">
-                <PriceSuggestionPanel serviceType={proposal.serviceType} isRtl={isRtl}
-                  onApply={(price) => toast({ title: isRtl ? "ملاحظة" : "Note", description: isRtl ? `متوسط السعر: ${price.toLocaleString()} ر.س — عدّل البنود يدوياً` : `Avg price: SAR ${price.toLocaleString()} — Edit items manually` })} />
+                {priceTab === "suggest" ? (
+                  <PriceSuggestionPanel serviceType={proposal.serviceType} isRtl={isRtl}
+                    onApply={(price) => toast({ title: isRtl ? "ملاحظة" : "Note", description: isRtl ? `متوسط السعر: ${price.toLocaleString()} ر.س — عدّل البنود يدوياً` : `Avg price: SAR ${price.toLocaleString()} — Edit items manually` })} />
+                ) : (
+                  <SmartPriceAnalyzer proposal={proposal} isRtl={isRtl} />
+                )}
               </CardContent>
             </Card>
           )}

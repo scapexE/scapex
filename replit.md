@@ -23,7 +23,7 @@
 
 ## Modules
 ### Built & Functional
-- **Smart Proposal Generator** (`/smart-proposal`) — Full AI-powered system
+- **Smart Proposal Generator** (`/smart-proposal`) — Full AI-powered system with Market Benchmark pricing
 - **CRM** (`/crm`) — Pipeline board + Customers list + Dashboard
 - **Sales** (`/sales`) — Quotations (linked to proposals) + Contracts
 - **Accounting** (`/accounting`) — Basic financial views
