@@ -113,28 +113,28 @@ function DashboardContent() {
         <StatCard
           title={t("dash.active_projects")}
           value="42"
-          trend="+12% من الشهر الماضي"
+          trend={t("dash.trend_projects")}
           icon={Briefcase}
           trendUp={true}
         />
         <StatCard
           title={t("dash.pending_approvals")}
           value="128"
-          trend="15 تستدعي اتخاذ إجراء"
+          trend={t("dash.trend_approvals")}
           icon={CheckCircle2}
           trendUp={false}
         />
         <StatCard
           title={t("dash.engineers_field")}
           value="340"
-          trend="نسبة الحضور 92% اليوم"
+          trend={t("dash.trend_engineers")}
           icon={MapPin}
           trendUp={true}
         />
         <StatCard
           title={t("dash.revenue")}
           value="12.4M ر.س"
-          trend="+24% عن العام الماضي"
+          trend={t("dash.trend_revenue")}
           icon={TrendingUp}
           trendUp={true}
         />
@@ -172,7 +172,7 @@ function DashboardContent() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-500" />
-                تنبيهات النظام
+                {t("dash.alert_title")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -180,15 +180,15 @@ function DashboardContent() {
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/50">
                   <Clock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">معالجة الرواتب</p>
-                    <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">في انتظار الاعتماد لـ 3 فروع قبل نهاية الشهر.</p>
+                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">{t("dash.alert_payroll")}</p>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">{t("dash.alert_payroll_desc")}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100 dark:bg-red-950/20 dark:border-red-900/50">
                   <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-red-900 dark:text-red-200">مخزون منخفض</p>
-                    <p className="text-xs text-red-700/80 dark:text-red-400/80 mt-1">مخزون الحديد في مستودع الرياض أقل من الحد الأدنى.</p>
+                    <p className="text-sm font-medium text-red-900 dark:text-red-200">{t("dash.alert_stock")}</p>
+                    <p className="text-xs text-red-700/80 dark:text-red-400/80 mt-1">{t("dash.alert_stock_desc")}</p>
                   </div>
                 </div>
               </div>

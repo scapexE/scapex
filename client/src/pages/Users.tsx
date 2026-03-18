@@ -33,6 +33,7 @@ import {
   getPrimaryRole, mergePermissions, validateNationalId,
 } from "@/lib/permissions";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const MODULE_CATEGORIES: Record<string, { ar: string; en: string }> = {
   core:        { ar: "النظام الأساسي",   en: "Core" },
@@ -44,13 +45,13 @@ const MODULE_CATEGORIES: Record<string, { ar: string; en: string }> = {
 };
 
 // Roles available for assignment (admin is system-only)
-const ASSIGNABLE_ROLES: { role: Role; ar: string; desc: string }[] = [
-  { role: "manager",    ar: "مشرف / مدير",          desc: "صلاحيات إدارية وإشرافية" },
-  { role: "accountant", ar: "محاسب",                 desc: "المحاسبة والمالية" },
-  { role: "engineer",   ar: "مهندس",                 desc: "المشاريع والهندسة والميدان" },
-  { role: "hr_manager", ar: "مدير موارد بشرية",      desc: "الموارد البشرية والرواتب" },
-  { role: "client",     ar: "عميل",                  desc: "بوابة العملاء فقط" },
-  { role: "viewer",     ar: "مشاهد",                 desc: "قراءة فقط بدون تعديل" },
+const ASSIGNABLE_ROLES: { role: Role; ar: string; en: string; descAr: string; descEn: string }[] = [
+  { role: "manager",    ar: "مشرف / مدير",          en: "Manager / Supervisor", descAr: "صلاحيات إدارية وإشرافية",        descEn: "Administrative and supervisory access" },
+  { role: "accountant", ar: "محاسب",                 en: "Accountant",           descAr: "المحاسبة والمالية",               descEn: "Accounting and finance" },
+  { role: "engineer",   ar: "مهندس",                 en: "Engineer",             descAr: "المشاريع والهندسة والميدان",      descEn: "Projects, engineering and field work" },
+  { role: "hr_manager", ar: "مدير موارد بشرية",      en: "HR Manager",           descAr: "الموارد البشرية والرواتب",        descEn: "Human resources and payroll" },
+  { role: "client",     ar: "عميل",                  en: "Client",               descAr: "بوابة العملاء فقط",               descEn: "Client portal access only" },
+  { role: "viewer",     ar: "مشاهد",                 en: "Viewer",               descAr: "قراءة فقط بدون تعديل",            descEn: "Read-only, no editing" },
 ];
 
 const ALL_ROLES: Role[] = ["admin", "manager", "accountant", "engineer", "hr_manager", "client", "viewer"];
@@ -75,6 +76,8 @@ function ActivationDialog({
   onActivate: (user: SystemUser, roles: Role[], permissions: string[]) => void;
   onClose: () => void;
 }) {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [customPerm, setCustomPerm] = useState(false);
@@ -113,11 +116,11 @@ function ActivationDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir={dir}>
         <DialogHeader>
           <DialogTitle className="text-right flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-emerald-600" />
-            تفعيل الحساب — {user.name}
+            {t("users.pending.title")} — {user.name}
           </DialogTitle>
         </DialogHeader>
 
@@ -133,7 +136,7 @@ function ActivationDialog({
             </div>
             {primaryRole && (
               <Badge variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[primaryRole].color)}>
-                {ROLE_LABELS[primaryRole].ar}
+                {isRtl ? ROLE_LABELS[primaryRole].ar : ROLE_LABELS[primaryRole].en}
                 {selectedRoles.length > 1 && ` +${selectedRoles.length - 1}`}
               </Badge>
             )}
@@ -142,11 +145,11 @@ function ActivationDialog({
           {/* Role Selection (multi-check) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-semibold">الأدوار الوظيفية</Label>
-              <span className="text-xs text-muted-foreground">يمكن اختيار أكثر من دور</span>
+              <Label className="text-sm font-semibold">{t("users.form.roles")}</Label>
+              <span className="text-xs text-muted-foreground">{t("users.form.roles_hint")}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {ASSIGNABLE_ROLES.map(({ role, ar, desc }) => {
+              {ASSIGNABLE_ROLES.map(({ role, ar, en, descAr, descEn }) => {
                 const selected = selectedRoles.includes(role);
                 return (
                   <div
@@ -167,14 +170,14 @@ function ActivationDialog({
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm">{ar}</p>
+                        <p className="font-semibold text-sm">{isRtl ? ar : en}</p>
                         {selected && (
                           <Badge variant="outline" className={cn("border-transparent text-[10px] px-1.5", ROLE_LABELS[role].color)}>
                             {ROLE_LABELS[role].en}
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{desc}</p>
+                      <p className="text-xs text-muted-foreground">{isRtl ? descAr : descEn}</p>
                     </div>
                   </div>
                 );
@@ -183,14 +186,16 @@ function ActivationDialog({
 
             {selectedRoles.length > 1 && (
               <div className="flex flex-wrap gap-1.5 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                <span className="text-xs text-blue-600 font-medium w-full mb-1">الأدوار المدمجة:</span>
+                <span className="text-xs text-blue-600 font-medium w-full mb-1">
+                  {isRtl ? "الأدوار المدمجة:" : "Combined roles:"}
+                </span>
                 {selectedRoles.map((r) => (
                   <Badge key={r} variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[r].color)}>
-                    {ROLE_LABELS[r].ar}
+                    {isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}
                   </Badge>
                 ))}
                 <span className="text-xs text-muted-foreground w-full mt-0.5">
-                  الدور الأساسي: <strong>{ROLE_LABELS[getPrimaryRole(selectedRoles)].ar}</strong> — سيحصل على صلاحيات جميع الأدوار مجمّعة
+                  {t("users.form.primary_role")} <strong>{isRtl ? ROLE_LABELS[getPrimaryRole(selectedRoles)].ar : ROLE_LABELS[getPrimaryRole(selectedRoles)].en}</strong> {isRtl ? "— سيحصل على صلاحيات جميع الأدوار مجمّعة" : "— permissions merged from all roles"}
                 </span>
               </div>
             )}
@@ -200,24 +205,26 @@ function ActivationDialog({
           {selectedRoles.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">الصلاحيات</Label>
+                <Label className="text-sm font-semibold">{t("users.col.permissions")}</Label>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{permissions.length} / {ALL_MODULES.length}</span>
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={resetPermissions}>
-                    <RefreshCw className="w-3 h-3" /> إعادة ضبط
+                    <RefreshCw className="w-3 h-3" /> {t("users.perms.reset")}
                   </Button>
                 </div>
               </div>
               {customPerm && (
                 <p className="text-xs text-amber-600 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
-                  ✏️ تم تعديل الصلاحيات يدوياً — اضغط "إعادة ضبط" للرجوع للصلاحيات الافتراضية
+                  {isRtl
+                    ? '✏️ تم تعديل الصلاحيات يدوياً — اضغط "إعادة ضبط" للرجوع للصلاحيات الافتراضية'
+                    : '✏️ Permissions manually modified — click "Reset" to restore defaults'}
                 </p>
               )}
               <div className="border rounded-xl overflow-hidden">
                 {Object.entries(groupedModules).map(([cat, mods], catIdx) => (
                   <div key={cat} className={cn("p-3", catIdx > 0 && "border-t border-border/50")}>
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      {MODULE_CATEGORIES[cat]?.ar}
+                      {isRtl ? MODULE_CATEGORIES[cat]?.ar : MODULE_CATEGORIES[cat]?.en}
                     </h4>
                     <div className="grid grid-cols-2 gap-1.5">
                       {mods.map((mod) => {
@@ -232,7 +239,7 @@ function ActivationDialog({
                           >
                             <Checkbox checked={checked} onCheckedChange={() => togglePerm(mod.id)} className="pointer-events-none shrink-0" />
                             <span className={cn("text-xs truncate", checked ? "font-medium" : "text-muted-foreground")}>
-                              {mod.labelAr}
+                              {isRtl ? mod.labelAr : mod.labelEn}
                             </span>
                           </div>
                         );
@@ -253,9 +260,9 @@ function ActivationDialog({
             data-testid="button-confirm-activate"
           >
             <UserCheck className="w-4 h-4" />
-            تفعيل الحساب
+            {t("users.btn.confirm_activate")}
           </Button>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+          <Button variant="outline" onClick={onClose}>{t("users.btn.cancel")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -274,6 +281,8 @@ function PendingSection({
   onActivateClick: (user: SystemUser) => void;
   onReject: (user: SystemUser) => void;
 }) {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const pending = users.filter((u) => u.pendingApproval && !u.active);
 
   return (
@@ -285,16 +294,16 @@ function PendingSection({
             <Clock className={cn("w-4 h-4", pending.length > 0 ? "text-amber-500" : "text-muted-foreground")} />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-sm">تفعيل الحساب</h3>
-            <p className="text-xs text-muted-foreground">طلبات تسجيل تنتظر تحديد الأدوار وتفعيل الوصول</p>
+            <h3 className="font-semibold text-sm">{t("users.pending.title")}</h3>
+            <p className="text-xs text-muted-foreground">{t("users.pending.desc")}</p>
           </div>
           {pending.length > 0 && (
-            <Badge className="bg-amber-500 text-white border-0">{pending.length} طلب</Badge>
+            <Badge className="bg-amber-500 text-white border-0">{pending.length} {t("users.pending.request")}</Badge>
           )}
         </div>
 
         {pending.length === 0 ? (
-          <div className="text-center py-6 text-sm text-muted-foreground">لا توجد حسابات تنتظر التفعيل</div>
+          <div className="text-center py-6 text-sm text-muted-foreground">{t("users.pending.empty")}</div>
         ) : (
           <div className="space-y-2">
             {pending.map((user) => (
@@ -307,20 +316,20 @@ function PendingSection({
                   <p className="font-semibold text-sm truncate">{user.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    التسجيل: {new Date(user.createdAt).toLocaleDateString("ar-SA")}
+                    {t("users.pending.reg_date")} {new Date(user.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-GB")}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button data-testid={`button-activate-${user.id}`}
                     size="sm" className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
                     onClick={() => onActivateClick(user)}>
-                    <UserCheck className="w-3.5 h-3.5" /> تفعيل
+                    <UserCheck className="w-3.5 h-3.5" /> {t("users.btn.activate")}
                   </Button>
                   <Button data-testid={`button-reject-${user.id}`}
                     size="sm" variant="outline"
                     className="h-8 gap-1 text-destructive border-destructive/30 hover:bg-destructive/10 text-xs"
                     onClick={() => onReject(user)}>
-                    <UserX className="w-3.5 h-3.5" /> رفض
+                    <UserX className="w-3.5 h-3.5" /> {t("users.btn.reject")}
                   </Button>
                 </div>
               </div>
@@ -336,6 +345,8 @@ function PendingSection({
 // Role badges for multi-role users
 // ─────────────────────────────────────────────────────────────────────────────
 function RoleBadges({ user }: { user: SystemUser }) {
+  const { dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const allRoles = user.roles && user.roles.length > 0 ? user.roles : [user.role];
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? allRoles : allRoles.slice(0, 2);
@@ -345,7 +356,7 @@ function RoleBadges({ user }: { user: SystemUser }) {
     <div className="flex flex-wrap gap-1">
       {visible.map((r) => (
         <Badge key={r} variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[r].color)}>
-          {ROLE_LABELS[r].ar}
+          {isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}
         </Badge>
       ))}
       {!showAll && extra > 0 && (
@@ -363,6 +374,8 @@ function RoleBadges({ user }: { user: SystemUser }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Users() {
   const { toast } = useToast();
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
   const canApprove = canApproveRegistrations(currentUser);
@@ -385,8 +398,8 @@ export default function Users() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center space-y-2">
             <Shield className="w-12 h-12 mx-auto text-destructive/50" />
-            <p className="text-lg font-semibold text-muted-foreground">لا تملك صلاحية الوصول</p>
-            <p className="text-sm text-muted-foreground">فقط مدير النظام أو المفوّضون يمكنهم إدارة المستخدمين</p>
+            <p className="text-lg font-semibold text-muted-foreground">{t("users.no_access")}</p>
+            <p className="text-sm text-muted-foreground">{t("users.no_access_desc")}</p>
           </div>
         </div>
       </MainLayout>
@@ -405,13 +418,20 @@ export default function Users() {
     );
     persist(updated);
     setActivatingUser(null);
-    const roleNames = roles.map((r) => ROLE_LABELS[r].ar).join(" + ");
-    toast({ title: "تم التفعيل", description: `تم تفعيل "${user.name}" بأدوار: ${roleNames}` });
+    const roleNames = roles.map((r) => isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en).join(" + ");
+    toast({
+      title: isRtl ? "تم التفعيل" : "Activated",
+      description: isRtl ? `تم تفعيل "${user.name}" بأدوار: ${roleNames}` : `"${user.name}" activated with roles: ${roleNames}`
+    });
   };
 
   const handleReject = (user: SystemUser) => {
     persist(users.filter((u) => u.id !== user.id));
-    toast({ title: "تم الرفض", description: `تم حذف طلب "${user.name}"`, variant: "destructive" });
+    toast({
+      title: isRtl ? "تم الرفض" : "Rejected",
+      description: isRtl ? `تم حذف طلب "${user.name}"` : `Request from "${user.name}" has been rejected`,
+      variant: "destructive"
+    });
   };
 
   // ── Filter ────────────────────────────────────────────────────────────────
@@ -431,16 +451,16 @@ export default function Users() {
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const handleAddSubmit = () => {
     if (!form.nationalId || !form.name || !form.email || !form.password) {
-      toast({ title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة (الهوية، الاسم، البريد، كلمة المرور)", variant: "destructive" }); return;
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "يرجى ملء جميع الحقول المطلوبة (الهوية، الاسم، البريد، كلمة المرور)" : "Please fill all required fields (ID, name, email, password)", variant: "destructive" }); return;
     }
     if (!validateNationalId(form.nationalId)) {
-      toast({ title: "رقم الهوية غير صحيح", description: "يجب أن يكون رقم الهوية 10 أرقام ويبدأ بـ 1 أو 2", variant: "destructive" }); return;
+      toast({ title: isRtl ? "رقم الهوية غير صحيح" : "Invalid National ID", description: isRtl ? "يجب أن يكون رقم الهوية 10 أرقام ويبدأ بـ 1 أو 2" : "ID must be 10 digits starting with 1 or 2", variant: "destructive" }); return;
     }
     if (users.find((u) => u.nationalId === form.nationalId)) {
-      toast({ title: "خطأ", description: "رقم الهوية مسجّل مسبقاً", variant: "destructive" }); return;
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "رقم الهوية مسجّل مسبقاً" : "National ID already exists", variant: "destructive" }); return;
     }
     if (users.find((u) => u.email === form.email)) {
-      toast({ title: "خطأ", description: "البريد مستخدم مسبقاً", variant: "destructive" }); return;
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "البريد مستخدم مسبقاً" : "Email already in use", variant: "destructive" }); return;
     }
     const roles = form.roles && form.roles.length > 0 ? form.roles : [form.role as Role];
     const primary = getPrimaryRole(roles);
@@ -450,18 +470,18 @@ export default function Users() {
       createdAt: new Date().toISOString(), active: form.active ?? true,
     };
     persist([...users, newUser]); setAddOpen(false); setForm(emptyForm());
-    toast({ title: "تم بنجاح", description: `تمت إضافة "${newUser.name}"` });
+    toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? `تمت إضافة "${newUser.name}"` : `"${newUser.name}" has been added` });
   };
 
   const handleEditSubmit = () => {
     if (!editUser || !form.nationalId || !form.name || !form.email) {
-      toast({ title: "خطأ", description: "يرجى ملء الحقول المطلوبة", variant: "destructive" }); return;
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "يرجى ملء الحقول المطلوبة" : "Please fill all required fields", variant: "destructive" }); return;
     }
     if (!validateNationalId(form.nationalId)) {
-      toast({ title: "رقم الهوية غير صحيح", description: "يجب أن يكون رقم الهوية 10 أرقام ويبدأ بـ 1 أو 2", variant: "destructive" }); return;
+      toast({ title: isRtl ? "رقم الهوية غير صحيح" : "Invalid National ID", description: isRtl ? "يجب أن يكون رقم الهوية 10 أرقام ويبدأ بـ 1 أو 2" : "ID must be 10 digits starting with 1 or 2", variant: "destructive" }); return;
     }
     const dupId = users.find((u) => u.nationalId === form.nationalId && u.id !== editUser.id);
-    if (dupId) { toast({ title: "خطأ", description: "رقم الهوية مسجّل لمستخدم آخر", variant: "destructive" }); return; }
+    if (dupId) { toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "رقم الهوية مسجّل لمستخدم آخر" : "National ID belongs to another user", variant: "destructive" }); return; }
     const roles = form.roles && form.roles.length > 0 ? form.roles : [form.role as Role];
     const primary = getPrimaryRole(roles);
     const updated = users.map((u) =>
@@ -475,17 +495,17 @@ export default function Users() {
       if (nc) localStorage.setItem("user", JSON.stringify(nc));
     }
     setEditUser(null); setForm(emptyForm());
-    toast({ title: "تم بنجاح", description: "تم تحديث بيانات المستخدم" });
+    toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? "تم تحديث بيانات المستخدم" : "User data updated successfully" });
   };
 
   const handleDelete = () => {
     if (!deleteUser) return;
     if (deleteUser.email === currentUser?.email) {
-      toast({ title: "خطأ", description: "لا يمكنك حذف حسابك الحالي", variant: "destructive" });
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "لا يمكنك حذف حسابك الحالي" : "You cannot delete your own account", variant: "destructive" });
       setDeleteUser(null); return;
     }
     persist(users.filter((u) => u.id !== deleteUser.id)); setDeleteUser(null);
-    toast({ title: "تم الحذف", description: `تم حذف "${deleteUser.name}"` });
+    toast({ title: isRtl ? "تم الحذف" : "Deleted", description: isRtl ? `تم حذف "${deleteUser.name}"` : `"${deleteUser.name}" has been deleted` });
   };
 
   const handleToggleActive = (user: SystemUser) => {
@@ -497,7 +517,7 @@ export default function Users() {
     if (!permUser) return;
     persist(users.map((u) => u.id === permUser.id ? { ...u, permissions: permUser.permissions } : u));
     setPermUser(null);
-    toast({ title: "تم بنجاح", description: "تم حفظ الصلاحيات" });
+    toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? "تم حفظ الصلاحيات" : "Permissions saved successfully" });
   };
 
   const togglePermEdit = (modId: string) => {
@@ -525,8 +545,8 @@ export default function Users() {
       <MainLayout>
         <div className="flex flex-col gap-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">تفعيل الحساب</h1>
-            <p className="text-muted-foreground mt-1 text-sm">مراجعة طلبات التسجيل وتحديد الأدوار قبل التفعيل</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t("users.pending.title")}</h1>
+            <p className="text-muted-foreground mt-1 text-sm">{t("users.pending.desc")}</p>
           </div>
           <PendingSection users={users} onActivateClick={setActivatingUser} onReject={handleReject} />
         </div>
@@ -544,32 +564,32 @@ export default function Users() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">إدارة المستخدمين</h1>
-            <p className="text-muted-foreground mt-1 text-sm">إضافة وتعديل وضبط أدوار وصلاحيات مستخدمي النظام</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t("users.title")}</h1>
+            <p className="text-muted-foreground mt-1 text-sm">{t("users.desc")}</p>
           </div>
           <Button data-testid="button-add-user"
             className="bg-primary hover:bg-primary/90 self-start sm:self-auto"
             onClick={() => { setForm(emptyForm()); setAddOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> إضافة مستخدم
+            <Plus className="w-4 h-4 mr-2" /> {t("users.add")}
           </Button>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { Icon: UsersIcon, color: "text-primary",          bg: "bg-primary/10",       val: users.filter(u => !(u.pendingApproval && !u.active)).length, label: "الإجمالي" },
-            { Icon: ShieldCheck, color: "text-emerald-600",    bg: "bg-emerald-500/10",   val: users.filter(u => u.active).length, label: "نشط" },
-            { Icon: Shield,     color: "text-red-600",          bg: "bg-red-500/10",       val: users.filter(u => u.role === "admin").length, label: "مديرو النظام" },
-            { Icon: Clock,      color: pendingCnt > 0 ? "text-amber-500" : "text-muted-foreground", bg: pendingCnt > 0 ? "bg-amber-500/20" : "bg-secondary", val: pendingCnt, label: "تفعيل الحساب" },
-          ].map(({ Icon, color, bg, val, label }) => (
-            <Card key={label} className={cn("border-border/50", label === "تفعيل الحساب" && pendingCnt > 0 && "border-amber-500/40 bg-amber-500/5")}>
+            { Icon: UsersIcon, color: "text-primary",          bg: "bg-primary/10",       val: users.filter(u => !(u.pendingApproval && !u.active)).length, labelKey: "users.stat.total" },
+            { Icon: ShieldCheck, color: "text-emerald-600",    bg: "bg-emerald-500/10",   val: users.filter(u => u.active).length, labelKey: "users.stat.active" },
+            { Icon: Shield,     color: "text-red-600",          bg: "bg-red-500/10",       val: users.filter(u => u.role === "admin").length, labelKey: "users.stat.admins" },
+            { Icon: Clock,      color: pendingCnt > 0 ? "text-amber-500" : "text-muted-foreground", bg: pendingCnt > 0 ? "bg-amber-500/20" : "bg-secondary", val: pendingCnt, labelKey: "users.stat.pending" },
+          ].map(({ Icon, color, bg, val, labelKey }) => (
+            <Card key={labelKey} className={cn("border-border/50", labelKey === "users.stat.pending" && pendingCnt > 0 && "border-amber-500/40 bg-amber-500/5")}>
               <CardContent className="p-4 flex items-center gap-3">
                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", bg)}>
                   <Icon className={cn("w-5 h-5", color)} />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{val}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-xs text-muted-foreground">{t(labelKey)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -584,7 +604,7 @@ export default function Users() {
           <CardContent className="p-3 flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input data-testid="input-search-users" placeholder="بحث بالاسم أو البريد..."
+              <Input data-testid="input-search-users" placeholder={t("users.search")}
                 value={search} onChange={(e) => setSearch(e.target.value)}
                 className="pr-9 h-9 bg-secondary/50 border-0" />
             </div>
@@ -592,12 +612,12 @@ export default function Users() {
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="h-9 w-44 bg-secondary/50 border-0" data-testid="select-role-filter">
-                  <SelectValue placeholder="كل الأدوار" />
+                  <SelectValue placeholder={t("users.all_roles")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">كل الأدوار</SelectItem>
+                  <SelectItem value="all">{t("users.all_roles")}</SelectItem>
                   {ALL_ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>{ROLE_LABELS[r].ar}</SelectItem>
+                    <SelectItem key={r} value={r}>{isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -611,20 +631,20 @@ export default function Users() {
             <Table>
               <TableHeader className="bg-secondary/50">
                 <TableRow className="border-border/50 hover:bg-transparent">
-                  <TableHead className="text-right">المستخدم</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">رقم الهوية</TableHead>
-                  <TableHead className="text-right">الأدوار</TableHead>
-                  <TableHead className="text-right hidden md:table-cell">الصلاحيات</TableHead>
-                  <TableHead className="text-right hidden sm:table-cell">تاريخ الإضافة</TableHead>
-                  <TableHead className="text-right">الحالة</TableHead>
-                  <TableHead className="text-left">الإجراءات</TableHead>
+                  <TableHead className="text-right">{t("users.col.user")}</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">{t("users.col.national_id")}</TableHead>
+                  <TableHead className="text-right">{t("users.col.roles")}</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">{t("users.col.permissions")}</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">{t("users.col.created")}</TableHead>
+                  <TableHead className="text-right">{t("users.col.status")}</TableHead>
+                  <TableHead className="text-left">{t("users.col.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                      لا يوجد مستخدمون مطابقون
+                      {t("users.no_results")}
                     </TableCell>
                   </TableRow>
                 )}
@@ -656,13 +676,13 @@ export default function Users() {
                         <span className="text-xs text-muted-foreground">/ {ALL_MODULES.length}</span>
                         <button onClick={() => setPermUser({ ...user, permissions: [...user.permissions] })}
                           className="ml-2 text-xs text-primary hover:underline" data-testid={`button-permissions-${user.id}`}>
-                          تعديل
+                          {t("users.edit")}
                         </button>
                       </div>
                     </TableCell>
                     <TableCell className="text-right hidden sm:table-cell">
                       <span className="text-xs text-muted-foreground">
-                        {new Date(user.createdAt).toLocaleDateString("ar-SA")}
+                        {new Date(user.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-GB")}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -689,7 +709,7 @@ export default function Users() {
             </Table>
           </div>
           <div className="border-t border-border/50 p-3 text-xs text-muted-foreground bg-secondary/20">
-            عرض {filtered.length} من {users.filter(u => !(u.pendingApproval && !u.active)).length} مستخدم
+            {t("users.showing")} {filtered.length} {t("users.of")} {users.filter(u => !(u.pendingApproval && !u.active)).length} {t("users.user")}
           </div>
         </Card>
       </div>
@@ -701,55 +721,55 @@ export default function Users() {
 
       {/* Add Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir={dir}>
           <DialogHeader>
-            <DialogTitle className="text-right">إضافة مستخدم جديد</DialogTitle>
+            <DialogTitle className="text-right">{t("users.dialog.add")}</DialogTitle>
           </DialogHeader>
           <UserForm form={form} setForm={setForm} showPass={showPass} setShowPass={setShowPass} isNew />
           <DialogFooter className="flex-row-reverse gap-2">
-            <Button onClick={handleAddSubmit} data-testid="button-confirm-add">حفظ المستخدم</Button>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>إلغاء</Button>
+            <Button onClick={handleAddSubmit} data-testid="button-confirm-add">{t("users.btn.save")}</Button>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>{t("users.btn.cancel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir={dir}>
           <DialogHeader>
-            <DialogTitle className="text-right">تعديل المستخدم</DialogTitle>
+            <DialogTitle className="text-right">{t("users.dialog.edit")}</DialogTitle>
           </DialogHeader>
           <UserForm form={form} setForm={setForm} showPass={showPass} setShowPass={setShowPass} />
           <DialogFooter className="flex-row-reverse gap-2">
-            <Button onClick={handleEditSubmit} data-testid="button-confirm-edit">حفظ التعديلات</Button>
-            <Button variant="outline" onClick={() => setEditUser(null)}>إلغاء</Button>
+            <Button onClick={handleEditSubmit} data-testid="button-confirm-edit">{t("users.btn.save_edit")}</Button>
+            <Button variant="outline" onClick={() => setEditUser(null)}>{t("users.btn.cancel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteUser} onOpenChange={(o) => !o && setDeleteUser(null)}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-right">تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogTitle className="text-right">{t("users.dialog.delete")}</AlertDialogTitle>
             <AlertDialogDescription className="text-right">
-              هل أنت متأكد من حذف <strong>{deleteUser?.name}</strong>؟ لا يمكن التراجع.
+              {t("users.dialog.delete_desc")} <strong>{deleteUser?.name}</strong>؟ {t("users.dialog.delete_warn")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row-reverse gap-2">
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">{t("users.btn.delete")}</AlertDialogAction>
+            <AlertDialogCancel>{t("users.btn.cancel")}</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Permissions Dialog */}
       <Dialog open={!!permUser} onOpenChange={(o) => !o && setPermUser(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" dir={dir}>
           <DialogHeader>
             <DialogTitle className="text-right flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />
-              صلاحيات: {permUser?.name}
+              {t("users.perms.title")}: {permUser?.name}
             </DialogTitle>
           </DialogHeader>
           {permUser && (
@@ -758,19 +778,19 @@ export default function Users() {
                 <div className="flex flex-wrap gap-1">
                   {(permUser.roles || [permUser.role]).map((r) => (
                     <Badge key={r} variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[r].color)}>
-                      {ROLE_LABELS[r].ar}
+                      {isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}
                     </Badge>
                   ))}
                 </div>
                 <Button size="sm" variant="outline" className="gap-1 shrink-0"
                   onClick={() => setPermUser({ ...permUser, permissions: mergePermissions(permUser.roles || [permUser.role]) })}>
-                  <RefreshCw className="w-3 h-3" /> إعادة ضبط
+                  <RefreshCw className="w-3 h-3" /> {t("users.perms.reset")}
                 </Button>
               </div>
               {Object.entries(groupedModules).map(([cat, mods]) => (
                 <div key={cat}>
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                    {MODULE_CATEGORIES[cat]?.ar}
+                    {isRtl ? MODULE_CATEGORIES[cat]?.ar : MODULE_CATEGORIES[cat]?.en}
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {mods.map((mod) => {
@@ -782,8 +802,8 @@ export default function Users() {
                           onClick={() => togglePermEdit(mod.id)} data-testid={`perm-${mod.id}`}>
                           <Checkbox checked={checked} onCheckedChange={() => togglePermEdit(mod.id)} className="pointer-events-none" />
                           <div>
-                            <p className="text-sm font-medium">{mod.labelAr}</p>
-                            <p className="text-xs text-muted-foreground">{mod.labelEn}</p>
+                            <p className="text-sm font-medium">{isRtl ? mod.labelAr : mod.labelEn}</p>
+                            <p className="text-xs text-muted-foreground">{isRtl ? mod.labelEn : mod.labelAr}</p>
                           </div>
                         </div>
                       );
@@ -792,13 +812,13 @@ export default function Users() {
                 </div>
               ))}
               <p className="text-sm text-muted-foreground text-right">
-                {permUser.permissions.length} صلاحية من أصل {ALL_MODULES.length}
+                {permUser.permissions.length} {isRtl ? "صلاحية من أصل" : "permissions out of"} {ALL_MODULES.length}
               </p>
             </div>
           )}
           <DialogFooter className="flex-row-reverse gap-2">
-            <Button onClick={handlePermSave} data-testid="button-save-permissions">حفظ الصلاحيات</Button>
-            <Button variant="outline" onClick={() => setPermUser(null)}>إلغاء</Button>
+            <Button onClick={handlePermSave} data-testid="button-save-permissions">{t("users.btn.save_perms")}</Button>
+            <Button variant="outline" onClick={() => setPermUser(null)}>{t("users.btn.cancel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -813,12 +833,14 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
   form: Partial<SystemUser>; setForm: (f: Partial<SystemUser>) => void;
   showPass: boolean; setShowPass: (v: boolean) => void; isNew?: boolean;
 }) {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const currentRoles: Role[] = form.roles && form.roles.length > 0 ? form.roles : (form.role ? [form.role] : ["viewer"]);
 
   const toggleRole = (role: Role) => {
     let updated: Role[];
     if (currentRoles.includes(role)) {
-      if (currentRoles.length === 1) return; // keep at least one
+      if (currentRoles.length === 1) return;
       updated = currentRoles.filter((r) => r !== role);
     } else {
       updated = [...currentRoles, role];
@@ -831,12 +853,12 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
   const idOk = nationalIdVal.length === 0 || validateNationalId(nationalIdVal);
 
   return (
-    <div className="space-y-4" dir="rtl">
-      {/* National ID — Primary key */}
+    <div className="space-y-4" dir={dir}>
+      {/* National ID */}
       <div className="space-y-1.5">
         <Label htmlFor="nationalId" className="flex items-center gap-1.5">
-          رقم الهوية الوطنية *
-          <span className="text-[10px] font-normal text-muted-foreground">(10 أرقام — يبدأ بـ 1 أو 2)</span>
+          {t("users.form.national_id")}
+          <span className="text-[10px] font-normal text-muted-foreground">({t("users.form.national_id_hint")})</span>
         </Label>
         <div className="relative">
           <Input
@@ -851,29 +873,29 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
           />
         </div>
         {!idOk && nationalIdVal.length > 0 && (
-          <p className="text-xs text-destructive">رقم الهوية غير صحيح — 10 أرقام يبدأ بـ 1 أو 2</p>
+          <p className="text-xs text-destructive">{t("users.form.national_id_err")}</p>
         )}
         {idOk && nationalIdVal.length === 10 && (
-          <p className="text-xs text-emerald-600">✓ رقم الهوية صحيح</p>
+          <p className="text-xs text-emerald-600">{t("users.form.national_id_ok")}</p>
         )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="name">الاسم الكامل *</Label>
+        <Label htmlFor="name">{t("users.form.name")}</Label>
         <Input id="name" data-testid="input-user-name" placeholder="Ahmed Al-..."
           value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="email">البريد الإلكتروني *</Label>
+        <Label htmlFor="email">{t("users.form.email")}</Label>
         <Input id="email" data-testid="input-user-email" type="email" placeholder="user@scapex.sa"
           value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">{isNew ? "كلمة المرور *" : "كلمة المرور الجديدة (اتركها فارغة للإبقاء)"}</Label>
+        <Label htmlFor="password">{isNew ? t("users.form.password_new") : t("users.form.password_edit")}</Label>
         <div className="relative">
           <Input id="password" data-testid="input-user-password"
             type={showPass ? "text" : "password"}
-            placeholder={isNew ? "كلمة المرور" : "اتركها فارغة لعدم التغيير"}
+            placeholder={isNew ? t("users.form.password_ph_new") : t("users.form.password_ph_edit")}
             value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })}
             className="pl-10" />
           <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -883,11 +905,11 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
         </div>
       </div>
 
-      {/* Multi-role selection in form */}
+      {/* Multi-role selection */}
       <div className="space-y-2">
-        <Label>الأدوار الوظيفية * <span className="text-muted-foreground font-normal text-xs">(يمكن اختيار أكثر من دور)</span></Label>
+        <Label>{t("users.form.roles")} <span className="text-muted-foreground font-normal text-xs">{t("users.form.roles_hint")}</span></Label>
         <div className="grid grid-cols-2 gap-1.5">
-          {ASSIGNABLE_ROLES.map(({ role, ar }) => {
+          {ASSIGNABLE_ROLES.map(({ role, ar, en }) => {
             const selected = currentRoles.includes(role);
             return (
               <div key={role}
@@ -899,7 +921,7 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
                 data-testid={`form-role-${role}`}
               >
                 <Checkbox checked={selected} onCheckedChange={() => toggleRole(role)} className="pointer-events-none" />
-                <span className={selected ? "font-medium" : "text-muted-foreground"}>{ar}</span>
+                <span className={selected ? "font-medium" : "text-muted-foreground"}>{isRtl ? ar : en}</span>
               </div>
             );
           })}
@@ -912,13 +934,13 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
             )}
           >
             <Checkbox checked={currentRoles.includes("admin")} onCheckedChange={() => toggleRole("admin")} className="pointer-events-none" />
-            <span className={currentRoles.includes("admin") ? "font-medium text-red-600" : "text-muted-foreground"}>مدير النظام</span>
-            <span className="text-xs text-muted-foreground mr-auto">(صلاحيات كاملة)</span>
+            <span className={currentRoles.includes("admin") ? "font-medium text-red-600" : "text-muted-foreground"}>{t("users.form.admin_role")}</span>
+            <span className="text-xs text-muted-foreground mr-auto">{t("users.form.admin_full")}</span>
           </div>
         </div>
         {currentRoles.length > 1 && (
           <p className="text-xs text-blue-600">
-            الدور الأساسي: <strong>{ROLE_LABELS[getPrimaryRole(currentRoles)].ar}</strong> — الصلاحيات مدمجة من جميع الأدوار
+            {t("users.form.primary_role")} <strong>{isRtl ? ROLE_LABELS[getPrimaryRole(currentRoles)].ar : ROLE_LABELS[getPrimaryRole(currentRoles)].en}</strong> {t("users.form.merged_perms")}
           </p>
         )}
       </div>
@@ -927,7 +949,7 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
         <Switch data-testid="switch-user-active" id="active"
           checked={form.active ?? true} onCheckedChange={(v) => setForm({ ...form, active: v })} />
         <Label htmlFor="active" className="cursor-pointer">
-          {form.active ? "الحساب نشط (مفعّل)" : "الحساب معطّل"}
+          {form.active ? t("users.form.active") : t("users.form.inactive")}
         </Label>
       </div>
     </div>
