@@ -2,8 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { readFileSync } from "fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
+
+const versionData = JSON.parse(readFileSync("version.json", "utf-8"));
+const appVersion = `V${versionData.major}.${versionData.minor}.${versionData.patch}`;
 
 export default defineConfig({
   plugins: [
@@ -29,6 +33,9 @@ export default defineConfig({
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
   css: {
     postcss: {

@@ -1,7 +1,7 @@
-# Scapex V1.2 — Smart Business Management Platform (ERP)
+# Scapex — Smart Business Management Platform (ERP)
 
 ## Architecture
-- **Version**: V1.2
+- **Version**: Auto-incremented via `version.json` — patch number bumps on every `npm run build` (deploy). Injected into frontend via Vite `define` as `__APP_VERSION__`. Displayed only in sidebar footer.
 - **Frontend**: React + TypeScript + Vite, wouter routing, shadcn/ui + Tailwind CSS
 - **Backend**: Express (port 5000) — serves API routes + static files
 - **Database**: PostgreSQL with Drizzle ORM — 62 tables covering all modules

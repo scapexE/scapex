@@ -32,7 +32,16 @@ const allowlist = [
   "zod-validation-error",
 ];
 
+async function bumpVersion() {
+  const ver = JSON.parse(await readFile("version.json", "utf-8"));
+  ver.patch += 1;
+  const { writeFile } = await import("fs/promises");
+  await writeFile("version.json", JSON.stringify(ver, null, 2) + "\n");
+  console.log(`Version bumped to V${ver.major}.${ver.minor}.${ver.patch}`);
+}
+
 async function buildAll() {
+  await bumpVersion();
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");

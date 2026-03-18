@@ -57,7 +57,6 @@ function ClientPortalLogin({ onLogin, portalTheme }: { onLogin: (user: SystemUse
             </div>
             <h2 className="text-2xl font-bold">
               {dir === "rtl" ? "بوابة العملاء" : "Client Portal"}
-              <span className="text-[10px] font-normal opacity-60 ms-1.5 align-super">V1.2</span>
             </h2>
             <p className="text-white/80 text-sm mt-2">
               {dir === "rtl" ? "سجل دخولك لمتابعة مشاريعك وعقودك" : "Sign in to track your projects and contracts"}
@@ -117,7 +116,7 @@ function ClientPortalLogin({ onLogin, portalTheme }: { onLogin: (user: SystemUse
 
           <div className="mt-6 pt-4 border-t border-border/50">
             <p className="text-center text-xs text-muted-foreground">
-              Scapex V1.2 ERP Platform © 2026
+              Scapex ERP Platform © 2026
             </p>
           </div>
         </div>
@@ -316,7 +315,7 @@ export default function ClientPortalModule() {
       </main>
 
       <footer className="border-t border-border/30 py-4 px-6 text-center text-xs text-muted-foreground">
-        <p>Scapex V1.2 ERP Platform © 2026 — {t("بوابة العملاء", "Client Portal")}</p>
+        <p>Scapex ERP Platform © 2026 — {t("بوابة العملاء", "Client Portal")}</p>
       </footer>
     </div>
   );
