@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getUsers, saveUsers, ROLE_DEFAULTS, validateNationalId, type SystemUser } from "@/lib/permissions";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 
 type Tab = "login" | "register";
@@ -26,6 +27,8 @@ const labelStyle: React.CSSProperties = {
 
 export default function Login() {
   const [tab, setTab] = useState<Tab>("login");
+  const { dir } = useLanguage();
+  const isRtl = dir === "rtl";
 
   // --- Login State ---
   const [email, setEmail] = useState("");
@@ -157,7 +160,7 @@ export default function Login() {
             fontSize: "26px", fontWeight: "bold",
           }}>S</div>
           <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>Scapex</h1>
-          <p style={{ color: "#6b7280", fontSize: "13px", marginTop: "3px" }}>منصة إدارة الأعمال الذكية</p>
+          <p style={{ color: "#6b7280", fontSize: "13px", marginTop: "3px" }}>{isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Management Platform"}</p>
         </div>
 
         {/* Tabs */}

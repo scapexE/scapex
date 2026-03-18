@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS, ROLE_DEFAULTS } from "@/lib/permissions";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   UserCog, ChevronDown, CheckCircle2,
   Briefcase, Shield, Building, Eye, Calculator, HardHat, Users,
@@ -23,23 +24,26 @@ const ROLE_ICONS: Record<Role, React.ComponentType<{ className?: string }>> = {
   viewer:     Eye,
 };
 
-const ROLE_MESSAGES: Record<Role, { ar: string; color: string; bg: string; border: string }> = {
-  admin:      { ar: "مدير النظام",          color: "text-red-700 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950/30",       border: "border-red-200 dark:border-red-800/50" },
-  manager:    { ar: "مشرف / مدير",          color: "text-violet-700 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950/30", border: "border-violet-200 dark:border-violet-800/50" },
-  accountant: { ar: "محاسب",                color: "text-blue-700 dark:text-blue-400",     bg: "bg-blue-50 dark:bg-blue-950/30",     border: "border-blue-200 dark:border-blue-800/50" },
-  engineer:   { ar: "مهندس",                color: "text-amber-700 dark:text-amber-400",   bg: "bg-amber-50 dark:bg-amber-950/30",   border: "border-amber-200 dark:border-amber-800/50" },
-  hr_manager: { ar: "مدير موارد بشرية",     color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/30", border: "border-emerald-200 dark:border-emerald-800/50" },
-  client:     { ar: "عميل",                 color: "text-cyan-700 dark:text-cyan-400",     bg: "bg-cyan-50 dark:bg-cyan-950/30",     border: "border-cyan-200 dark:border-cyan-800/50" },
-  viewer:     { ar: "مشاهد",                color: "text-gray-600 dark:text-gray-400",     bg: "bg-gray-50 dark:bg-gray-950/30",     border: "border-gray-200 dark:border-gray-700/50" },
+const ROLE_MESSAGES: Record<Role, { ar: string; en: string; color: string; bg: string; border: string }> = {
+  admin:      { ar: "مدير النظام",       en: "System Admin",    color: "text-red-700 dark:text-red-400",         bg: "bg-red-50 dark:bg-red-950/30",           border: "border-red-200 dark:border-red-800/50" },
+  manager:    { ar: "مشرف / مدير",       en: "Manager",         color: "text-violet-700 dark:text-violet-400",   bg: "bg-violet-50 dark:bg-violet-950/30",      border: "border-violet-200 dark:border-violet-800/50" },
+  accountant: { ar: "محاسب",             en: "Accountant",      color: "text-blue-700 dark:text-blue-400",       bg: "bg-blue-50 dark:bg-blue-950/30",          border: "border-blue-200 dark:border-blue-800/50" },
+  engineer:   { ar: "مهندس",             en: "Engineer",        color: "text-amber-700 dark:text-amber-400",     bg: "bg-amber-50 dark:bg-amber-950/30",        border: "border-amber-200 dark:border-amber-800/50" },
+  hr_manager: { ar: "مدير موارد بشرية", en: "HR Manager",      color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/30",    border: "border-emerald-200 dark:border-emerald-800/50" },
+  client:     { ar: "عميل",             en: "Client",          color: "text-cyan-700 dark:text-cyan-400",       bg: "bg-cyan-50 dark:bg-cyan-950/30",          border: "border-cyan-200 dark:border-cyan-800/50" },
+  viewer:     { ar: "مشاهد",            en: "Viewer",          color: "text-gray-600 dark:text-gray-400",       bg: "bg-gray-50 dark:bg-gray-950/30",          border: "border-gray-200 dark:border-gray-700/50" },
 };
 
 export function RoleSwitcherBar() {
   const { activeRole, setActiveRole, isMultiRole, userRoles, currentUser } = useActiveRole();
+  const { dir } = useLanguage();
+  const isRtl = dir === "rtl";
 
   if (!currentUser || !activeRole) return null;
 
   const meta = ROLE_MESSAGES[activeRole];
   const Icon = ROLE_ICONS[activeRole];
+  const roleName = isRtl ? meta.ar : meta.en;
   const permCount = (currentUser.permissions || []).filter(
     (p) => ROLE_DEFAULTS[activeRole]?.includes(p)
   ).length;
@@ -48,7 +52,7 @@ export function RoleSwitcherBar() {
   if (!isMultiRole) {
     return (
       <div
-        dir="rtl"
+        dir={dir}
         className={cn(
           "flex items-center gap-2.5 px-4 py-2.5 rounded-xl border mb-5 text-sm",
           meta.bg, meta.border,
@@ -57,13 +61,13 @@ export function RoleSwitcherBar() {
       >
         <Icon className={cn("w-4 h-4 shrink-0", meta.color)} />
         <span className={cn("font-medium", meta.color)}>
-          أنت في حساب <strong>{meta.ar}</strong>
+          {isRtl ? "أنت في حساب" : "You are logged in as"} <strong>{roleName}</strong>
         </span>
         <Badge
           variant="outline"
           className={cn("border-transparent text-xs ms-auto", ROLE_LABELS[activeRole].color)}
         >
-          {ROLE_LABELS[activeRole].en}
+          {isRtl ? meta.ar : meta.en}
         </Badge>
       </div>
     );
@@ -72,7 +76,7 @@ export function RoleSwitcherBar() {
   // Multi-role — full switcher
   return (
     <div
-      dir="rtl"
+      dir={dir}
       className={cn(
         "flex items-center gap-3 px-4 py-3 rounded-xl border mb-5",
         meta.bg, meta.border,
@@ -87,10 +91,12 @@ export function RoleSwitcherBar() {
         </div>
         <div className="min-w-0">
           <p className={cn("font-semibold text-sm leading-tight", meta.color)}>
-            أنت الآن في وضع <span className="underline underline-offset-2">{meta.ar}</span>
+            {isRtl ? "أنت الآن في وضع" : "Active mode:"} <span className="underline underline-offset-2">{roleName}</span>
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {permCount} صلاحية نشطة في هذا الوضع · {userRoles.length} أدوار مُسنَدة للحساب
+            {isRtl
+              ? `${permCount} صلاحية نشطة · ${userRoles.length} أدوار مُسنَدة`
+              : `${permCount} active permissions · ${userRoles.length} assigned roles`}
           </p>
         </div>
       </div>
@@ -115,7 +121,7 @@ export function RoleSwitcherBar() {
                 )}
               >
                 <RoleIcon className="w-3 h-3" />
-                {ROLE_LABELS[role].ar}
+                {isRtl ? ROLE_LABELS[role].ar : ROLE_LABELS[role].en}
                 {isActive && <CheckCircle2 className="w-3 h-3" />}
               </button>
             );
@@ -135,12 +141,14 @@ export function RoleSwitcherBar() {
               data-testid="role-switcher-dropdown"
             >
               <UserCog className="w-3.5 h-3.5" />
-              تبديل الوضع
+              {isRtl ? "تبديل الوضع" : "Switch Role"}
               <ChevronDown className="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" dir="rtl" className="w-48">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">اختر الوضع النشط</DropdownMenuLabel>
+          <DropdownMenuContent align="end" dir={dir} className="w-48">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {isRtl ? "اختر الوضع النشط" : "Choose active role"}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {userRoles.map((role) => {
               const RoleIcon = ROLE_ICONS[role];
@@ -153,7 +161,7 @@ export function RoleSwitcherBar() {
                   data-testid={`role-menu-item-${role}`}
                 >
                   <RoleIcon className={cn("w-4 h-4", ROLE_MESSAGES[role].color)} />
-                  {ROLE_LABELS[role].ar}
+                  {isRtl ? ROLE_LABELS[role].ar : ROLE_LABELS[role].en}
                   {isActive && <CheckCircle2 className="w-4 h-4 text-primary ms-auto" />}
                 </DropdownMenuItem>
               );

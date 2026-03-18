@@ -173,7 +173,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 Scapex
               </p>
               <p className="text-sidebar-foreground/50 text-[10px] leading-tight truncate">
-                منصة إدارة الأعمال الذكية
+                {dir === "rtl" ? "منصة إدارة الأعمال الذكية" : "Smart Business Platform"}
               </p>
             </div>
           </div>
