@@ -268,29 +268,74 @@ function LogoUploadMini({
   );
 }
 
-// ─── Activity Form (fully local state — fixes typing-in-Dialog issue) ─────────
+// ─── Company Branding Section (controlled by parent — reliable state) ─────────
+function CompanyBrandingSection({
+  nameAr, nameEn, logoUrl,
+  onNameAr, onNameEn, onLogo,
+}: {
+  nameAr: string; nameEn: string; logoUrl: string | null | undefined;
+  onNameAr: (v: string) => void; onNameEn: (v: string) => void;
+  onLogo: (v: string | null) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4" dir="rtl">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
+          <Image className="w-3.5 h-3.5 text-primary" />
+        </div>
+        <h3 className="text-sm font-bold text-primary">هوية الشركة لهذا النشاط</h3>
+        <span className="text-xs text-muted-foreground">(تظهر في الشريط العلوي)</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">اسم الشركة بالعربي</Label>
+          <input
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            value={nameAr}
+            onChange={(e) => onNameAr(e.target.value)}
+            placeholder="أدخل اسم الشركة بالعربي"
+            autoComplete="off"
+            data-testid="input-activity-company-name-ar"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">اسم الشركة بالإنجليزي</Label>
+          <input
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            style={{ direction: "ltr", textAlign: "left" }}
+            value={nameEn}
+            onChange={(e) => onNameEn(e.target.value)}
+            placeholder="Enter Company Name (English)"
+            autoComplete="off"
+            data-testid="input-activity-company-name-en"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">شعار الشركة</Label>
+        <LogoUploadMini value={logoUrl} onChange={onLogo} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Activity Form (local state for nameAr/nameEn/color/icon/modules only) ────
 export interface ActivityFormHandle {
   getValues: () => Partial<BusinessActivity>;
 }
 
 const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<BusinessActivity> }>(
   ({ initialForm }, ref) => {
-    // All text / complex state is LOCAL — never causes parent re-renders while typing
     const [nameAr, setNameAr] = useState(initialForm.nameAr ?? "");
     const [nameEn, setNameEn] = useState(initialForm.nameEn ?? "");
-    const [companyNameAr, setCompanyNameAr] = useState(initialForm.companyNameAr ?? "");
-    const [companyNameEn, setCompanyNameEn] = useState(initialForm.companyNameEn ?? "");
-    const [companyLogoUrl, setCompanyLogoUrl] = useState(initialForm.companyLogoUrl ?? null);
     const [color, setColor] = useState<ActivityColor>((initialForm.color as ActivityColor) ?? "blue");
     const [icon, setIcon] = useState(initialForm.icon ?? "HardHat");
     const [modules, setModules] = useState<string[]>(initialForm.modules ?? ["dashboard"]);
 
-    // Expose values to parent via ref
     useImperativeHandle(ref, () => ({
-      getValues: () => ({
-        nameAr, nameEn, companyNameAr, companyNameEn, companyLogoUrl,
-        color, icon, modules,
-      }),
+      getValues: () => ({ nameAr, nameEn, color, icon, modules }),
     }));
 
     const toggleModule = (id: string) =>
@@ -300,52 +345,6 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
 
     return (
       <div className="space-y-5" dir="rtl">
-
-        {/* Company Branding */}
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
-              <Image className="w-3.5 h-3.5 text-primary" />
-            </div>
-            <h3 className="text-sm font-bold text-primary">هوية الشركة لهذا النشاط</h3>
-            <span className="text-xs text-muted-foreground">(تظهر في الشريط العلوي)</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">اسم الشركة بالعربي</Label>
-              <input
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={companyNameAr}
-                onChange={(e) => setCompanyNameAr(e.target.value)}
-                placeholder="شركة ريادة التعمير للمقاولات"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck="false"
-                data-testid="input-activity-company-name-ar"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">اسم الشركة بالإنجليزي</Label>
-              <input
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                style={{ direction: "ltr", textAlign: "left" }}
-                value={companyNameEn}
-                onChange={(e) => setCompanyNameEn(e.target.value)}
-                placeholder="Riyada Construction Co."
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck="false"
-                data-testid="input-activity-company-name-en"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">شعار الشركة</Label>
-            <LogoUploadMini value={companyLogoUrl} onChange={setCompanyLogoUrl} />
-          </div>
-        </div>
 
         {/* Activity Names */}
         <div className="grid grid-cols-2 gap-4">
@@ -599,6 +598,15 @@ function SystemAdminContent() {
   const [deleteActivity, setDeleteActivity] = useState<BusinessActivity | null>(null);
   const [initialForm, setInitialForm] = useState<Partial<BusinessActivity>>(emptyActivity());
 
+  // Company branding state managed here (not inside ActivityForm) for reliable capture
+  const [addCompanyNameAr, setAddCompanyNameAr] = useState("");
+  const [addCompanyNameEn, setAddCompanyNameEn] = useState("");
+  const [addCompanyLogoUrl, setAddCompanyLogoUrl] = useState<string | null>(null);
+
+  const [editCompanyNameAr, setEditCompanyNameAr] = useState("");
+  const [editCompanyNameEn, setEditCompanyNameEn] = useState("");
+  const [editCompanyLogoUrl, setEditCompanyLogoUrl] = useState<string | null>(null);
+
   // Refs to get form values from the forwardRef'd ActivityForm
   const addFormRef = useRef<ActivityFormHandle>(null);
   const editFormRef = useRef<ActivityFormHandle>(null);
@@ -613,11 +621,13 @@ function SystemAdminContent() {
       color: (values.color as ActivityColor) ?? "blue", icon: values.icon ?? "HardHat",
       modules: values.modules ?? ["dashboard"], active: true,
       createdAt: new Date().toISOString(),
-      companyNameAr: values.companyNameAr, companyNameEn: values.companyNameEn,
-      companyLogoUrl: values.companyLogoUrl,
+      companyNameAr: addCompanyNameAr,
+      companyNameEn: addCompanyNameEn,
+      companyLogoUrl: addCompanyLogoUrl,
     };
     setActivities([...activities, a]);
     setAddOpen(false);
+    setAddCompanyNameAr(""); setAddCompanyNameEn(""); setAddCompanyLogoUrl(null);
     toast({ title: "تم بنجاح", description: `تمت إضافة "${a.nameAr}"` });
   };
 
@@ -633,8 +643,9 @@ function SystemAdminContent() {
         nameAr: values.nameAr!, nameEn: values.nameEn!,
         color: (values.color as ActivityColor) ?? a.color, icon: values.icon ?? a.icon,
         modules: values.modules ?? a.modules,
-        companyNameAr: values.companyNameAr, companyNameEn: values.companyNameEn,
-        companyLogoUrl: values.companyLogoUrl,
+        companyNameAr: editCompanyNameAr,
+        companyNameEn: editCompanyNameEn,
+        companyLogoUrl: editCompanyLogoUrl,
       } : a
     ));
     setEditActivity(null);
@@ -656,9 +667,11 @@ function SystemAdminContent() {
     setInitialForm({
       nameAr: a.nameAr, nameEn: a.nameEn, color: a.color, icon: a.icon,
       modules: [...a.modules], active: a.active,
-      companyNameAr: a.companyNameAr ?? "", companyNameEn: a.companyNameEn ?? "",
-      companyLogoUrl: a.companyLogoUrl,
     });
+    // Seed company branding state directly — no ref needed
+    setEditCompanyNameAr(a.companyNameAr ?? "");
+    setEditCompanyNameEn(a.companyNameEn ?? "");
+    setEditCompanyLogoUrl(a.companyLogoUrl ?? null);
     setEditActivity(a);
   };
 
@@ -809,7 +822,7 @@ function SystemAdminContent() {
       </Tabs>
 
       {/* ── Add Dialog ─────────────────────── */}
-      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) { setAddOpen(false); setAddCompanyNameAr(""); setAddCompanyNameEn(""); setAddCompanyLogoUrl(null); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl"
           onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
@@ -817,7 +830,10 @@ function SystemAdminContent() {
               <Plus className="w-5 h-5 text-primary" /> إضافة نشاط جديد
             </DialogTitle>
           </DialogHeader>
-          {/* key forces remount when dialog opens fresh */}
+          <CompanyBrandingSection
+            nameAr={addCompanyNameAr} nameEn={addCompanyNameEn} logoUrl={addCompanyLogoUrl}
+            onNameAr={setAddCompanyNameAr} onNameEn={setAddCompanyNameEn} onLogo={setAddCompanyLogoUrl}
+          />
           <ActivityForm key={addOpen ? "add-open" : "add-closed"} ref={addFormRef} initialForm={emptyActivity()} />
           <DialogFooter className="flex-row-reverse gap-2">
             <Button onClick={handleAdd} data-testid="button-confirm-add-activity">حفظ النشاط</Button>
@@ -835,7 +851,10 @@ function SystemAdminContent() {
               <Pencil className="w-5 h-5 text-primary" /> تعديل: {editActivity?.nameAr}
             </DialogTitle>
           </DialogHeader>
-          {/* key = editActivity.id ensures fresh mount per activity */}
+          <CompanyBrandingSection
+            nameAr={editCompanyNameAr} nameEn={editCompanyNameEn} logoUrl={editCompanyLogoUrl}
+            onNameAr={setEditCompanyNameAr} onNameEn={setEditCompanyNameEn} onLogo={setEditCompanyLogoUrl}
+          />
           {editActivity && (
             <ActivityForm key={editActivity.id} ref={editFormRef} initialForm={initialForm} />
           )}
