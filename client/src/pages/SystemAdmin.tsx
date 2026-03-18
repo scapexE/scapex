@@ -255,7 +255,6 @@ function ActivityForm({ form, setForm }: {
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">اسم الشركة بالعربي</Label>
             <Input
-              dir="rtl"
               value={form.companyNameAr ?? ""}
               onChange={(e) => setForm({ ...form, companyNameAr: e.target.value })}
               placeholder="شركة ريادة التعمير للمقاولات"
@@ -265,7 +264,7 @@ function ActivityForm({ form, setForm }: {
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">اسم الشركة بالإنجليزي</Label>
             <Input
-              dir="ltr"
+              style={{ direction: "ltr", textAlign: "left" }}
               value={form.companyNameEn ?? ""}
               onChange={(e) => setForm({ ...form, companyNameEn: e.target.value })}
               placeholder="Riyada Construction Co."
@@ -287,13 +286,20 @@ function ActivityForm({ form, setForm }: {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>اسم النشاط (عربي) *</Label>
-          <Input dir="rtl" placeholder="استشارات هندسية" value={form.nameAr || ""}
-            onChange={(e) => setForm({ ...form, nameAr: e.target.value })} />
+          <Input
+            placeholder="استشارات هندسية"
+            value={form.nameAr || ""}
+            onChange={(e) => setForm({ ...form, nameAr: e.target.value })}
+          />
         </div>
         <div className="space-y-2">
           <Label>Activity Name (EN) *</Label>
-          <Input dir="ltr" placeholder="Engineering Consultancy" value={form.nameEn || ""}
-            onChange={(e) => setForm({ ...form, nameEn: e.target.value })} />
+          <Input
+            style={{ direction: "ltr", textAlign: "left" }}
+            placeholder="Engineering Consultancy"
+            value={form.nameEn || ""}
+            onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
+          />
         </div>
       </div>
 
