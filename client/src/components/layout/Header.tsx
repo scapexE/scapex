@@ -22,7 +22,6 @@ function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-// Icon resolver (kept in sync with ActivitySwitcher / SystemAdmin)
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe, Layers,
   Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
@@ -45,32 +44,35 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     ? ACTIVITY_COLOR_MAP[activeActivity.color as ActivityColor]
     : null;
 
-  // Determine display name from settings
-  const companyNameAr = settings.companyNameAr || "";
-  const companyNameEn = settings.companyNameEn || settings.companyName || "";
-  const displayName = dir === "rtl"
-    ? (companyNameAr || companyNameEn)
-    : (companyNameEn || companyNameAr);
-  const hasCompanyInfo = settings.companyLogoUrl || displayName;
+  // Company info: prefer per-activity branding, fall back to global settings
+  const activityLogoUrl   = activeActivity?.companyLogoUrl;
+  const activityNameAr    = activeActivity?.companyNameAr;
+  const activityNameEn    = activeActivity?.companyNameEn;
+  const globalLogoUrl     = settings.companyLogoUrl;
+  const globalNameAr      = settings.companyNameAr;
+  const globalNameEn      = settings.companyNameEn || settings.companyName;
+
+  const displayLogoUrl    = activityLogoUrl || globalLogoUrl;
+  const displayName       = dir === "rtl"
+    ? ((activityNameAr || activityNameEn) || (globalNameAr || globalNameEn))
+    : ((activityNameEn || activityNameAr) || (globalNameEn || globalNameAr));
+  const hasCompanyInfo    = displayLogoUrl || displayName;
 
   return (
     <header
       className={cn(
         "h-16 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 transition-colors duration-300",
-        activeActivity
-          ? cn("border-b-2", colors?.border)
-          : "border-b border-border",
+        activeActivity ? cn("border-b-2", colors?.border) : "border-b border-border",
         activeActivity ? colors?.bg : "bg-card",
       )}
     >
-      {/* ── Left side ──────────────────────────────────────── */}
+      {/* ── Left / Search ──────────────────────────────── */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        {/* Mobile menu */}
         <Button variant="ghost" size="icon" className="md:hidden shrink-0" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
         </Button>
 
-        {/* Active activity badge (desktop) */}
+        {/* Active activity label (desktop) */}
         {activeActivity && colors && (
           <div className="hidden sm:flex items-center gap-2 shrink-0">
             <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", colors.badge)}>
@@ -88,7 +90,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
         )}
 
-        {/* Search */}
         <div className="relative w-full max-w-md hidden sm:block">
           <Search className={cn(
             "absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground",
@@ -105,46 +106,33 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         </div>
       </div>
 
-      {/* ── Right side ─────────────────────────────────────── */}
+      {/* ── Right / Actions ────────────────────────────── */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
 
-        {/* Activity indicator on mobile */}
+        {/* Activity badge (mobile) */}
         {activeActivity && colors && (
-          <Badge
-            variant="outline"
-            className={cn("border-transparent text-xs gap-1 sm:hidden", colors.badge, colors.text)}
-          >
+          <Badge variant="outline" className={cn("border-transparent text-xs gap-1 sm:hidden", colors.badge, colors.text)}>
             <ActivityIcon name={activeActivity.icon} className="w-3 h-3" />
             {activeActivity.nameAr}
           </Badge>
         )}
 
-        {/* Language toggle */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleLanguage}
-          className={cn(
-            "flex items-center gap-1.5 h-9",
-            activeActivity && colors ? colors.text : ""
-          )}
-          data-testid="button-toggle-language"
-        >
+        {/* Language */}
+        <Button variant="ghost" size="sm" onClick={toggleLanguage}
+          className={cn("flex items-center gap-1.5 h-9", activeActivity && colors ? colors.text : "")}
+          data-testid="button-toggle-language">
           <Globe className="h-4 w-4" />
           <span className="font-medium text-sm hidden sm:inline">
             {language === "en" ? "العربية" : "English"}
           </span>
         </Button>
 
-        {/* Theme toggle */}
+        {/* Theme */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
+            <Button variant="ghost" size="icon"
               className={cn("relative h-9 w-9", activeActivity && colors ? colors.text : "")}
-              data-testid="button-toggle-theme"
-            >
+              data-testid="button-toggle-theme">
               <Sun className="h-[1.1rem] w-[1.1rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-[1.1rem] w-[1.1rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
               <span className="sr-only">Toggle theme</span>
@@ -157,35 +145,37 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Notifications */}
+        {/* Bell */}
         <Button variant="ghost" size="icon" className="relative h-9 w-9">
           <Bell className={cn("h-5 w-5", activeActivity && colors ? colors.text : "text-muted-foreground")} />
           <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full border-2 border-card" />
         </Button>
 
-        {/* ── Company Branding (after bell) ─────────────────── */}
+        {/* ── Company Branding: after Bell ─────────────── */}
         {hasCompanyInfo && (
           <div
             className={cn(
-              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors shrink-0",
+              "flex items-center gap-2 px-2 py-1 rounded-lg border transition-colors shrink-0",
               activeActivity && colors
                 ? cn(colors.border, "bg-white/40 dark:bg-black/20")
                 : "border-border/50 bg-secondary/30"
             )}
             data-testid="header-company-branding"
           >
-            {settings.companyLogoUrl && (
+            {/* Circular logo */}
+            {displayLogoUrl && (
               <img
-                src={settings.companyLogoUrl}
-                alt={displayName}
-                className="h-7 max-w-[80px] object-contain"
+                src={displayLogoUrl}
+                alt={displayName || "logo"}
+                className="w-7 h-7 rounded-full object-cover border border-border/40 shrink-0"
                 data-testid="header-company-logo"
               />
             )}
+            {/* Company name */}
             {displayName && (
               <span
                 className={cn(
-                  "text-xs font-bold hidden sm:inline leading-tight",
+                  "text-xs font-bold hidden sm:inline leading-tight max-w-[120px] truncate",
                   activeActivity && colors ? colors.text : "text-foreground/80"
                 )}
                 data-testid="header-company-name"

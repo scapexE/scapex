@@ -10,24 +10,25 @@ export interface BusinessActivity {
   nameAr: string;
   nameEn: string;
   color: ActivityColor;
-  icon: string;      // lucide icon name key
-  modules: string[]; // enabled module IDs for this activity
+  icon: string;
+  modules: string[];
   active: boolean;
   createdAt: string;
+  // Per-activity company branding
+  companyNameAr?: string;
+  companyNameEn?: string;
+  companyLogoUrl?: string | null;
 }
 
-// Per-activity user assignment: which users are allowed inside each activity
 export interface ActivityUserAssignment {
   activityId: string;
   userIds: string[];
 }
 
-// ─── Storage keys ─────────────────────────────────────────────────────────────
 const ACTIVITIES_KEY      = "scapex_activities";
 const ASSIGNMENTS_KEY     = "scapex_activity_assignments";
-const ACTIVE_ACTIVITY_KEY = "scapex_active_activity"; // sessionStorage
+const ACTIVE_ACTIVITY_KEY = "scapex_active_activity";
 
-// ─── Color map (18 colors) ────────────────────────────────────────────────────
 export const ACTIVITY_COLOR_MAP: Record<ActivityColor, {
   bg: string; border: string; text: string; badge: string; dot: string;
 }> = {
@@ -51,7 +52,6 @@ export const ACTIVITY_COLOR_MAP: Record<ActivityColor, {
   slate:   { bg: "bg-slate-50 dark:bg-slate-950/30",     border: "border-slate-200 dark:border-slate-800/40",     text: "text-slate-700 dark:text-slate-400",     badge: "bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400",     dot: "bg-slate-500" },
 };
 
-// ─── Default activities ───────────────────────────────────────────────────────
 function generateId(seed: string) { return `act_${seed}`; }
 
 export const DEFAULT_ACTIVITIES: BusinessActivity[] = [
@@ -87,7 +87,6 @@ export const DEFAULT_ACTIVITIES: BusinessActivity[] = [
   },
 ];
 
-// ─── CRUD ─────────────────────────────────────────────────────────────────────
 export function getActivities(): BusinessActivity[] {
   try {
     const stored = localStorage.getItem(ACTIVITIES_KEY);

@@ -16,70 +16,71 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Image, Upload, X, UserCheck,
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
+  ChevronDown, Check, Image,
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe,
   Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
   FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
   Cog, Home, Star, Package, Truck, Sun, Landmark, BrainCircuit,
-  Microscope, Bolt, Car, Ship, Train, Stethoscope, BarChart3,
+  Microscope, Car, Ship, Train, Stethoscope, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  type BusinessActivity, type ActivityColor,
-  ACTIVITY_COLOR_MAP,
+  type BusinessActivity, type ActivityColor, ACTIVITY_COLOR_MAP,
 } from "@/lib/activities";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
-import { useSettings } from "@/contexts/SettingsContext";
 import { ALL_MODULES, ROLE_LABELS, getUsers, type SystemUser } from "@/lib/permissions";
 import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
 
-// ─── Module categories ────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const MODULE_CATEGORIES: Record<string, string> = {
   core: "النظام الأساسي", business: "الأعمال والمالية",
   operations: "العمليات", engineering: "الهندسة",
   hr: "الموارد البشرية", system: "النظام",
 };
 
-// ─── Icon options (30 icons) ─────────────────────────────────────────────────
 const ICON_OPTIONS: { key: string; Icon: React.ComponentType<{ className?: string }>; ar: string }[] = [
-  { key: "HardHat",     Icon: HardHat,     ar: "خوذة" },
-  { key: "Leaf",        Icon: Leaf,        ar: "ورقة" },
-  { key: "ShieldAlert", Icon: ShieldAlert, ar: "درع" },
-  { key: "Flame",       Icon: Flame,       ar: "لهب" },
-  { key: "Building2",   Icon: Building2,   ar: "مبنى" },
-  { key: "RefreshCcw",  Icon: RefreshCcw,  ar: "تدوير" },
-  { key: "Globe",       Icon: Globe,       ar: "كرة أرضية" },
-  { key: "Layers",      Icon: Layers,      ar: "طبقات" },
-  { key: "Factory",     Icon: Factory,     ar: "مصنع" },
-  { key: "TreePine",    Icon: TreePine,    ar: "شجرة" },
-  { key: "Zap",         Icon: Zap,         ar: "طاقة" },
-  { key: "Wind",        Icon: Wind,        ar: "رياح" },
-  { key: "Droplets",    Icon: Droplets,    ar: "مياه" },
-  { key: "Mountain",    Icon: Mountain,    ar: "جبل" },
-  { key: "Wrench",      Icon: Wrench,      ar: "مفتاح" },
-  { key: "Cpu",         Icon: Cpu,         ar: "معالج" },
-  { key: "FlaskConical",Icon: FlaskConical,ar: "كيمياء" },
-  { key: "Anchor",      Icon: Anchor,      ar: "مرساة" },
-  { key: "Warehouse",   Icon: Warehouse,   ar: "مستودع" },
-  { key: "Hammer",      Icon: Hammer,      ar: "مطرقة" },
-  { key: "Recycle",     Icon: Recycle,     ar: "إعادة تدوير" },
-  { key: "Sprout",      Icon: Sprout,      ar: "نبات" },
-  { key: "Fish",        Icon: Fish,        ar: "سمكة" },
-  { key: "Cog",         Icon: Cog,         ar: "تروس" },
-  { key: "Home",        Icon: Home,        ar: "منزل" },
-  { key: "Star",        Icon: Star,        ar: "نجمة" },
-  { key: "Package",     Icon: Package,     ar: "طرد" },
-  { key: "Truck",       Icon: Truck,       ar: "شاحنة" },
-  { key: "Sun",         Icon: Sun,         ar: "شمس" },
-  { key: "Landmark",    Icon: Landmark,    ar: "حكومي" },
-  { key: "BrainCircuit",Icon: BrainCircuit,ar: "ذكاء اصطناعي" },
-  { key: "Microscope",  Icon: Microscope,  ar: "مجهر" },
-  { key: "Car",         Icon: Car,         ar: "سيارة" },
-  { key: "Ship",        Icon: Ship,        ar: "سفينة" },
-  { key: "Train",       Icon: Train,       ar: "قطار" },
-  { key: "Stethoscope", Icon: Stethoscope, ar: "طب" },
-  { key: "BarChart3",   Icon: BarChart3,   ar: "إحصاء" },
+  { key: "HardHat",     Icon: HardHat,      ar: "خوذة" },
+  { key: "Leaf",        Icon: Leaf,          ar: "ورقة" },
+  { key: "ShieldAlert", Icon: ShieldAlert,   ar: "درع" },
+  { key: "Flame",       Icon: Flame,         ar: "لهب" },
+  { key: "Building2",   Icon: Building2,     ar: "مبنى" },
+  { key: "RefreshCcw",  Icon: RefreshCcw,    ar: "تدوير" },
+  { key: "Globe",       Icon: Globe,         ar: "كرة أرضية" },
+  { key: "Layers",      Icon: Layers,        ar: "طبقات" },
+  { key: "Factory",     Icon: Factory,       ar: "مصنع" },
+  { key: "TreePine",    Icon: TreePine,      ar: "شجرة" },
+  { key: "Zap",         Icon: Zap,           ar: "طاقة" },
+  { key: "Wind",        Icon: Wind,          ar: "رياح" },
+  { key: "Droplets",    Icon: Droplets,      ar: "مياه" },
+  { key: "Mountain",    Icon: Mountain,      ar: "جبل" },
+  { key: "Wrench",      Icon: Wrench,        ar: "مفتاح" },
+  { key: "Cpu",         Icon: Cpu,           ar: "معالج" },
+  { key: "FlaskConical",Icon: FlaskConical,  ar: "كيمياء" },
+  { key: "Anchor",      Icon: Anchor,        ar: "مرساة" },
+  { key: "Warehouse",   Icon: Warehouse,     ar: "مستودع" },
+  { key: "Hammer",      Icon: Hammer,        ar: "مطرقة" },
+  { key: "Recycle",     Icon: Recycle,       ar: "إعادة تدوير" },
+  { key: "Sprout",      Icon: Sprout,        ar: "نبات" },
+  { key: "Fish",        Icon: Fish,          ar: "سمكة" },
+  { key: "Cog",         Icon: Cog,           ar: "تروس" },
+  { key: "Home",        Icon: Home,          ar: "منزل" },
+  { key: "Star",        Icon: Star,          ar: "نجمة" },
+  { key: "Package",     Icon: Package,       ar: "طرد" },
+  { key: "Truck",       Icon: Truck,         ar: "شاحنة" },
+  { key: "Sun",         Icon: Sun,           ar: "شمس" },
+  { key: "Landmark",    Icon: Landmark,      ar: "حكومي" },
+  { key: "BrainCircuit",Icon: BrainCircuit,  ar: "ذكاء اصطناعي" },
+  { key: "Microscope",  Icon: Microscope,    ar: "مجهر" },
+  { key: "Car",         Icon: Car,           ar: "سيارة" },
+  { key: "Ship",        Icon: Ship,          ar: "سفينة" },
+  { key: "Train",       Icon: Train,         ar: "قطار" },
+  { key: "Stethoscope", Icon: Stethoscope,   ar: "طب" },
+  { key: "BarChart3",   Icon: BarChart3,     ar: "إحصاء" },
 ];
 
 const ICON_MAP = Object.fromEntries(ICON_OPTIONS.map(({ key, Icon }) => [key, Icon]));
@@ -88,31 +89,22 @@ function ActivityIcon({ name, className }: { name: string; className?: string })
   return <Icon className={className} />;
 }
 
-// ─── Color options (18 colors in 3 rows) ─────────────────────────────────────
 const COLOR_OPTIONS: { key: ActivityColor; ar: string }[] = [
-  { key: "blue",    ar: "أزرق" },
-  { key: "sky",     ar: "سماوي" },
-  { key: "indigo",  ar: "نيلي" },
-  { key: "violet",  ar: "بنفسجي" },
-  { key: "purple",  ar: "أرجواني" },
-  { key: "fuchsia", ar: "فوشيا" },
-  { key: "pink",    ar: "وردي" },
-  { key: "rose",    ar: "ورد" },
-  { key: "red",     ar: "أحمر" },
-  { key: "orange",  ar: "برتقالي" },
-  { key: "amber",   ar: "عنبري" },
-  { key: "yellow",  ar: "أصفر" },
-  { key: "lime",    ar: "ليموني" },
-  { key: "green",   ar: "أخضر" },
-  { key: "emerald", ar: "زمردي" },
-  { key: "teal",    ar: "فيروزي" },
-  { key: "cyan",    ar: "سيان" },
-  { key: "slate",   ar: "رصاصي" },
+  { key: "blue",    ar: "أزرق" },    { key: "sky",     ar: "سماوي" },
+  { key: "indigo",  ar: "نيلي" },    { key: "violet",  ar: "بنفسجي" },
+  { key: "purple",  ar: "أرجواني" }, { key: "fuchsia", ar: "فوشيا" },
+  { key: "pink",    ar: "وردي" },    { key: "rose",    ar: "ورد" },
+  { key: "red",     ar: "أحمر" },    { key: "orange",  ar: "برتقالي" },
+  { key: "amber",   ar: "عنبري" },   { key: "yellow",  ar: "أصفر" },
+  { key: "lime",    ar: "ليموني" },  { key: "green",   ar: "أخضر" },
+  { key: "emerald", ar: "زمردي" },   { key: "teal",    ar: "فيروزي" },
+  { key: "cyan",    ar: "سيان" },    { key: "slate",   ar: "رصاصي" },
 ];
 
 function generateId() { return `act_${Date.now().toString(36)}`; }
 const emptyActivity = (): Partial<BusinessActivity> => ({
-  nameAr: "", nameEn: "", color: "blue", icon: "HardHat", active: true, modules: ["dashboard"],
+  nameAr: "", nameEn: "", color: "blue", icon: "HardHat", active: true,
+  modules: ["dashboard"], companyNameAr: "", companyNameEn: "", companyLogoUrl: null,
 });
 
 const groupedModules = ALL_MODULES.reduce<Record<string, typeof ALL_MODULES>>((acc, m) => {
@@ -120,77 +112,71 @@ const groupedModules = ALL_MODULES.reduce<Record<string, typeof ALL_MODULES>>((a
   acc[m.category].push(m); return acc;
 }, {});
 
-// ─── Activity Form ────────────────────────────────────────────────────────────
-function ActivityForm({ form, setForm }: {
-  form: Partial<BusinessActivity>; setForm: (f: Partial<BusinessActivity>) => void;
-}) {
-  const toggleModule = (id: string) => {
-    const current = form.modules || [];
-    setForm({ ...form, modules: current.includes(id) ? current.filter((m) => m !== id) : [...current, id] });
-  };
-
+// ─── Color Picker Dropdown ─────────────────────────────────────────────────────
+function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: ActivityColor) => void }) {
+  const c = ACTIVITY_COLOR_MAP[value];
+  const label = COLOR_OPTIONS.find((o) => o.key === value)?.ar ?? "لون";
   return (
-    <div className="space-y-5" dir="rtl">
-      {/* Names */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>اسم النشاط (عربي) *</Label>
-          <Input placeholder="استشارات هندسية" value={form.nameAr || ""}
-            onChange={(e) => setForm({ ...form, nameAr: e.target.value })} />
-        </div>
-        <div className="space-y-2">
-          <Label>Activity Name (EN) *</Label>
-          <Input placeholder="Engineering Consultancy" value={form.nameEn || ""}
-            onChange={(e) => setForm({ ...form, nameEn: e.target.value })} />
-        </div>
-      </div>
-
-      {/* Colors — 18 swatches in a compact grid */}
-      <div className="space-y-2">
-        <Label>اللون <span className="text-muted-foreground text-xs">({COLOR_OPTIONS.length} لون)</span></Label>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="gap-2 h-9 justify-between min-w-[120px]" type="button">
+          <span className="flex items-center gap-1.5">
+            <span className={cn("w-3 h-3 rounded-full shrink-0", c.dot)} />
+            <span className="text-xs">{label}</span>
+          </span>
+          <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2.5" dir="rtl" align="start">
+        <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">اختر اللون</p>
         <div className="flex flex-wrap gap-1.5">
           {COLOR_OPTIONS.map(({ key, ar }) => {
-            const c = ACTIVITY_COLOR_MAP[key];
-            const selected = form.color === key;
+            const cl = ACTIVITY_COLOR_MAP[key];
+            const sel = value === key;
             return (
-              <button
-                key={key}
-                onClick={() => setForm({ ...form, color: key })}
-                title={ar}
+              <button key={key} onClick={() => onChange(key)} type="button"
                 className={cn(
-                  "flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all",
-                  selected
-                    ? cn(c.border, c.bg, c.text, "ring-2 ring-offset-1 ring-current")
-                    : "border-border/40 text-muted-foreground hover:bg-secondary/40"
-                )}
-              >
-                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", c.dot)} />
+                  "flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all",
+                  sel ? cn(cl.border, cl.bg, cl.text) : "border-border/40 text-muted-foreground hover:bg-secondary/40"
+                )}>
+                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", cl.dot)} />
                 {ar}
+                {sel && <Check className="w-3 h-3 ms-0.5" />}
               </button>
             );
           })}
         </div>
-      </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
-      {/* Icons — scrollable grid */}
-      <div className="space-y-2">
-        <Label>الأيقونة <span className="text-muted-foreground text-xs">({ICON_OPTIONS.length} أيقونة)</span></Label>
-        <div className="border rounded-xl p-2 max-h-44 overflow-y-auto">
+// ─── Icon Picker Dropdown ──────────────────────────────────────────────────────
+function IconPicker({ value, onChange }: { value: string; onChange: (k: string) => void }) {
+  const current = ICON_OPTIONS.find((o) => o.key === value) ?? ICON_OPTIONS[0];
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="gap-2 h-9 justify-between min-w-[120px]" type="button">
+          <span className="flex items-center gap-1.5">
+            <current.Icon className="w-4 h-4 shrink-0" />
+            <span className="text-xs">{current.ar}</span>
+          </span>
+          <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2.5" dir="rtl" align="start">
+        <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">اختر الأيقونة</p>
+        <div className="max-h-52 overflow-y-auto">
           <div className="flex flex-wrap gap-1.5">
             {ICON_OPTIONS.map(({ key, Icon, ar }) => {
-              const selected = form.icon === key;
+              const sel = value === key;
               return (
-                <button
-                  key={key}
-                  onClick={() => setForm({ ...form, icon: key })}
-                  title={ar}
+                <button key={key} onClick={() => onChange(key)} type="button"
                   className={cn(
-                    "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border text-[10px] transition-all min-w-[52px]",
-                    selected
-                      ? "border-primary bg-primary/10 text-primary font-semibold"
-                      : "border-border/40 text-muted-foreground hover:bg-secondary/30"
-                  )}
-                >
+                    "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border text-[10px] transition-all min-w-[50px]",
+                    sel ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
+                  )}>
                   <Icon className="w-4 h-4" />
                   {ar}
                 </button>
@@ -198,16 +184,161 @@ function ActivityForm({ form, setForm }: {
             })}
           </div>
         </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── Logo Upload mini (inside activity form) ───────────────────────────────────
+function LogoUploadMini({
+  value, onChange,
+}: { value: string | null | undefined; onChange: (v: string | null) => void }) {
+  const { toast } = useToast();
+  const ref = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "الملف كبير جداً", description: "بحد أقصى 2MB", variant: "destructive" }); return;
+    }
+    try { onChange(await readFileAsDataUrl(file)); }
+    catch { toast({ title: "خطأ", description: "تعذّر قراءة الملف", variant: "destructive" }); }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      {value ? (
+        <div className="relative">
+          <img src={value} alt="logo" className="h-12 max-w-[100px] object-contain rounded border border-border/50 p-1 bg-secondary/20" />
+          <button onClick={() => { onChange(null); if (ref.current) ref.current.value = ""; }}
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center"
+            type="button">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => ref.current?.click()} type="button"
+          className="flex flex-col items-center justify-center w-24 h-12 border-2 border-dashed border-border/60 rounded-lg text-muted-foreground hover:bg-secondary/20 transition-colors gap-1">
+          <Upload className="w-4 h-4" />
+          <span className="text-[10px]">رفع شعار</span>
+        </button>
+      )}
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    </div>
+  );
+}
+
+// ─── Activity Form ────────────────────────────────────────────────────────────
+function ActivityForm({ form, setForm }: {
+  form: Partial<BusinessActivity>; setForm: (f: Partial<BusinessActivity>) => void;
+}) {
+  const toggleModule = (id: string) => {
+    const cur = form.modules || [];
+    setForm({ ...form, modules: cur.includes(id) ? cur.filter((m) => m !== id) : [...cur, id] });
+  };
+
+  return (
+    <div className="space-y-5" dir="rtl">
+
+      {/* ── Company Branding Section ── */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
+            <Image className="w-3.5 h-3.5 text-primary" />
+          </div>
+          <h3 className="text-sm font-bold text-primary">هوية الشركة لهذا النشاط</h3>
+          <span className="text-xs text-muted-foreground">(تظهر في الشريط العلوي)</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">اسم الشركة بالعربي</Label>
+            <Input
+              dir="rtl"
+              value={form.companyNameAr ?? ""}
+              onChange={(e) => setForm({ ...form, companyNameAr: e.target.value })}
+              placeholder="شركة ريادة التعمير للمقاولات"
+              data-testid="input-activity-company-name-ar"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">اسم الشركة بالإنجليزي</Label>
+            <Input
+              dir="ltr"
+              value={form.companyNameEn ?? ""}
+              onChange={(e) => setForm({ ...form, companyNameEn: e.target.value })}
+              placeholder="Riyada Construction Co."
+              data-testid="input-activity-company-name-en"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">شعار الشركة</Label>
+          <LogoUploadMini
+            value={form.companyLogoUrl}
+            onChange={(v) => setForm({ ...form, companyLogoUrl: v })}
+          />
+        </div>
       </div>
 
-      {/* Modules */}
+      {/* ── Activity Names ── */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>اسم النشاط (عربي) *</Label>
+          <Input dir="rtl" placeholder="استشارات هندسية" value={form.nameAr || ""}
+            onChange={(e) => setForm({ ...form, nameAr: e.target.value })} />
+        </div>
+        <div className="space-y-2">
+          <Label>Activity Name (EN) *</Label>
+          <Input dir="ltr" placeholder="Engineering Consultancy" value={form.nameEn || ""}
+            onChange={(e) => setForm({ ...form, nameEn: e.target.value })} />
+        </div>
+      </div>
+
+      {/* ── Color + Icon (dropdowns) ── */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-2">
+          <Label>اللون</Label>
+          <ColorPicker
+            value={(form.color as ActivityColor) || "blue"}
+            onChange={(c) => setForm({ ...form, color: c })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>الأيقونة</Label>
+          <IconPicker
+            value={form.icon || "HardHat"}
+            onChange={(k) => setForm({ ...form, icon: k })}
+          />
+        </div>
+
+        {/* Live mini-preview */}
+        {(form.color || form.icon) && (() => {
+          const c = ACTIVITY_COLOR_MAP[(form.color as ActivityColor) || "blue"];
+          return (
+            <div className="flex items-center gap-2 ms-auto">
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", c.badge)}>
+                <ActivityIcon name={form.icon || "HardHat"} className={cn("w-5 h-5", c.text)} />
+              </div>
+              <div>
+                <p className={cn("text-xs font-bold", c.text)}>{form.nameAr || "اسم النشاط"}</p>
+                <p className="text-[10px] text-muted-foreground">{form.nameEn || "Activity Name"}</p>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── Modules ── */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label>الوحدات المفعّلة</Label>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="h-7 text-xs"
+            <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
               onClick={() => setForm({ ...form, modules: ALL_MODULES.map((m) => m.id) })}>تحديد الكل</Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs"
+            <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
               onClick={() => setForm({ ...form, modules: ["dashboard"] })}>إلغاء الكل</Button>
           </div>
         </div>
@@ -241,174 +372,6 @@ function ActivityForm({ form, setForm }: {
   );
 }
 
-// ─── Logo & Company Branding Tab ──────────────────────────────────────────────
-function LogoSettingsTab() {
-  const { settings, updateSettings } = useSettings();
-  const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(settings.companyLogoUrl);
-  const [nameAr, setNameAr] = useState(settings.companyNameAr || "");
-  const [nameEn, setNameEn] = useState(settings.companyNameEn || settings.companyName || "Scapex");
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "الملف كبير جداً", description: "يجب أن لا يتجاوز 2 ميغابايت", variant: "destructive" });
-      return;
-    }
-    try { setPreview(await readFileAsDataUrl(file)); }
-    catch { toast({ title: "خطأ", description: "تعذّر قراءة الملف", variant: "destructive" }); }
-  };
-
-  const handleSave = () => {
-    updateSettings({
-      companyLogoUrl: preview,
-      companyNameAr: nameAr,
-      companyNameEn: nameEn,
-      companyName: nameEn || nameAr || "Scapex",
-    });
-    toast({ title: "تم الحفظ", description: "تم تحديث هوية الشركة بنجاح" });
-  };
-
-  const handleRemoveLogo = () => {
-    setPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  return (
-    <div className="space-y-5 max-w-lg" dir="rtl">
-      {/* ── Company Name (AR + EN) ── */}
-      <Card className="border-border/50">
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Building2 className="w-4 h-4 text-primary" />
-            <Label className="text-sm font-semibold">اسم الشركة</Label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">بالعربي</Label>
-              <Input
-                value={nameAr}
-                onChange={(e) => setNameAr(e.target.value)}
-                placeholder="شركة سكابكس"
-                className="text-right"
-                data-testid="input-company-name-ar"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">بالإنجليزي</Label>
-              <Input
-                value={nameEn}
-                onChange={(e) => setNameEn(e.target.value)}
-                placeholder="Scapex Co."
-                data-testid="input-company-name-en"
-              />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            يظهر اسم الشركة في الشريط العلوي بعد أيقونة الإشعارات
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* ── Logo Upload ── */}
-      <Card className="border-border/50">
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Image className="w-4 h-4 text-primary" />
-            <Label className="text-sm font-semibold">شعار الشركة (لوقو)</Label>
-          </div>
-
-          {preview ? (
-            <div className="relative inline-block">
-              <div className="p-3 border-2 border-dashed border-border/60 rounded-xl bg-secondary/20">
-                <img src={preview} alt="Logo preview" className="h-16 max-w-[200px] object-contain" />
-              </div>
-              <button
-                onClick={handleRemoveLogo}
-                className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center shadow hover:bg-destructive/80 transition-colors"
-                data-testid="button-remove-logo"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-border/60 rounded-xl p-8 text-center cursor-pointer hover:bg-secondary/20 transition-colors"
-              data-testid="logo-upload-area"
-            >
-              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm font-medium text-muted-foreground">انقر لرفع الصورة</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">PNG · JPG · SVG · WebP · بحد أقصى 2MB</p>
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
-            className="hidden"
-            onChange={handleFileChange}
-            data-testid="input-logo-file"
-          />
-
-          {!preview && (
-            <Button variant="outline" size="sm" className="w-full gap-2"
-              onClick={() => fileInputRef.current?.click()} data-testid="button-upload-logo">
-              <Upload className="w-4 h-4" /> اختيار ملف
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Live preview ── */}
-      {(preview || nameEn || nameAr) && (
-        <Card className="border-border/50">
-          <CardContent className="p-4 space-y-3">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              معاينة — الشريط العلوي
-            </Label>
-            {/* Simulated header */}
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-card border border-border/50">
-              <div className="flex-1 h-5 bg-secondary/60 rounded" />
-              {/* Bell icon simulation */}
-              <div className="w-7 h-7 rounded-lg bg-secondary/60 flex items-center justify-center shrink-0">
-                <span className="text-[10px]">🔔</span>
-              </div>
-              {/* Company branding preview */}
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-border/40 bg-secondary/30 shrink-0">
-                {preview && (
-                  <img src={preview} alt="logo" className="h-5 max-w-[60px] object-contain" />
-                )}
-                {!preview && (nameAr || nameEn) && (
-                  <span className="text-[10px] font-bold text-foreground/70">
-                    {nameAr || nameEn}
-                  </span>
-                )}
-                {preview && (nameAr || nameEn) && (
-                  <span className="text-[10px] font-semibold text-foreground/70">
-                    {nameAr || nameEn}
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-1">
-                <div className="w-7 h-7 rounded-lg bg-secondary/60" />
-                <div className="w-7 h-7 rounded-lg bg-secondary/60" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Button onClick={handleSave} className="w-full gap-2" data-testid="button-save-branding">
-        حفظ هوية الشركة
-      </Button>
-    </div>
-  );
-}
-
 // ─── Inner Content ────────────────────────────────────────────────────────────
 function SystemAdminContent() {
   const { toast } = useToast();
@@ -426,9 +389,11 @@ function SystemAdminContent() {
     }
     const a: BusinessActivity = {
       id: generateId(), nameAr: form.nameAr!, nameEn: form.nameEn!,
-      color: form.color as ActivityColor ?? "blue", icon: form.icon ?? "HardHat",
+      color: (form.color as ActivityColor) ?? "blue", icon: form.icon ?? "HardHat",
       modules: form.modules ?? ["dashboard"], active: form.active ?? true,
       createdAt: new Date().toISOString(),
+      companyNameAr: form.companyNameAr, companyNameEn: form.companyNameEn,
+      companyLogoUrl: form.companyLogoUrl,
     };
     setActivities([...activities, a]); setAddOpen(false); setForm(emptyActivity());
     toast({ title: "تم بنجاح", description: `تمت إضافة "${a.nameAr}"` });
@@ -439,9 +404,14 @@ function SystemAdminContent() {
       toast({ title: "خطأ", description: "اسم النشاط مطلوب", variant: "destructive" }); return;
     }
     setActivities(activities.map((a) =>
-      a.id === editActivity.id
-        ? { ...a, nameAr: form.nameAr!, nameEn: form.nameEn!, color: form.color as ActivityColor ?? a.color, icon: form.icon ?? a.icon, modules: form.modules ?? a.modules, active: form.active ?? a.active }
-        : a
+      a.id === editActivity.id ? {
+        ...a,
+        nameAr: form.nameAr!, nameEn: form.nameEn!,
+        color: (form.color as ActivityColor) ?? a.color, icon: form.icon ?? a.icon,
+        modules: form.modules ?? a.modules, active: form.active ?? a.active,
+        companyNameAr: form.companyNameAr, companyNameEn: form.companyNameEn,
+        companyLogoUrl: form.companyLogoUrl,
+      } : a
     ));
     setEditActivity(null); setForm(emptyActivity());
     toast({ title: "تم بنجاح", description: "تم تحديث النشاط" });
@@ -459,7 +429,12 @@ function SystemAdminContent() {
   };
 
   const openEdit = (a: BusinessActivity) => {
-    setForm({ nameAr: a.nameAr, nameEn: a.nameEn, color: a.color, icon: a.icon, modules: [...a.modules], active: a.active });
+    setForm({
+      nameAr: a.nameAr, nameEn: a.nameEn, color: a.color, icon: a.icon,
+      modules: [...a.modules], active: a.active,
+      companyNameAr: a.companyNameAr ?? "", companyNameEn: a.companyNameEn ?? "",
+      companyLogoUrl: a.companyLogoUrl,
+    });
     setEditActivity(a);
   };
 
@@ -480,7 +455,6 @@ function SystemAdminContent() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -488,46 +462,56 @@ function SystemAdminContent() {
             لوحة تحكم النظام
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            إدارة أنشطة الشركة، هويتها، وتخصيص الوحدات والمستخدمين
+            إدارة أنشطة الشركة وتخصيص الوحدات والمستخدمين
           </p>
         </div>
         <Badge variant="outline" className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-transparent gap-1.5 shrink-0">
-          <Shield className="w-3.5 h-3.5" />
-          مدير النظام
+          <Shield className="w-3.5 h-3.5" /> مدير النظام
         </Badge>
       </div>
 
       <Tabs defaultValue="activities" dir="rtl">
-        <TabsList className="grid grid-cols-3 w-full max-w-lg">
+        <TabsList className="grid grid-cols-2 w-full max-w-sm">
           <TabsTrigger value="activities" className="gap-2 text-xs sm:text-sm">
             <Layers className="w-4 h-4" /> الأنشطة
           </TabsTrigger>
           <TabsTrigger value="assignments" className="gap-2 text-xs sm:text-sm">
             <UserCheck className="w-4 h-4" /> المستخدمون
           </TabsTrigger>
-          <TabsTrigger value="branding" className="gap-2 text-xs sm:text-sm">
-            <Image className="w-4 h-4" /> الهوية
-          </TabsTrigger>
         </TabsList>
 
-        {/* ── Tab 1: Activities ─────────────────────────────────────────── */}
+        {/* ── Activities ───────────────────────────────── */}
         <TabsContent value="activities" className="mt-6 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">{activities.length} نشاط مُعرَّف</p>
             <Button onClick={() => { setForm(emptyActivity()); setAddOpen(true); }}
-              className="gap-2 bg-primary hover:bg-primary/90" data-testid="button-add-activity">
+              className="gap-2" data-testid="button-add-activity">
               <Plus className="w-4 h-4" /> إضافة نشاط
             </Button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             {activities.map((act) => {
-              const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor] ?? ACTIVITY_COLOR_MAP.blue;
+              const c = ACTIVITY_COLOR_MAP[(act.color as ActivityColor)] ?? ACTIVITY_COLOR_MAP.blue;
               const assignedCount = getActivityUserIds(act.id).length;
+              const hasCompany = act.companyNameAr || act.companyNameEn || act.companyLogoUrl;
               return (
                 <Card key={act.id} data-testid={`activity-card-${act.id}`}
                   className={cn("border-2 transition-all", act.active ? c.border : "border-border/40 opacity-60")}>
                   <CardContent className="p-4">
+                    {/* Company branding preview inside card */}
+                    {hasCompany && (
+                      <div className={cn("flex items-center gap-2 mb-3 p-2 rounded-lg", c.bg)}>
+                        {act.companyLogoUrl && (
+                          <img src={act.companyLogoUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 border border-border/30" />
+                        )}
+                        <div className="min-w-0">
+                          {act.companyNameAr && <p className={cn("text-[11px] font-bold truncate", c.text)}>{act.companyNameAr}</p>}
+                          {act.companyNameEn && <p className="text-[10px] text-muted-foreground truncate">{act.companyNameEn}</p>}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-start gap-3">
                       <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", c.badge)}>
                         <ActivityIcon name={act.icon} className={cn("w-6 h-6", c.text)} />
@@ -583,14 +567,12 @@ function SystemAdminContent() {
           </div>
         </TabsContent>
 
-        {/* ── Tab 2: User Assignments ───────────────────────────────────── */}
+        {/* ── User Assignments ─────────────────────────── */}
         <TabsContent value="assignments" className="mt-6 space-y-4">
-          <p className="text-sm text-muted-foreground">
-            حدّد المستخدمين المسموح لهم بالوصول لكل نشاط.
-          </p>
+          <p className="text-sm text-muted-foreground">حدّد المستخدمين المسموح لهم بالوصول لكل نشاط.</p>
           <div className="grid gap-4">
             {activities.filter((a) => a.active).map((act) => {
-              const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor] ?? ACTIVITY_COLOR_MAP.blue;
+              const c = ACTIVITY_COLOR_MAP[(act.color as ActivityColor)] ?? ACTIVITY_COLOR_MAP.blue;
               const assignedIds = getActivityUserIds(act.id);
               return (
                 <Card key={act.id} className={cn("border", c.border)}>
@@ -600,6 +582,9 @@ function SystemAdminContent() {
                         <ActivityIcon name={act.icon} className={cn("w-4 h-4", c.text)} />
                       </div>
                       <span className={c.text}>{act.nameAr}</span>
+                      {(act.companyNameAr || act.companyNameEn) && (
+                        <span className="text-xs text-muted-foreground">— {act.companyNameAr || act.companyNameEn}</span>
+                      )}
                       <Badge variant="outline" className={cn("border-transparent text-xs ms-auto", c.badge, c.text)}>
                         {assignedIds.length} مستخدم
                       </Badge>
@@ -610,8 +595,7 @@ function SystemAdminContent() {
                       {allUsers.map((user) => {
                         const assigned = isUserAssigned(act.id, user.id);
                         return (
-                          <div key={user.id}
-                            onClick={() => toggleUserAssignment(act.id, user.id)}
+                          <div key={user.id} onClick={() => toggleUserAssignment(act.id, user.id)}
                             data-testid={`assign-${act.id}-${user.id}`}
                             className={cn(
                               "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all text-xs",
@@ -625,9 +609,6 @@ function SystemAdminContent() {
                           </div>
                         );
                       })}
-                      {allUsers.length === 0 && (
-                        <p className="text-xs text-muted-foreground col-span-3 py-2">لا يوجد مستخدمون نشطون</p>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -635,14 +616,9 @@ function SystemAdminContent() {
             })}
           </div>
         </TabsContent>
-
-        {/* ── Tab 3: Branding ───────────────────────────────────────────── */}
-        <TabsContent value="branding" className="mt-6">
-          <LogoSettingsTab />
-        </TabsContent>
       </Tabs>
 
-      {/* Dialogs */}
+      {/* ── Dialogs ────────────────────────────────────── */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
