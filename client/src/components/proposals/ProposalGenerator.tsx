@@ -653,6 +653,34 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
               <CardTitle className="text-sm flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />{isRtl ? "معلومات العرض" : "Proposal Details"}</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
+
+              {/* Service type selector */}
+              <div>
+                <Label className="text-xs text-muted-foreground">{isRtl ? "نوع الخدمة / النشاط" : "Service / Activity Type"}</Label>
+                <div className="mt-1 grid grid-cols-2 gap-1.5">
+                  {SERVICE_TYPES.map((s) => {
+                    const Icon = ICONS[s.iconName] ?? HardHat;
+                    const active = proposal.serviceType === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => upd("serviceType", s.id)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs font-medium transition-all text-start",
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/50 bg-secondary/20 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{isRtl ? s.labelAr : s.labelEn}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <Label className="text-xs text-muted-foreground">{isRtl ? "اسم المشروع" : "Project Name"}</Label>
                 <Input value={proposal.projectName} onChange={(e) => upd("projectName", e.target.value)} className="mt-1 h-8 text-sm bg-secondary/20" />
