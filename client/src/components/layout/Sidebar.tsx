@@ -23,18 +23,20 @@ import {
   Package,
   Building2,
   Globe,
-  FileKey2,
   HardHat,
   X,
+  LogOut,
+  UserCog,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { type SystemUser, ROLE_LABELS } from "@/lib/permissions";
 
 const menuCategories = [
   {
     id: "core",
     items: [
-      { id: "dashboard", icon: LayoutDashboard, path: "/" },
+      { id: "dashboard", icon: LayoutDashboard, path: "/dashboard" },
       { id: "ai_control", icon: BrainCircuit, path: "/ai-control" },
       { id: "bi", icon: PieChart, path: "/bi" },
       { id: "multi_tenant", icon: Building2, path: "/companies" },
@@ -81,6 +83,7 @@ const menuCategories = [
     items: [
       { id: "dms", icon: FileText, path: "/dms" },
       { id: "client_portal", icon: Globe, path: "/client-portal" },
+      { id: "users", icon: UserCog, path: "/users" },
     ],
   },
 ];
@@ -93,6 +96,22 @@ interface SidebarProps {
 export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const [location] = useLocation();
   const { t, dir } = useLanguage();
+
+  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    window.location.href = "/";
+  };
+
+  const visibleCategories = menuCategories.map((cat) => ({
+    ...cat,
+    items: cat.items.filter((item) => {
+      if (!currentUser) return false;
+      if (currentUser.role === "admin") return true;
+      return (currentUser.permissions || []).includes(item.id);
+    }),
+  })).filter((cat) => cat.items.length > 0);
 
   return (
     <>
@@ -141,7 +160,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         {/* Navigation Menu */}
         <ScrollArea className="flex-1 py-4">
           <div className="px-3 space-y-6">
-            {menuCategories.map((category) => (
+            {visibleCategories.map((category) => (
               <div key={category.id} className="space-y-1">
                 <h3 className="px-3 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider mb-2">
                   {t(`nav.cat.${category.id}`)}
@@ -181,33 +200,30 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
         {/* Footer Area */}
         <div className="p-4 border-t border-sidebar-border mt-auto flex-shrink-0">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-sidebar-accent/50">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-              <HardHat className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-sidebar-accent/50 mb-2">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 font-bold text-primary text-sm">
+              {currentUser?.name?.charAt(0).toUpperCase() ?? <HardHat className="w-4 h-4" />}
             </div>
             <div className="flex-1 min-w-0 overflow-hidden">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                Ahmed Engineer
+                {currentUser?.name ?? "Guest"}
               </p>
               <p className="text-xs text-sidebar-foreground/50 truncate">
-                System Admin | HQ
+                {currentUser ? ROLE_LABELS[currentUser.role]?.ar : ""}
               </p>
-              <div style={{ color: "#fff", textAlign: "center" }}></div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-sidebar-foreground/50 hover:text-sidebar-foreground shrink-0"
+              onClick={handleLogout}
+              title="تسجيل الخروج"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
-          <div
-            style={{
-              position: "absolute",
-              bottom: "10px",
-              width: "100%",
-              textAlign: "center",
-              fontSize: "12px",
-              opacity: 0.5,
-              color: "#fff",
-              direction: "ltr",
-            }}
-          >
-            © 2026 SCAPE. All rights reserved.
+          <div className="text-center text-[10px] opacity-40 text-sidebar-foreground">
+            © 2026 Scapex. All rights reserved.
           </div>
         </div>
       </aside>

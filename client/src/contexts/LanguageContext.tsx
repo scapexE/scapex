@@ -46,6 +46,7 @@ const translations: Record<string, Record<Language, string>> = {
   
   'nav.dms': { en: 'Document Management', ar: 'إدارة المستندات (DMS)' },
   'nav.client_portal': { en: 'Client Portal', ar: 'بوابة العملاء' },
+  'nav.users': { en: 'User Management', ar: 'إدارة المستخدمين' },
   
   // Header
   'header.search': { en: 'Search modules...', ar: 'البحث في الوحدات...' },
