@@ -14,7 +14,8 @@ import {
   Save, Send, FilePlus2, Trash2, Plus, X, Clock, User, Phone,
   Mail, Percent, FileSignature, Printer, TrendingUp, BarChart2,
   ChevronDown, ChevronUp, Eye, ClipboardList, CreditCard, Lightbulb,
-  AlertCircle, CheckCheck, FileCheck, Briefcase,
+  AlertCircle, CheckCheck, FileCheck, Briefcase, Wrench, Package,
+  Users, Landmark, Settings, Hammer, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -32,9 +33,16 @@ import {
 import { getActiveCompany } from "@/lib/company-services";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { createProjectFromContract } from "@/lib/projects";
+import {
+  type SubService,
+  getSubServices, hasSubServices, getSubService,
+} from "@/lib/sub-services";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw,
+  Wrench, WrenchIcon: Wrench, Package, Users, Landmark, Settings, Hammer,
+  FileCheck, Briefcase,
+  Construction: Hammer, Trees: Leaf,
 };
 const SERVICE_TYPES = Object.entries(SERVICE_META).map(([id, meta]) => ({ id: id as ServiceType, ...meta }));
 type View = "list" | "create" | "detail" | "contract";
@@ -338,6 +346,8 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
+  const [selectedSubService, setSelectedSubService] = useState<SubService | null>(null);
+  const [showSubPicker, setShowSubPicker] = useState(false);
   const [clientName, setClientName] = useState("");
   const [clientContact, setClientContact] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -361,9 +371,24 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         if (data.clientEmail)   setClientEmail(data.clientEmail);
         if (data.projectName)   setProjectName(data.projectName);
         localStorage.removeItem("scapex_proposal_prefill");
-        // Stay at step 1 so user picks the service type first;
-        // store hint for the banner
         setCrmPrefill({ clientName: data.clientName, projectName: data.projectName });
+      }
+    } catch {}
+
+    // Read sub-service prefill from Service Catalog
+    try {
+      const raw = localStorage.getItem("scapex_proposal_sub");
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.serviceType) {
+          setSelectedService(data.serviceType as ServiceType);
+          setShowSubPicker(true);
+        }
+        if (data.subServiceId && data.serviceType) {
+          const sub = getSubService(data.serviceType as ServiceType, data.subServiceId);
+          if (sub) setSelectedSubService(sub);
+        }
+        localStorage.removeItem("scapex_proposal_sub");
       }
     } catch {}
   }, []);
@@ -375,8 +400,35 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
     }
     setIsGenerating(true);
     setTimeout(() => {
-      const template = useAI ? getSmartPricing(selectedService, region, projectSize) : null;
-      const subtotal = template ? template.items.reduce((s, i) => s + i.total, 0) : 0;
+      // Use sub-service template if selected, otherwise AI smart pricing
+      let items: ProposalItem[] = [];
+      let introduction = "";
+      let scopeAr: string | undefined;
+      let scopeEn: string | undefined;
+
+      if (selectedSubService) {
+        const desc = projectDesc.trim();
+        items = selectedSubService.items.map(i => ({ ...i, id: generateId() }));
+        introduction = isRtl ? selectedSubService.introAr(desc) : selectedSubService.introEn(desc);
+        scopeAr = selectedSubService.scopeAr(desc);
+        scopeEn = selectedSubService.scopeEn(desc);
+      } else if (useAI) {
+        const template = getSmartPricing(selectedService, region, projectSize);
+        if (template) {
+          items = template.items.map(i => ({ ...i, id: generateId() }));
+          introduction = isRtl ? template.introAr : template.introEn;
+          scopeAr = template.scopeAr;
+          scopeEn = template.scopeEn;
+        }
+      }
+
+      if (!introduction) {
+        introduction = isRtl
+          ? `يسعدنا تقديم عرض أسعارنا لمشروعكم الكريم (${projectDesc.trim()})، ونأمل أن يلبي تطلعاتكم ويرقى إلى مستوى ثقتكم بنا.`
+          : `We are pleased to submit our proposal for your esteemed project (${projectDesc.trim()}), and we hope it meets your expectations.`;
+      }
+
+      const subtotal = items.reduce((s, i) => s + i.total, 0);
       const vatAmount = Math.round(subtotal * 15 / 100);
       const now = new Date().toISOString();
       const newProposal: Proposal = {
@@ -385,17 +437,17 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         clientName: clientName.trim(),
         clientContact: clientContact.trim() || undefined,
         clientEmail: clientEmail.trim() || undefined,
-        projectName: projectName.trim() || (isRtl ? `مشروع ${clientName.trim()}` : `${clientName.trim()} Project`),
+        projectName: projectName.trim() || (
+          selectedSubService
+            ? (isRtl ? `${selectedSubService.labelAr} — ${clientName.trim()}` : `${selectedSubService.labelEn} — ${clientName.trim()}`)
+            : (isRtl ? `مشروع ${clientName.trim()}` : `${clientName.trim()} Project`)
+        ),
         projectDesc: projectDesc.trim(),
-        introduction: template
-          ? (isRtl ? template.introAr : template.introEn)
-          : (isRtl
-            ? `يسعدنا تقديم عرض أسعارنا لمشروعكم الكريم (${projectDesc.trim()})، ونأمل أن يلبي تطلعاتكم ويرقى إلى مستوى ثقتكم بنا.`
-            : `We are pleased to submit our proposal for your esteemed project (${projectDesc.trim()}), and we hope it meets your expectations.`),
-        scopeAr: template?.scopeAr,
-        scopeEn: template?.scopeEn,
+        introduction,
+        scopeAr,
+        scopeEn,
         serviceType: selectedService,
-        items: template ? template.items.map((item) => ({ ...item, id: generateId() })) : [],
+        items,
         subtotal, vatRate: 15, vatAmount, total: subtotal + vatAmount,
         currency: "SAR", status: "draft", notes: "",
         validity: SERVICE_META[selectedService].defaultValidity,
@@ -406,7 +458,7 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
       onCreated(newProposal);
       toast({ title: useAI ? (isRtl ? "تم توليد العرض بالذكاء الاصطناعي!" : "AI Proposal Generated!") : (isRtl ? "تم إنشاء العرض" : "Proposal Created"), description: isRtl ? "يمكنك الآن مراجعة البنود وتعديلها." : "Review and edit the items as needed." });
     }, useAI ? 2200 : 400);
-  }, [selectedService, clientName, clientContact, clientEmail, projectName, projectDesc, useAI, isRtl, onCreated, toast]);
+  }, [selectedService, selectedSubService, clientName, clientContact, clientEmail, projectName, projectDesc, useAI, region, projectSize, isRtl, onCreated, toast]);
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -477,23 +529,112 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
                     {SERVICE_TYPES.map((svc) => {
                       const Icon = ICONS[svc.iconName] ?? FileText;
                       const isSel = selectedService === svc.id;
-                      // When CRM data exists, skip step 2 (client info already filled) → go to step 3
-                      const nextStep = crmPrefill ? 3 : 2;
+                      const hasSubs = hasSubServices(svc.id);
                       return (
-                        <button key={svc.id} onClick={() => { setSelectedService(svc.id); setStep(nextStep); }}
+                        <button key={svc.id} onClick={() => {
+                          setSelectedService(svc.id);
+                          setSelectedSubService(null);
+                          if (hasSubs) {
+                            setShowSubPicker(true);
+                          } else {
+                            setShowSubPicker(false);
+                            setStep(crmPrefill ? 3 : 2);
+                          }
+                        }}
                           className={cn("relative flex flex-col items-start p-3.5 rounded-xl border-2 cursor-pointer transition-all gap-2 text-start", isSel ? "border-primary bg-primary/5 shadow-sm" : "border-border/50 hover:border-primary/40 hover:bg-secondary/50")}>
                           <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0", `bg-${svc.color}-500`)}>
                             <Icon className="w-5 h-5" />
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <p className="text-xs font-semibold leading-tight">{isRtl ? svc.labelAr : svc.labelEn}</p>
                             <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{isRtl ? svc.descAr : svc.descEn}</p>
                           </div>
-                          {isSel && <CheckCircle2 className="w-4 h-4 text-primary absolute top-2 end-2" />}
+                          <div className="flex items-center justify-between w-full">
+                            {hasSubs && (
+                              <span className="text-[10px] text-primary font-medium">
+                                {isRtl ? `${getSubServices(svc.id).length} خدمة` : `${getSubServices(svc.id).length} services`}
+                              </span>
+                            )}
+                            {isSel && <CheckCircle2 className="w-4 h-4 text-primary absolute top-2 end-2" />}
+                          </div>
                         </button>
                       );
                     })}
                   </div>
+
+                  {/* Sub-service picker */}
+                  {showSubPicker && selectedService && hasSubServices(selectedService) && (
+                    <div className="mt-3 border border-primary/20 rounded-xl bg-primary/3 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold text-primary flex items-center gap-1.5">
+                          <ChevronRight className={cn("w-3.5 h-3.5", isRtl ? "rotate-180" : "")} />
+                          {isRtl ? "اختر الخدمة المحددة:" : "Select specific service:"}
+                        </p>
+                        <button
+                          className="text-xs text-muted-foreground hover:text-foreground underline"
+                          onClick={() => {
+                            setShowSubPicker(false);
+                            setSelectedSubService(null);
+                            setStep(crmPrefill ? 3 : 2);
+                          }}
+                        >
+                          {isRtl ? "تخطي ← عرض عام" : "Skip → General proposal"}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {getSubServices(selectedService).map((sub) => {
+                          const SubIcon = ICONS[sub.icon] ?? FileText;
+                          const isSubSel = selectedSubService?.id === sub.id;
+                          return (
+                            <button
+                              key={sub.id}
+                              onClick={() => {
+                                setSelectedSubService(sub);
+                                setShowSubPicker(false);
+                                setStep(crmPrefill ? 3 : 2);
+                              }}
+                              className={cn(
+                                "flex items-start gap-2.5 p-3 rounded-lg border text-start transition-all",
+                                isSubSel
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border/50 hover:border-primary/40 hover:bg-secondary/40"
+                              )}
+                            >
+                              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0", `bg-${sub.color}-500`)}>
+                                <SubIcon className="w-4 h-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold leading-tight line-clamp-1">
+                                  {isRtl ? sub.labelAr : sub.labelEn}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-2">
+                                  {isRtl ? sub.descAr : sub.descEn}
+                                </p>
+                                <p className="text-[10px] text-primary font-mono mt-1">
+                                  {sub.items.reduce((s, i) => s + i.total, 0).toLocaleString()} {isRtl ? "ر.س" : "SAR"}
+                                </p>
+                              </div>
+                              {isSubSel && <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selected sub-service badge */}
+                  {selectedSubService && !showSubPicker && (
+                    <div className="mt-2 flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                      <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                      <span className="text-xs font-medium text-primary flex-1">
+                        {isRtl ? selectedSubService.labelAr : selectedSubService.labelEn}
+                      </span>
+                      <button className="text-[10px] text-muted-foreground hover:text-foreground"
+                        onClick={() => { setShowSubPicker(true); setSelectedSubService(null); }}>
+                        {isRtl ? "تغيير" : "Change"}
+                      </button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

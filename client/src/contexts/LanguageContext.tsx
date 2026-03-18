@@ -37,6 +37,7 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.approvals': { en: 'Approvals', ar: 'الموافقات' },
   'nav.government': { en: 'Government Entities', ar: 'الجهات الحكومية' },
   'nav.smart_proposal': { en: 'Smart Proposal', ar: 'المقترحات الذكية' },
+  'nav.service_catalog': { en: 'Service Catalog', ar: 'كتالوج الخدمات' },
   
   'nav.hr': { en: 'HR', ar: 'الموارد البشرية' },
   'nav.payroll': { en: 'Payroll', ar: 'مسيرات الرواتب' },

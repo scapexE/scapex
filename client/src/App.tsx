@@ -29,6 +29,7 @@ import EngineeringModule from "@/pages/modules/engineering/index";
 import GovernmentModule from "@/pages/modules/government/index";
 import BIModule from "@/pages/modules/bi/index";
 import AIControlModule from "@/pages/modules/ai-control/index";
+import ServiceCatalogModule from "@/pages/modules/service-catalog/index";
 import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
 
 function Router() {
@@ -79,6 +80,7 @@ function Router() {
       </Route>
       <Route path="/government" component={GovernmentModule} />
       <Route path="/smart-proposal" component={SmartProposalModule} />
+      <Route path="/service-catalog" component={ServiceCatalogModule} />
 
       {/* HR & Personnel */}
       <Route path="/hr" component={HRModule} />

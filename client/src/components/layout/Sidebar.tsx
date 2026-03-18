@@ -28,6 +28,7 @@ import {
   LogOut,
   UserCog,
   UserCheck,
+  Zap,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,7 @@ const menuCategories = [
       { id: "approvals", icon: CheckSquare, path: "/approvals" },
       { id: "government", icon: Landmark, path: "/government" },
       { id: "smart_proposal", icon: Lightbulb, path: "/smart-proposal" },
+      { id: "service_catalog", icon: Zap, path: "/service-catalog" },
     ],
   },
   {
