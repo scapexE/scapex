@@ -5,19 +5,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 type Tab = "login" | "register";
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: "8px",
-  border: "1px solid #374151",
-  background: "#1f2937",
-  color: "white",
-  fontSize: "14px",
-  outline: "none",
-  boxSizing: "border-box",
-  direction: "rtl",
-};
-
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "13px",
@@ -29,6 +16,19 @@ export default function Login() {
   const [tab, setTab] = useState<Tab>("login");
   const { dir, language, toggleLanguage } = useLanguage();
   const isRtl = dir === "rtl";
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: "8px",
+    border: "1px solid #374151",
+    background: "#1f2937",
+    color: "white",
+    fontSize: "14px",
+    outline: "none",
+    boxSizing: "border-box",
+    direction: dir,
+  };
 
   // --- Login State ---
   const [email, setEmail] = useState("");
@@ -46,7 +46,6 @@ export default function Login() {
   const [regSuccess, setRegSuccess] = useState(false);
 
   useEffect(() => {
-    // Clear stale/incompatible session from old versions
     const saved = localStorage.getItem("user");
     if (saved) {
       try {
@@ -56,32 +55,37 @@ export default function Login() {
         localStorage.removeItem("user");
       }
     }
-    getUsers(); // pre-initialize defaults
+    getUsers();
   }, []);
 
   // ── Login ──────────────────────────────────────────────
   const handleLogin = () => {
     setLoginError("");
     if (!email || !password) {
-      setLoginError("يرجى إدخال البريد الإلكتروني وكلمة المرور");
+      setLoginError(isRtl ? "يرجى إدخال البريد الإلكتروني وكلمة المرور" : "Please enter your email and password");
       return;
     }
     const users = getUsers();
     const user = users.find(
       (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
     );
-    if (!user) { setLoginError("البريد الإلكتروني أو كلمة المرور غير صحيحة"); return; }
+    if (!user) {
+      setLoginError(isRtl ? "البريد الإلكتروني أو كلمة المرور غير صحيحة" : "Incorrect email or password");
+      return;
+    }
     if (!user.active) {
       if (user.pendingApproval) {
-        setLoginError("طلبك قيد المراجعة. سيتم تفعيل حسابك بعد موافقة المشرف.");
+        setLoginError(isRtl
+          ? "طلبك قيد المراجعة. سيتم تفعيل حسابك بعد موافقة المشرف."
+          : "Your request is under review. Your account will be activated after admin approval.");
       } else {
-        setLoginError("هذا الحساب معطّل. تواصل مع مدير النظام.");
+        setLoginError(isRtl
+          ? "هذا الحساب معطّل. تواصل مع مدير النظام."
+          : "This account is disabled. Contact the system admin.");
       }
       return;
     }
-
     localStorage.setItem("user", JSON.stringify(user));
-    // Clients go directly to their portal
     window.location.href = user.role === "client" ? "/client-portal" : "/dashboard";
   };
 
@@ -89,27 +93,37 @@ export default function Login() {
     if (e.key === "Enter") handleLogin();
   };
 
-  // ── Register (Clients only) ────────────────────────────
+  // ── Register ───────────────────────────────────────────
   const handleRegister = () => {
     setRegError("");
     if (!regNationalId || !regName || !regEmail || !regPassword || !regConfirm) {
-      setRegError("يرجى ملء جميع الحقول المطلوبة (رقم الهوية، الاسم، البريد، كلمة المرور)"); return;
+      setRegError(isRtl
+        ? "يرجى ملء جميع الحقول المطلوبة (رقم الهوية، الاسم، البريد، كلمة المرور)"
+        : "Please fill all required fields (National ID, name, email, password)");
+      return;
     }
     if (!validateNationalId(regNationalId)) {
-      setRegError("رقم الهوية غير صحيح — يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2"); return;
+      setRegError(isRtl
+        ? "رقم الهوية غير صحيح — يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2"
+        : "Invalid National ID — must be 10 digits starting with 1 or 2");
+      return;
     }
     if (regPassword !== regConfirm) {
-      setRegError("كلمتا المرور غير متطابقتين"); return;
+      setRegError(isRtl ? "كلمتا المرور غير متطابقتين" : "Passwords do not match");
+      return;
     }
     if (regPassword.length < 6) {
-      setRegError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return;
+      setRegError(isRtl ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل" : "Password must be at least 6 characters");
+      return;
     }
     const users = getUsers();
     if (users.find((u) => u.nationalId === regNationalId)) {
-      setRegError("رقم الهوية مسجّل مسبقاً"); return;
+      setRegError(isRtl ? "رقم الهوية مسجّل مسبقاً" : "This National ID is already registered");
+      return;
     }
     if (users.find((u) => u.email.toLowerCase() === regEmail.toLowerCase())) {
-      setRegError("هذا البريد الإلكتروني مسجل مسبقاً"); return;
+      setRegError(isRtl ? "هذا البريد الإلكتروني مسجل مسبقاً" : "This email is already registered");
+      return;
     }
     const newUser: SystemUser = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -143,13 +157,15 @@ export default function Login() {
     }}>
       <div style={{
         background: "#111827",
-        padding: "36px 32px",
+        padding: "36px 32px 24px",
         borderRadius: "16px",
         width: "100%",
         maxWidth: "380px",
         color: "white",
         boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
         border: "1px solid #1f2937",
+        display: "flex",
+        flexDirection: "column",
       }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "28px" }}>
@@ -160,7 +176,9 @@ export default function Login() {
             fontSize: "26px", fontWeight: "bold",
           }}>S</div>
           <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>Scapex</h1>
-          <p style={{ color: "#6b7280", fontSize: "13px", marginTop: "3px" }}>{isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Management Platform"}</p>
+          <p style={{ color: "#6b7280", fontSize: "13px", marginTop: "3px" }}>
+            {isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Management Platform"}
+          </p>
         </div>
 
         {/* Tabs */}
@@ -177,25 +195,27 @@ export default function Login() {
                 color: tab === t ? "white" : "#6b7280",
               }}
             >
-              {t === "login" ? "تسجيل الدخول" : "حساب عميل جديد"}
+              {t === "login"
+                ? (isRtl ? "تسجيل الدخول" : "Sign In")
+                : (isRtl ? "حساب عميل جديد" : "New Client Account")}
             </button>
           ))}
         </div>
 
         {/* LOGIN FORM */}
         {tab === "login" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} dir="rtl">
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} dir={dir}>
             <div>
-              <label style={labelStyle}>البريد الإلكتروني</label>
+              <label style={labelStyle}>{isRtl ? "البريد الإلكتروني" : "Email"}</label>
               <input data-testid="input-email" type="email" placeholder="user@scapex.sa"
                 value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleLoginKey}
-                style={inputStyle} autoComplete="email" />
+                style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} autoComplete="email" />
             </div>
             <div>
-              <label style={labelStyle}>كلمة المرور</label>
+              <label style={labelStyle}>{isRtl ? "كلمة المرور" : "Password"}</label>
               <input data-testid="input-password" type="password" placeholder="••••••••"
                 value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleLoginKey}
-                style={inputStyle} autoComplete="current-password" />
+                style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} autoComplete="current-password" />
             </div>
             {loginError && (
               <div style={{ background: "#450a0a", border: "1px solid #7f1d1d", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", color: "#fca5a5" }}>
@@ -204,42 +224,50 @@ export default function Login() {
             )}
             <button data-testid="button-login" onClick={handleLogin}
               style={{ width: "100%", padding: "11px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginTop: "4px" }}>
-              تسجيل الدخول
+              {isRtl ? "تسجيل الدخول" : "Sign In"}
             </button>
 
             {/* Credentials hint */}
             <div style={{ padding: "12px", background: "#0f172a", borderRadius: "8px", border: "1px solid #1e3a5f", fontSize: "11px", color: "#64748b" }}>
-              <p style={{ margin: "0 0 6px", fontWeight: "600", color: "#94a3b8" }}>بيانات الدخول الافتراضية:</p>
-              <p style={{ margin: "2px 0" }}>مدير النظام: <span style={{ color: "#60a5fa" }}>admin@scapex.sa / Admin@123</span></p>
-              <p style={{ margin: "2px 0" }}>مدير: <span style={{ color: "#a78bfa" }}>manager@scapex.sa / Manager@123</span></p>
-              <p style={{ margin: "2px 0" }}>محاسب: <span style={{ color: "#fbbf24" }}>accountant@scapex.sa / Account@123</span></p>
-              <p style={{ margin: "2px 0" }}>مهندس: <span style={{ color: "#34d399" }}>engineer@scapex.sa / Engineer@123</span></p>
+              <p style={{ margin: "0 0 6px", fontWeight: "600", color: "#94a3b8" }}>
+                {isRtl ? "بيانات الدخول الافتراضية:" : "Default credentials:"}
+              </p>
+              <p style={{ margin: "2px 0" }}>{isRtl ? "مدير النظام" : "System Admin"}: <span style={{ color: "#60a5fa" }}>admin@scapex.sa / Admin@123</span></p>
+              <p style={{ margin: "2px 0" }}>{isRtl ? "مدير" : "Manager"}: <span style={{ color: "#a78bfa" }}>manager@scapex.sa / Manager@123</span></p>
+              <p style={{ margin: "2px 0" }}>{isRtl ? "محاسب" : "Accountant"}: <span style={{ color: "#fbbf24" }}>accountant@scapex.sa / Account@123</span></p>
+              <p style={{ margin: "2px 0" }}>{isRtl ? "مهندس" : "Engineer"}: <span style={{ color: "#34d399" }}>engineer@scapex.sa / Engineer@123</span></p>
             </div>
           </div>
         )}
 
         {/* REGISTER FORM (Clients) */}
         {tab === "register" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} dir="rtl">
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} dir={dir}>
             <div style={{ padding: "10px 12px", background: "#0f2a1a", border: "1px solid #14532d", borderRadius: "8px", fontSize: "12px", color: "#86efac" }}>
-              سيتم إنشاء حساب عميل يتيح لك الوصول إلى بوابة العملاء لمتابعة مشاريعك وعقودك.
+              {isRtl
+                ? "سيتم إنشاء حساب عميل يتيح لك الوصول إلى بوابة العملاء لمتابعة مشاريعك وعقودك."
+                : "A client account will be created giving you access to the client portal to follow your projects and contracts."}
             </div>
             {regSuccess ? (
               <div style={{ padding: "18px 16px", background: "#0f2a1a", border: "1px solid #166534", borderRadius: "10px", textAlign: "center" }}>
                 <div style={{ fontSize: "32px", marginBottom: "10px" }}>⏳</div>
-                <p style={{ color: "#86efac", fontSize: "15px", fontWeight: "700", margin: "0 0 8px" }}>تم إرسال طلب التسجيل!</p>
+                <p style={{ color: "#86efac", fontSize: "15px", fontWeight: "700", margin: "0 0 8px" }}>
+                  {isRtl ? "تم إرسال طلب التسجيل!" : "Registration request submitted!"}
+                </p>
                 <p style={{ color: "#4ade80", fontSize: "13px", margin: 0, lineHeight: "1.6" }}>
-                  حسابك قيد المراجعة من قِبَل المشرف.<br />
-                  ستتمكن من الدخول بعد الاعتماد.
+                  {isRtl
+                    ? <>حسابك قيد المراجعة من قِبَل المشرف.<br />ستتمكن من الدخول بعد الاعتماد.</>
+                    : <>Your account is under admin review.<br />You can sign in after approval.</>}
                 </p>
               </div>
             ) : (
               <>
-                {/* National ID field — primary identifier */}
                 <div>
                   <label style={labelStyle}>
-                    رقم الهوية الوطنية *
-                    <span style={{ color: "#6b7280", fontSize: "11px", marginRight: "4px" }}>(10 أرقام — يبدأ بـ 1 أو 2)</span>
+                    {isRtl ? "رقم الهوية الوطنية *" : "National ID *"}
+                    <span style={{ color: "#6b7280", fontSize: "11px", marginInlineStart: "4px" }}>
+                      {isRtl ? "(10 أرقام — يبدأ بـ 1 أو 2)" : "(10 digits — starts with 1 or 2)"}
+                    </span>
                   </label>
                   <input
                     data-testid="input-reg-national-id"
@@ -253,43 +281,44 @@ export default function Login() {
                     style={{ ...inputStyle, direction: "ltr", textAlign: "left", letterSpacing: "0.1em" }}
                   />
                   {regNationalId.length > 0 && (
-                    <p style={{
-                      fontSize: "11px", marginTop: "4px",
-                      color: validateNationalId(regNationalId) ? "#34d399" : "#f87171"
-                    }}>
-                      {validateNationalId(regNationalId) ? "✓ رقم الهوية صحيح" : "✗ يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2"}
+                    <p style={{ fontSize: "11px", marginTop: "4px", color: validateNationalId(regNationalId) ? "#34d399" : "#f87171" }}>
+                      {validateNationalId(regNationalId)
+                        ? (isRtl ? "✓ رقم الهوية صحيح" : "✓ Valid National ID")
+                        : (isRtl ? "✗ يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2" : "✗ Must be 10 digits starting with 1 or 2")}
                     </p>
                   )}
                 </div>
                 <div>
-                  <label style={labelStyle}>الاسم الكامل *</label>
-                  <input data-testid="input-reg-name" type="text" placeholder="أحمد محمد"
+                  <label style={labelStyle}>{isRtl ? "الاسم الكامل *" : "Full Name *"}</label>
+                  <input data-testid="input-reg-name" type="text" placeholder={isRtl ? "أحمد محمد" : "John Smith"}
                     value={regName} onChange={(e) => setRegName(e.target.value)} onKeyDown={handleRegisterKey}
                     style={inputStyle} />
                 </div>
                 <div>
-                  <label style={labelStyle}>اسم الشركة (اختياري)</label>
-                  <input data-testid="input-reg-company" type="text" placeholder="شركة النجاح"
+                  <label style={labelStyle}>{isRtl ? "اسم الشركة (اختياري)" : "Company Name (optional)"}</label>
+                  <input data-testid="input-reg-company" type="text" placeholder={isRtl ? "شركة النجاح" : "Success Corp"}
                     value={regCompany} onChange={(e) => setRegCompany(e.target.value)} onKeyDown={handleRegisterKey}
                     style={inputStyle} />
                 </div>
                 <div>
-                  <label style={labelStyle}>البريد الإلكتروني *</label>
+                  <label style={labelStyle}>{isRtl ? "البريد الإلكتروني *" : "Email *"}</label>
                   <input data-testid="input-reg-email" type="email" placeholder="client@company.sa"
                     value={regEmail} onChange={(e) => setRegEmail(e.target.value)} onKeyDown={handleRegisterKey}
-                    style={inputStyle} autoComplete="email" />
+                    style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} autoComplete="email" />
                 </div>
                 <div>
-                  <label style={labelStyle}>كلمة المرور *</label>
-                  <input data-testid="input-reg-password" type="password" placeholder="6 أحرف على الأقل"
+                  <label style={labelStyle}>{isRtl ? "كلمة المرور *" : "Password *"}</label>
+                  <input data-testid="input-reg-password" type="password"
+                    placeholder={isRtl ? "6 أحرف على الأقل" : "At least 6 characters"}
                     value={regPassword} onChange={(e) => setRegPassword(e.target.value)} onKeyDown={handleRegisterKey}
-                    style={inputStyle} />
+                    style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} />
                 </div>
                 <div>
-                  <label style={labelStyle}>تأكيد كلمة المرور *</label>
-                  <input data-testid="input-reg-confirm" type="password" placeholder="أعد كتابة كلمة المرور"
+                  <label style={labelStyle}>{isRtl ? "تأكيد كلمة المرور *" : "Confirm Password *"}</label>
+                  <input data-testid="input-reg-confirm" type="password"
+                    placeholder={isRtl ? "أعد كتابة كلمة المرور" : "Re-enter password"}
                     value={regConfirm} onChange={(e) => setRegConfirm(e.target.value)} onKeyDown={handleRegisterKey}
-                    style={inputStyle} />
+                    style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} />
                 </div>
                 {regError && (
                   <div style={{ background: "#450a0a", border: "1px solid #7f1d1d", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", color: "#fca5a5" }}>
@@ -298,38 +327,37 @@ export default function Login() {
                 )}
                 <button data-testid="button-register" onClick={handleRegister}
                   style={{ width: "100%", padding: "11px", background: "#059669", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>
-                  إنشاء الحساب والدخول
+                  {isRtl ? "إنشاء الحساب والدخول" : "Create Account & Sign In"}
                 </button>
               </>
             )}
           </div>
         )}
-      </div>
 
-      {/* Language toggle */}
-      <div style={{ marginTop: "20px", textAlign: "center" }}>
-        <button
-          data-testid="button-toggle-language"
-          onClick={toggleLanguage}
-          style={{
-            background: "transparent",
-            border: "1px solid rgba(255,255,255,0.15)",
-            borderRadius: "20px",
-            color: "rgba(255,255,255,0.55)",
-            fontSize: "13px",
-            padding: "7px 20px",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.35)")}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)")}
-        >
-          <span style={{ fontSize: "15px" }}>🌐</span>
-          {language === "ar" ? "English" : "عربي"}
-        </button>
+        {/* Language toggle — inside card at bottom */}
+        <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #1f2937", textAlign: "center" }}>
+          <button
+            data-testid="button-toggle-language"
+            onClick={toggleLanguage}
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "20px",
+              color: "rgba(255,255,255,0.45)",
+              fontSize: "12px",
+              padding: "6px 18px",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
+          >
+            🌐 {language === "ar" ? "English" : "عربي"}
+          </button>
+        </div>
       </div>
     </div>
   );
