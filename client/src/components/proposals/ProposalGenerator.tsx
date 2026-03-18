@@ -31,6 +31,7 @@ import {
 } from "@/lib/proposals";
 import { getActiveCompany } from "@/lib/company-services";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { createProjectFromContract } from "@/lib/projects";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw,
@@ -737,7 +738,23 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
     saveContract(contract);
     onSave(saved);
     setProposal(saved);
-    toast({ title: isRtl ? "تم توليد العقد!" : "Contract Generated!", description: isRtl ? `رقم العقد: ${contract.contractNumber}` : `Contract No: ${contract.contractNumber}` });
+    // Auto-create a project linked to this contract
+    createProjectFromContract({
+      contractId: contract.id,
+      contractNumber: contract.contractNumber,
+      proposalId: saved.id,
+      proposalNumber: saved.proposalNumber,
+      clientName: saved.clientName,
+      clientEmail: saved.clientEmail,
+      clientContact: saved.clientContact,
+      projectName: saved.projectName,
+      serviceType: saved.serviceType,
+      contractValue: saved.total,
+      currency: saved.currency,
+      startDate: contract.startDate,
+      endDate: contract.endDate,
+    });
+    toast({ title: isRtl ? "تم توليد العقد والمشروع!" : "Contract & Project Created!", description: isRtl ? `رقم العقد: ${contract.contractNumber} — تم إنشاء مشروع جديد تلقائياً` : `Contract No: ${contract.contractNumber} — A new project was created automatically` });
     onViewContract(contract);
   };
 
