@@ -139,7 +139,7 @@ export default function HSEModule() {
                       <TableRow key={inc.id} className="hover:bg-muted/40">
                         <TableCell className="font-mono text-xs text-muted-foreground">{inc.incidentNo}</TableCell>
                         <TableCell className="text-sm">{inc.date}</TableCell>
-                        <TableCell className="text-sm">{INC_TYPES.find(t=>t.id===inc.type)?.(isRtl?"ar":"en")??inc.type}</TableCell>
+                        <TableCell className="text-sm">{INC_TYPES.find(t=>t.id===inc.type)?.[isRtl?"ar":"en"]??inc.type}</TableCell>
                         <TableCell><Badge className={cn("text-xs",severityClass(inc.severity))} variant="secondary">{severityLabel(inc.severity)}</Badge></TableCell>
                         <TableCell className="text-sm">{inc.location}</TableCell>
                         <TableCell className="text-sm">{inc.reportedBy}</TableCell>
