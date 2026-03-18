@@ -168,9 +168,14 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
               <span className="text-white font-bold text-lg">S</span>
             </div>
-            <span className="text-sidebar-foreground font-bold text-xl tracking-tight truncate">
-              Scapex
-            </span>
+            <div className="min-w-0">
+              <p className="text-sidebar-foreground font-bold text-lg tracking-tight leading-tight">
+                Scapex
+              </p>
+              <p className="text-sidebar-foreground/50 text-[10px] leading-tight truncate">
+                منصة إدارة الأعمال الذكية
+              </p>
+            </div>
           </div>
 
           {/* Mobile Close Button */}
