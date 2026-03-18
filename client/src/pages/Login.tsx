@@ -27,7 +27,7 @@ const labelStyle: React.CSSProperties = {
 
 export default function Login() {
   const [tab, setTab] = useState<Tab>("login");
-  const { dir } = useLanguage();
+  const { dir, language, toggleLanguage } = useLanguage();
   const isRtl = dir === "rtl";
 
   // --- Login State ---
@@ -304,6 +304,32 @@ export default function Login() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Language toggle */}
+      <div style={{ marginTop: "20px", textAlign: "center" }}>
+        <button
+          data-testid="button-toggle-language"
+          onClick={toggleLanguage}
+          style={{
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: "20px",
+            color: "rgba(255,255,255,0.55)",
+            fontSize: "13px",
+            padding: "7px 20px",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.35)")}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)")}
+        >
+          <span style={{ fontSize: "15px" }}>🌐</span>
+          {language === "ar" ? "English" : "عربي"}
+        </button>
       </div>
     </div>
   );
