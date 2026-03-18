@@ -1,7 +1,9 @@
 // ─── Company / App Settings ────────────────────────────────────────────────────
 
 export interface CompanySettings {
-  companyName: string;
+  companyName: string;       // Fallback name (used in sidebar when no logo)
+  companyNameAr: string;     // Arabic company name
+  companyNameEn: string;     // English company name
   companyLogoUrl: string | null;  // base64 data URL or null
   companyLogoLight: string | null; // optional light-mode variant
 }
@@ -10,6 +12,8 @@ const SETTINGS_KEY = "scapex_company_settings";
 
 const DEFAULT_SETTINGS: CompanySettings = {
   companyName: "Scapex",
+  companyNameAr: "",
+  companyNameEn: "Scapex",
   companyLogoUrl: null,
   companyLogoLight: null,
 };

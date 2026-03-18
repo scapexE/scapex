@@ -16,9 +16,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Settings2, Plus, Pencil, Trash2, Shield, Users, Layers,
-  HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw,
-  Globe, Image, Upload, X, UserCheck,
+  Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Image, Upload, X, UserCheck,
+  HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe,
+  Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
+  FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
+  Cog, Home, Star, Package, Truck, Sun, Landmark, BrainCircuit,
+  Microscope, Bolt, Car, Ship, Train, Stethoscope, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -31,39 +34,81 @@ import { ALL_MODULES, ROLE_LABELS, getUsers, type SystemUser } from "@/lib/permi
 import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Module categories ────────────────────────────────────────────────────────
 const MODULE_CATEGORIES: Record<string, string> = {
-  core:        "النظام الأساسي",
-  business:    "الأعمال والمالية",
-  operations:  "العمليات",
-  engineering: "الهندسة",
-  hr:          "الموارد البشرية",
-  system:      "النظام",
+  core: "النظام الأساسي", business: "الأعمال والمالية",
+  operations: "العمليات", engineering: "الهندسة",
+  hr: "الموارد البشرية", system: "النظام",
 };
 
-const ICON_OPTIONS = [
-  { key: "HardHat",    Icon: HardHat,    ar: "خوذة هندسية" },
-  { key: "Leaf",       Icon: Leaf,       ar: "ورقة" },
-  { key: "ShieldAlert",Icon: ShieldAlert,ar: "درع تحذير" },
-  { key: "Flame",      Icon: Flame,      ar: "لهب" },
-  { key: "Building2",  Icon: Building2,  ar: "مبنى" },
-  { key: "RefreshCcw", Icon: RefreshCcw, ar: "إعادة تدوير" },
-  { key: "Globe",      Icon: Globe,      ar: "كرة أرضية" },
-  { key: "Layers",     Icon: Layers,     ar: "طبقات" },
+// ─── Icon options (30 icons) ─────────────────────────────────────────────────
+const ICON_OPTIONS: { key: string; Icon: React.ComponentType<{ className?: string }>; ar: string }[] = [
+  { key: "HardHat",     Icon: HardHat,     ar: "خوذة" },
+  { key: "Leaf",        Icon: Leaf,        ar: "ورقة" },
+  { key: "ShieldAlert", Icon: ShieldAlert, ar: "درع" },
+  { key: "Flame",       Icon: Flame,       ar: "لهب" },
+  { key: "Building2",   Icon: Building2,   ar: "مبنى" },
+  { key: "RefreshCcw",  Icon: RefreshCcw,  ar: "تدوير" },
+  { key: "Globe",       Icon: Globe,       ar: "كرة أرضية" },
+  { key: "Layers",      Icon: Layers,      ar: "طبقات" },
+  { key: "Factory",     Icon: Factory,     ar: "مصنع" },
+  { key: "TreePine",    Icon: TreePine,    ar: "شجرة" },
+  { key: "Zap",         Icon: Zap,         ar: "طاقة" },
+  { key: "Wind",        Icon: Wind,        ar: "رياح" },
+  { key: "Droplets",    Icon: Droplets,    ar: "مياه" },
+  { key: "Mountain",    Icon: Mountain,    ar: "جبل" },
+  { key: "Wrench",      Icon: Wrench,      ar: "مفتاح" },
+  { key: "Cpu",         Icon: Cpu,         ar: "معالج" },
+  { key: "FlaskConical",Icon: FlaskConical,ar: "كيمياء" },
+  { key: "Anchor",      Icon: Anchor,      ar: "مرساة" },
+  { key: "Warehouse",   Icon: Warehouse,   ar: "مستودع" },
+  { key: "Hammer",      Icon: Hammer,      ar: "مطرقة" },
+  { key: "Recycle",     Icon: Recycle,     ar: "إعادة تدوير" },
+  { key: "Sprout",      Icon: Sprout,      ar: "نبات" },
+  { key: "Fish",        Icon: Fish,        ar: "سمكة" },
+  { key: "Cog",         Icon: Cog,         ar: "تروس" },
+  { key: "Home",        Icon: Home,        ar: "منزل" },
+  { key: "Star",        Icon: Star,        ar: "نجمة" },
+  { key: "Package",     Icon: Package,     ar: "طرد" },
+  { key: "Truck",       Icon: Truck,       ar: "شاحنة" },
+  { key: "Sun",         Icon: Sun,         ar: "شمس" },
+  { key: "Landmark",    Icon: Landmark,    ar: "حكومي" },
+  { key: "BrainCircuit",Icon: BrainCircuit,ar: "ذكاء اصطناعي" },
+  { key: "Microscope",  Icon: Microscope,  ar: "مجهر" },
+  { key: "Car",         Icon: Car,         ar: "سيارة" },
+  { key: "Ship",        Icon: Ship,        ar: "سفينة" },
+  { key: "Train",       Icon: Train,       ar: "قطار" },
+  { key: "Stethoscope", Icon: Stethoscope, ar: "طب" },
+  { key: "BarChart3",   Icon: BarChart3,   ar: "إحصاء" },
 ];
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = Object.fromEntries(
-  ICON_OPTIONS.map(({ key, Icon }) => [key, Icon])
-);
+
+const ICON_MAP = Object.fromEntries(ICON_OPTIONS.map(({ key, Icon }) => [key, Icon]));
 function ActivityIcon({ name, className }: { name: string; className?: string }) {
-  const Icon = ICON_MAP[name] ?? Globe;
+  const Icon = (ICON_MAP[name] as React.ComponentType<{ className?: string }>) ?? Globe;
   return <Icon className={className} />;
 }
 
-const COLOR_OPTIONS: ActivityColor[] = ["blue", "emerald", "amber", "violet", "cyan", "rose", "orange", "teal"];
-const COLOR_LABELS: Record<ActivityColor, string> = {
-  blue: "أزرق", emerald: "زمردي", amber: "عنبري", violet: "بنفسجي",
-  cyan: "سماوي", rose: "وردي", orange: "برتقالي", teal: "فيروزي",
-};
+// ─── Color options (18 colors in 3 rows) ─────────────────────────────────────
+const COLOR_OPTIONS: { key: ActivityColor; ar: string }[] = [
+  { key: "blue",    ar: "أزرق" },
+  { key: "sky",     ar: "سماوي" },
+  { key: "indigo",  ar: "نيلي" },
+  { key: "violet",  ar: "بنفسجي" },
+  { key: "purple",  ar: "أرجواني" },
+  { key: "fuchsia", ar: "فوشيا" },
+  { key: "pink",    ar: "وردي" },
+  { key: "rose",    ar: "ورد" },
+  { key: "red",     ar: "أحمر" },
+  { key: "orange",  ar: "برتقالي" },
+  { key: "amber",   ar: "عنبري" },
+  { key: "yellow",  ar: "أصفر" },
+  { key: "lime",    ar: "ليموني" },
+  { key: "green",   ar: "أخضر" },
+  { key: "emerald", ar: "زمردي" },
+  { key: "teal",    ar: "فيروزي" },
+  { key: "cyan",    ar: "سيان" },
+  { key: "slate",   ar: "رصاصي" },
+];
 
 function generateId() { return `act_${Date.now().toString(36)}`; }
 const emptyActivity = (): Partial<BusinessActivity> => ({
@@ -86,6 +131,7 @@ function ActivityForm({ form, setForm }: {
 
   return (
     <div className="space-y-5" dir="rtl">
+      {/* Names */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>اسم النشاط (عربي) *</Label>
@@ -99,35 +145,62 @@ function ActivityForm({ form, setForm }: {
         </div>
       </div>
 
+      {/* Colors — 18 swatches in a compact grid */}
       <div className="space-y-2">
-        <Label>اللون</Label>
-        <div className="flex flex-wrap gap-2">
-          {COLOR_OPTIONS.map((c) => {
-            const cl = ACTIVITY_COLOR_MAP[c];
+        <Label>اللون <span className="text-muted-foreground text-xs">({COLOR_OPTIONS.length} لون)</span></Label>
+        <div className="flex flex-wrap gap-1.5">
+          {COLOR_OPTIONS.map(({ key, ar }) => {
+            const c = ACTIVITY_COLOR_MAP[key];
+            const selected = form.color === key;
             return (
-              <button key={c} onClick={() => setForm({ ...form, color: c })}
-                className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 text-xs font-medium transition-all",
-                  form.color === c ? `${cl.border} ${cl.bg} ${cl.text}` : "border-border/50 text-muted-foreground hover:bg-secondary/50")}>
-                <span className={cn("w-2.5 h-2.5 rounded-full", cl.dot)} />{COLOR_LABELS[c]}
+              <button
+                key={key}
+                onClick={() => setForm({ ...form, color: key })}
+                title={ar}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all",
+                  selected
+                    ? cn(c.border, c.bg, c.text, "ring-2 ring-offset-1 ring-current")
+                    : "border-border/40 text-muted-foreground hover:bg-secondary/40"
+                )}
+              >
+                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", c.dot)} />
+                {ar}
               </button>
             );
           })}
         </div>
       </div>
 
+      {/* Icons — scrollable grid */}
       <div className="space-y-2">
-        <Label>الأيقونة</Label>
-        <div className="flex flex-wrap gap-2">
-          {ICON_OPTIONS.map(({ key, Icon, ar }) => (
-            <button key={key} onClick={() => setForm({ ...form, icon: key })}
-              className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 text-xs transition-all",
-                form.icon === key ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground hover:bg-secondary/50")}>
-              <Icon className="w-3.5 h-3.5" />{ar}
-            </button>
-          ))}
+        <Label>الأيقونة <span className="text-muted-foreground text-xs">({ICON_OPTIONS.length} أيقونة)</span></Label>
+        <div className="border rounded-xl p-2 max-h-44 overflow-y-auto">
+          <div className="flex flex-wrap gap-1.5">
+            {ICON_OPTIONS.map(({ key, Icon, ar }) => {
+              const selected = form.icon === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setForm({ ...form, icon: key })}
+                  title={ar}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border text-[10px] transition-all min-w-[52px]",
+                    selected
+                      ? "border-primary bg-primary/10 text-primary font-semibold"
+                      : "border-border/40 text-muted-foreground hover:bg-secondary/30"
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  {ar}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
+      {/* Modules */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label>الوحدات المفعّلة</Label>
@@ -138,7 +211,7 @@ function ActivityForm({ form, setForm }: {
               onClick={() => setForm({ ...form, modules: ["dashboard"] })}>إلغاء الكل</Button>
           </div>
         </div>
-        <div className="border rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+        <div className="border rounded-xl overflow-hidden max-h-56 overflow-y-auto">
           {Object.entries(groupedModules).map(([cat, mods], idx) => (
             <div key={cat} className={cn("p-3", idx > 0 && "border-t border-border/50")}>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -149,8 +222,10 @@ function ActivityForm({ form, setForm }: {
                   const checked = (form.modules || []).includes(mod.id);
                   return (
                     <div key={mod.id} onClick={() => toggleModule(mod.id)}
-                      className={cn("flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer text-xs transition-colors",
-                        checked ? "bg-primary/5 border-primary/30 font-medium" : "border-border/40 text-muted-foreground hover:bg-secondary/30")}>
+                      className={cn(
+                        "flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer text-xs transition-colors",
+                        checked ? "bg-primary/5 border-primary/30 font-medium" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
+                      )}>
                       <Checkbox checked={checked} onCheckedChange={() => toggleModule(mod.id)} className="pointer-events-none h-3.5 w-3.5" />
                       {mod.labelAr}
                     </div>
@@ -166,32 +241,34 @@ function ActivityForm({ form, setForm }: {
   );
 }
 
-// ─── Logo & Settings Tab ──────────────────────────────────────────────────────
+// ─── Logo & Company Branding Tab ──────────────────────────────────────────────
 function LogoSettingsTab() {
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(settings.companyLogoUrl);
-  const [companyName, setCompanyName] = useState(settings.companyName);
+  const [nameAr, setNameAr] = useState(settings.companyNameAr || "");
+  const [nameEn, setNameEn] = useState(settings.companyNameEn || settings.companyName || "Scapex");
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "الملف كبير جداً", description: "يجب أن لا يتجاوز حجم الصورة 2 ميغابايت", variant: "destructive" });
+      toast({ title: "الملف كبير جداً", description: "يجب أن لا يتجاوز 2 ميغابايت", variant: "destructive" });
       return;
     }
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setPreview(dataUrl);
-    } catch {
-      toast({ title: "خطأ", description: "تعذّر قراءة الملف", variant: "destructive" });
-    }
+    try { setPreview(await readFileAsDataUrl(file)); }
+    catch { toast({ title: "خطأ", description: "تعذّر قراءة الملف", variant: "destructive" }); }
   };
 
   const handleSave = () => {
-    updateSettings({ companyLogoUrl: preview, companyName });
-    toast({ title: "تم الحفظ", description: "تم تحديث إعدادات الشركة بنجاح" });
+    updateSettings({
+      companyLogoUrl: preview,
+      companyNameAr: nameAr,
+      companyNameEn: nameEn,
+      companyName: nameEn || nameAr || "Scapex",
+    });
+    toast({ title: "تم الحفظ", description: "تم تحديث هوية الشركة بنجاح" });
   };
 
   const handleRemoveLogo = () => {
@@ -200,30 +277,49 @@ function LogoSettingsTab() {
   };
 
   return (
-    <div className="space-y-6 max-w-lg" dir="rtl">
-      {/* Company Name */}
+    <div className="space-y-5 max-w-lg" dir="rtl">
+      {/* ── Company Name (AR + EN) ── */}
       <Card className="border-border/50">
-        <CardContent className="p-5 space-y-3">
-          <Label className="text-sm font-semibold">اسم الشركة</Label>
-          <Input
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder="Scapex"
-            data-testid="input-company-name"
-          />
-          <p className="text-xs text-muted-foreground">يظهر في الشريط الجانبي عند عدم وجود لوقو</p>
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Building2 className="w-4 h-4 text-primary" />
+            <Label className="text-sm font-semibold">اسم الشركة</Label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">بالعربي</Label>
+              <Input
+                value={nameAr}
+                onChange={(e) => setNameAr(e.target.value)}
+                placeholder="شركة سكابكس"
+                className="text-right"
+                data-testid="input-company-name-ar"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">بالإنجليزي</Label>
+              <Input
+                value={nameEn}
+                onChange={(e) => setNameEn(e.target.value)}
+                placeholder="Scapex Co."
+                data-testid="input-company-name-en"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            يظهر اسم الشركة في الشريط العلوي بعد أيقونة الإشعارات
+          </p>
         </CardContent>
       </Card>
 
-      {/* Logo Upload */}
+      {/* ── Logo Upload ── */}
       <Card className="border-border/50">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-center gap-2">
             <Image className="w-4 h-4 text-primary" />
-            <Label className="text-sm font-semibold">لوقو الشركة</Label>
+            <Label className="text-sm font-semibold">شعار الشركة (لوقو)</Label>
           </div>
 
-          {/* Preview */}
           {preview ? (
             <div className="relative inline-block">
               <div className="p-3 border-2 border-dashed border-border/60 rounded-xl bg-secondary/20">
@@ -245,7 +341,7 @@ function LogoSettingsTab() {
             >
               <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
               <p className="text-sm font-medium text-muted-foreground">انقر لرفع الصورة</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">PNG، JPG، SVG · بحد أقصى 2MB</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">PNG · JPG · SVG · WebP · بحد أقصى 2MB</p>
             </div>
           )}
 
@@ -260,50 +356,60 @@ function LogoSettingsTab() {
 
           {!preview && (
             <Button variant="outline" size="sm" className="w-full gap-2"
-              onClick={() => fileInputRef.current?.click()}
-              data-testid="button-upload-logo">
+              onClick={() => fileInputRef.current?.click()} data-testid="button-upload-logo">
               <Upload className="w-4 h-4" /> اختيار ملف
             </Button>
           )}
-
-          <p className="text-xs text-muted-foreground">
-            يظهر اللوقو في: القائمة الجانبية · شريط الهيدر بجانب اللغة والثيم
-          </p>
         </CardContent>
       </Card>
 
-      {/* Preview in context */}
-      {preview && (
+      {/* ── Live preview ── */}
+      {(preview || nameEn || nameAr) && (
         <Card className="border-border/50">
           <CardContent className="p-4 space-y-3">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">معاينة</Label>
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-sidebar border border-border/50">
-                <img src={preview} alt="sidebar preview" className="h-8 max-w-[140px] object-contain" />
-                <span className="text-xs text-muted-foreground">← القائمة الجانبية</span>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              معاينة — الشريط العلوي
+            </Label>
+            {/* Simulated header */}
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-card border border-border/50">
+              <div className="flex-1 h-5 bg-secondary/60 rounded" />
+              {/* Bell icon simulation */}
+              <div className="w-7 h-7 rounded-lg bg-secondary/60 flex items-center justify-center shrink-0">
+                <span className="text-[10px]">🔔</span>
               </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-card border border-border/50">
-                <div className="flex-1 h-2 bg-secondary/80 rounded" />
-                <img src={preview} alt="header preview" className="h-7 max-w-[100px] object-contain" />
-                <div className="flex gap-1">
-                  <div className="w-6 h-6 rounded bg-secondary/80" />
-                  <div className="w-6 h-6 rounded bg-secondary/80" />
-                </div>
-                <span className="text-xs text-muted-foreground">← الهيدر</span>
+              {/* Company branding preview */}
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-border/40 bg-secondary/30 shrink-0">
+                {preview && (
+                  <img src={preview} alt="logo" className="h-5 max-w-[60px] object-contain" />
+                )}
+                {!preview && (nameAr || nameEn) && (
+                  <span className="text-[10px] font-bold text-foreground/70">
+                    {nameAr || nameEn}
+                  </span>
+                )}
+                {preview && (nameAr || nameEn) && (
+                  <span className="text-[10px] font-semibold text-foreground/70">
+                    {nameAr || nameEn}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <div className="w-7 h-7 rounded-lg bg-secondary/60" />
+                <div className="w-7 h-7 rounded-lg bg-secondary/60" />
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Button onClick={handleSave} className="w-full gap-2" data-testid="button-save-settings">
-        حفظ الإعدادات
+      <Button onClick={handleSave} className="w-full gap-2" data-testid="button-save-branding">
+        حفظ هوية الشركة
       </Button>
     </div>
   );
 }
 
-// ─── Inner Content (uses context hooks safely) ────────────────────────────────
+// ─── Inner Content ────────────────────────────────────────────────────────────
 function SystemAdminContent() {
   const { toast } = useToast();
   const { activities, setActivities, assignments, setAssignments, getActivityUserIds } = useBusinessActivity();
@@ -382,7 +488,7 @@ function SystemAdminContent() {
             لوحة تحكم النظام
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            إدارة أنشطة الشركة، اللوقو، وتخصيص الوحدات والمستخدمين
+            إدارة أنشطة الشركة، هويتها، وتخصيص الوحدات والمستخدمين
           </p>
         </div>
         <Badge variant="outline" className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-transparent gap-1.5 shrink-0">
@@ -416,7 +522,7 @@ function SystemAdminContent() {
 
           <div className="grid gap-4 md:grid-cols-2">
             {activities.map((act) => {
-              const c = ACTIVITY_COLOR_MAP[act.color];
+              const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor] ?? ACTIVITY_COLOR_MAP.blue;
               const assignedCount = getActivityUserIds(act.id).length;
               return (
                 <Card key={act.id} data-testid={`activity-card-${act.id}`}
@@ -464,7 +570,8 @@ function SystemAdminContent() {
                         onClick={() => openEdit(act)} data-testid={`button-edit-activity-${act.id}`}>
                         <Pencil className="w-3.5 h-3.5" /> تعديل
                       </Button>
-                      <Button size="sm" variant="outline" className="gap-1 text-xs h-8 text-destructive border-destructive/30 hover:bg-destructive/10"
+                      <Button size="sm" variant="outline"
+                        className="gap-1 text-xs h-8 text-destructive border-destructive/30 hover:bg-destructive/10"
                         onClick={() => setDeleteActivity(act)} data-testid={`button-delete-activity-${act.id}`}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -479,11 +586,11 @@ function SystemAdminContent() {
         {/* ── Tab 2: User Assignments ───────────────────────────────────── */}
         <TabsContent value="assignments" className="mt-6 space-y-4">
           <p className="text-sm text-muted-foreground">
-            حدّد المستخدمين المسموح لهم بالوصول لكل نشاط. مدير النظام يرى جميع الأنشطة تلقائياً.
+            حدّد المستخدمين المسموح لهم بالوصول لكل نشاط.
           </p>
           <div className="grid gap-4">
             {activities.filter((a) => a.active).map((act) => {
-              const c = ACTIVITY_COLOR_MAP[act.color];
+              const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor] ?? ACTIVITY_COLOR_MAP.blue;
               const assignedIds = getActivityUserIds(act.id);
               return (
                 <Card key={act.id} className={cn("border", c.border)}>
@@ -508,7 +615,7 @@ function SystemAdminContent() {
                             data-testid={`assign-${act.id}-${user.id}`}
                             className={cn(
                               "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all text-xs",
-                              assigned ? `border-current ${c.bg} ${c.text} font-medium` : "border-border/50 text-muted-foreground hover:bg-secondary/30"
+                              assigned ? cn("border-current font-medium", c.bg, c.text) : "border-border/50 text-muted-foreground hover:bg-secondary/30"
                             )}>
                             <Checkbox checked={assigned} onCheckedChange={() => toggleUserAssignment(act.id, user.id)} className="pointer-events-none h-3.5 w-3.5" />
                             <div className="min-w-0">
@@ -529,7 +636,7 @@ function SystemAdminContent() {
           </div>
         </TabsContent>
 
-        {/* ── Tab 3: Branding / Logo ────────────────────────────────────── */}
+        {/* ── Tab 3: Branding ───────────────────────────────────────────── */}
         <TabsContent value="branding" className="mt-6">
           <LogoSettingsTab />
         </TabsContent>
@@ -584,7 +691,7 @@ function SystemAdminContent() {
   );
 }
 
-// ─── Page Shell (access guard only — no context hooks here) ──────────────────
+// ─── Page Shell ───────────────────────────────────────────────────────────────
 export default function SystemAdmin() {
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
 
