@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getUsers, saveUsers, ROLE_DEFAULTS, type SystemUser } from "@/lib/permissions";
 
+
 type Tab = "login" | "register";
 
 const inputStyle: React.CSSProperties = {
@@ -66,7 +67,14 @@ export default function Login() {
       (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
     );
     if (!user) { setLoginError("البريد الإلكتروني أو كلمة المرور غير صحيحة"); return; }
-    if (!user.active) { setLoginError("هذا الحساب معطّل. تواصل مع مدير النظام."); return; }
+    if (!user.active) {
+      if (user.pendingApproval) {
+        setLoginError("طلبك قيد المراجعة. سيتم تفعيل حسابك بعد موافقة المشرف.");
+      } else {
+        setLoginError("هذا الحساب معطّل. تواصل مع مدير النظام.");
+      }
+      return;
+    }
 
     localStorage.setItem("user", JSON.stringify(user));
     // Clients go directly to their portal
@@ -101,14 +109,11 @@ export default function Login() {
       role: "client",
       permissions: ROLE_DEFAULTS.client,
       createdAt: new Date().toISOString(),
-      active: true,
+      active: false,
+      pendingApproval: true,
     };
     saveUsers([...users, newUser]);
     setRegSuccess(true);
-    setTimeout(() => {
-      localStorage.setItem("user", JSON.stringify(newUser));
-      window.location.href = "/client-portal";
-    }, 1500);
   };
 
   const handleRegisterKey = (e: React.KeyboardEvent) => {
@@ -209,8 +214,13 @@ export default function Login() {
               سيتم إنشاء حساب عميل يتيح لك الوصول إلى بوابة العملاء لمتابعة مشاريعك وعقودك.
             </div>
             {regSuccess ? (
-              <div style={{ padding: "16px", background: "#0f2a1a", border: "1px solid #166534", borderRadius: "8px", textAlign: "center", color: "#86efac", fontSize: "15px", fontWeight: "600" }}>
-                ✅ تم التسجيل بنجاح! جاري التوجيه...
+              <div style={{ padding: "18px 16px", background: "#0f2a1a", border: "1px solid #166534", borderRadius: "10px", textAlign: "center" }}>
+                <div style={{ fontSize: "32px", marginBottom: "10px" }}>⏳</div>
+                <p style={{ color: "#86efac", fontSize: "15px", fontWeight: "700", margin: "0 0 8px" }}>تم إرسال طلب التسجيل!</p>
+                <p style={{ color: "#4ade80", fontSize: "13px", margin: 0, lineHeight: "1.6" }}>
+                  حسابك قيد المراجعة من قِبَل المشرف.<br />
+                  ستتمكن من الدخول بعد الاعتماد.
+                </p>
               </div>
             ) : (
               <>

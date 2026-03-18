@@ -27,6 +27,7 @@ import {
   X,
   LogOut,
   UserCog,
+  UserCheck,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,7 @@ const menuCategories = [
     items: [
       { id: "dms", icon: FileText, path: "/dms" },
       { id: "client_portal", icon: Globe, path: "/client-portal" },
+      { id: "approve_registrations", icon: UserCheck, path: "/users" },
       { id: "users", icon: UserCog, path: "/users" },
     ],
   },
