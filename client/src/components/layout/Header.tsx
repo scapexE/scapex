@@ -5,33 +5,15 @@ import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Bell, Search, Globe, Menu, Moon, Sun,
-  HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Layers,
-  Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
-  FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
-  Cog, Shield, Home, Star, Package, Truck, Landmark, BrainCircuit,
-  Microscope, Car, Ship, Train, Stethoscope, BarChart3,
-} from "lucide-react";
+import { Bell, Search, Globe, Menu, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ActivityIcon } from "@/pages/SystemAdmin";
 
 function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(" ");
-}
-
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe, Layers,
-  Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
-  FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
-  Cog, Shield, Home, Star, Package, Truck, Landmark, BrainCircuit,
-  Microscope, Car, Ship, Train, Stethoscope, BarChart3,
-};
-function ActivityIcon({ name, className }: { name: string; className?: string }) {
-  const Icon = ICON_MAP[name] ?? Layers;
-  return <Icon className={className} />;
 }
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {

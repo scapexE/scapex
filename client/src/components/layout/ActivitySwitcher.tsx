@@ -2,26 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
-import {
-  ChevronDown, Check, Layers,
-  HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe,
-  Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
-  FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
-  Cog, Shield, Home, Star, Package, Truck,
-} from "lucide-react";
-
-// Icon resolver
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe, Layers,
-  Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
-  FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
-  Cog, Shield, Home, Star, Package, Truck,
-};
-
-function ActivityIcon({ name, className }: { name: string; className?: string }) {
-  const Icon = ICON_MAP[name] ?? Layers;
-  return <Icon className={className} />;
-}
+import { ActivityIcon } from "@/pages/SystemAdmin";
+import { ChevronDown, Check, Layers } from "lucide-react";
 
 export function ActivitySwitcher() {
   const { activities, activeActivity, setActiveActivity } = useBusinessActivity();

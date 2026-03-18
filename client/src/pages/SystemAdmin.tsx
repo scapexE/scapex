@@ -1,4 +1,6 @@
-import { useState, useRef } from "react";
+import {
+  useState, useRef, useImperativeHandle, forwardRef,
+} from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,12 +17,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
-  ChevronDown, Check, Image,
+  ChevronDown, Check, Image, Link as LinkIcon, Ban,
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe,
   Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
   FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
@@ -43,7 +43,9 @@ const MODULE_CATEGORIES: Record<string, string> = {
   hr: "الموارد البشرية", system: "النظام",
 };
 
-const ICON_OPTIONS: { key: string; Icon: React.ComponentType<{ className?: string }>; ar: string }[] = [
+export const ICON_OPTIONS: {
+  key: string; Icon?: React.ComponentType<{ className?: string }>; ar: string;
+}[] = [
   { key: "HardHat",     Icon: HardHat,      ar: "خوذة" },
   { key: "Leaf",        Icon: Leaf,          ar: "ورقة" },
   { key: "ShieldAlert", Icon: ShieldAlert,   ar: "درع" },
@@ -84,21 +86,27 @@ const ICON_OPTIONS: { key: string; Icon: React.ComponentType<{ className?: strin
 ];
 
 const ICON_MAP = Object.fromEntries(ICON_OPTIONS.map(({ key, Icon }) => [key, Icon]));
-function ActivityIcon({ name, className }: { name: string; className?: string }) {
+
+// Renders an activity icon: Lucide, custom image URL/base64, or nothing
+export function ActivityIcon({ name, className }: { name: string; className?: string }) {
+  if (!name || name === "none") return null;
+  if (name.startsWith("data:") || name.startsWith("http")) {
+    return <img src={name} alt="" className={cn("object-contain rounded", className)} />;
+  }
   const Icon = (ICON_MAP[name] as React.ComponentType<{ className?: string }>) ?? Globe;
   return <Icon className={className} />;
 }
 
 const COLOR_OPTIONS: { key: ActivityColor; ar: string }[] = [
-  { key: "blue",    ar: "أزرق" },    { key: "sky",     ar: "سماوي" },
-  { key: "indigo",  ar: "نيلي" },    { key: "violet",  ar: "بنفسجي" },
-  { key: "purple",  ar: "أرجواني" }, { key: "fuchsia", ar: "فوشيا" },
-  { key: "pink",    ar: "وردي" },    { key: "rose",    ar: "ورد" },
-  { key: "red",     ar: "أحمر" },    { key: "orange",  ar: "برتقالي" },
-  { key: "amber",   ar: "عنبري" },   { key: "yellow",  ar: "أصفر" },
-  { key: "lime",    ar: "ليموني" },  { key: "green",   ar: "أخضر" },
-  { key: "emerald", ar: "زمردي" },   { key: "teal",    ar: "فيروزي" },
-  { key: "cyan",    ar: "سيان" },    { key: "slate",   ar: "رصاصي" },
+  { key: "blue", ar: "أزرق" }, { key: "sky", ar: "سماوي" },
+  { key: "indigo", ar: "نيلي" }, { key: "violet", ar: "بنفسجي" },
+  { key: "purple", ar: "أرجواني" }, { key: "fuchsia", ar: "فوشيا" },
+  { key: "pink", ar: "وردي" }, { key: "rose", ar: "ورد" },
+  { key: "red", ar: "أحمر" }, { key: "orange", ar: "برتقالي" },
+  { key: "amber", ar: "عنبري" }, { key: "yellow", ar: "أصفر" },
+  { key: "lime", ar: "ليموني" }, { key: "green", ar: "أخضر" },
+  { key: "emerald", ar: "زمردي" }, { key: "teal", ar: "فيروزي" },
+  { key: "cyan", ar: "سيان" }, { key: "slate", ar: "رصاصي" },
 ];
 
 function generateId() { return `act_${Date.now().toString(36)}`; }
@@ -112,14 +120,14 @@ const groupedModules = ALL_MODULES.reduce<Record<string, typeof ALL_MODULES>>((a
   acc[m.category].push(m); return acc;
 }, {});
 
-// ─── Color Picker Dropdown ─────────────────────────────────────────────────────
+// ─── Color Picker ─────────────────────────────────────────────────────────────
 function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: ActivityColor) => void }) {
   const c = ACTIVITY_COLOR_MAP[value];
   const label = COLOR_OPTIONS.find((o) => o.key === value)?.ar ?? "لون";
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="gap-2 h-9 justify-between min-w-[120px]" type="button">
+        <Button variant="outline" className="gap-2 h-9 justify-between min-w-[110px]" type="button">
           <span className="flex items-center gap-1.5">
             <span className={cn("w-3 h-3 rounded-full shrink-0", c.dot)} />
             <span className="text-xs">{label}</span>
@@ -127,7 +135,7 @@ function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: 
           <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2.5" dir="rtl" align="start">
+      <PopoverContent className="w-60 p-2.5" dir="rtl" align="start">
         <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">اختر اللون</p>
         <div className="flex flex-wrap gap-1.5">
           {COLOR_OPTIONS.map(({ key, ar }) => {
@@ -151,30 +159,116 @@ function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: 
   );
 }
 
-// ─── Icon Picker Dropdown ──────────────────────────────────────────────────────
+// ─── Icon Picker ──────────────────────────────────────────────────────────────
 function IconPicker({ value, onChange }: { value: string; onChange: (k: string) => void }) {
-  const current = ICON_OPTIONS.find((o) => o.key === value) ?? ICON_OPTIONS[0];
+  const { toast } = useToast();
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const [urlInput, setUrlInput] = useState("");
+  const [showUrl, setShowUrl] = useState(false);
+
+  const isCustom = value.startsWith("data:") || value.startsWith("http");
+  const isNone = !value || value === "none";
+  const current = !isCustom && !isNone ? ICON_OPTIONS.find((o) => o.key === value) : null;
+  const label = isNone ? "بلا أيقونة" : isCustom ? "أيقونة مخصصة" : current?.ar ?? "اختر";
+
+  const handleImgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 512 * 1024) {
+      toast({ title: "الملف كبير", description: "بحد أقصى 512KB للأيقونة", variant: "destructive" }); return;
+    }
+    try { onChange(await readFileAsDataUrl(file)); }
+    catch { toast({ title: "خطأ", description: "تعذّر قراءة الملف", variant: "destructive" }); }
+  };
+
+  const handleUrlSave = () => {
+    if (urlInput.trim()) { onChange(urlInput.trim()); setShowUrl(false); setUrlInput(""); }
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="gap-2 h-9 justify-between min-w-[120px]" type="button">
+        <Button variant="outline" className="gap-2 h-9 justify-between min-w-[130px]" type="button">
           <span className="flex items-center gap-1.5">
-            <current.Icon className="w-4 h-4 shrink-0" />
-            <span className="text-xs">{current.ar}</span>
+            {isNone ? <Ban className="w-4 h-4 text-muted-foreground" /> :
+             isCustom ? <img src={value} alt="" className="w-4 h-4 object-contain rounded" /> :
+             current?.Icon ? <current.Icon className="w-4 h-4" /> : null}
+            <span className="text-xs">{label}</span>
           </span>
           <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-2.5" dir="rtl" align="start">
-        <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">اختر الأيقونة</p>
-        <div className="max-h-52 overflow-y-auto">
+      <PopoverContent className="w-80 p-0" dir="rtl" align="start">
+        <div className="p-3 border-b border-border/50">
+          {/* Special options row */}
+          <div className="flex gap-2 mb-3">
+            {/* No icon */}
+            <button type="button" onClick={() => onChange("none")}
+              className={cn(
+                "flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border text-[11px] transition-all",
+                isNone ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
+              )}>
+              <Ban className="w-4 h-4" />
+              بلا أيقونة
+            </button>
+            {/* Upload image */}
+            <button type="button" onClick={() => imgInputRef.current?.click()}
+              className={cn(
+                "flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border text-[11px] transition-all",
+                isCustom && value.startsWith("data:") ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
+              )}>
+              <Upload className="w-4 h-4" />
+              رفع صورة
+            </button>
+            {/* URL */}
+            <button type="button" onClick={() => setShowUrl((v) => !v)}
+              className={cn(
+                "flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border text-[11px] transition-all",
+                isCustom && value.startsWith("http") ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
+              )}>
+              <LinkIcon className="w-4 h-4" />
+              رابط URL
+            </button>
+          </div>
+
+          {/* URL input */}
+          {showUrl && (
+            <div className="flex gap-2 mb-2">
+              <Input
+                placeholder="https://..."
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                style={{ direction: "ltr", textAlign: "left" }}
+                className="h-8 text-xs flex-1"
+              />
+              <Button size="sm" className="h-8 text-xs px-3" type="button" onClick={handleUrlSave}>تطبيق</Button>
+            </div>
+          )}
+
+          {/* Current custom preview */}
+          {isCustom && (
+            <div className="flex items-center gap-2 p-2 bg-secondary/30 rounded-lg text-xs">
+              <img src={value} alt="" className="w-6 h-6 object-contain rounded" />
+              <span className="truncate text-muted-foreground flex-1">أيقونة مخصصة مفعّلة</span>
+              <button type="button" onClick={() => onChange("HardHat")}
+                className="text-destructive hover:text-destructive/70">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Lucide icons grid */}
+        <div className="p-2.5 max-h-48 overflow-y-auto">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">أيقونات متاحة</p>
           <div className="flex flex-wrap gap-1.5">
             {ICON_OPTIONS.map(({ key, Icon, ar }) => {
+              if (!Icon) return null;
               const sel = value === key;
               return (
                 <button key={key} onClick={() => onChange(key)} type="button"
                   className={cn(
-                    "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border text-[10px] transition-all min-w-[50px]",
+                    "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border text-[10px] transition-all min-w-[48px]",
                     sel ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
                   )}>
                   <Icon className="w-4 h-4" />
@@ -184,12 +278,13 @@ function IconPicker({ value, onChange }: { value: string; onChange: (k: string) 
             })}
           </div>
         </div>
+        <input ref={imgInputRef} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" className="hidden" onChange={handleImgUpload} />
       </PopoverContent>
     </Popover>
   );
 }
 
-// ─── Logo Upload mini (inside activity form) ───────────────────────────────────
+// ─── Logo Upload mini ─────────────────────────────────────────────────────────
 function LogoUploadMini({
   value, onChange,
 }: { value: string | null | undefined; onChange: (v: string | null) => void }) {
@@ -229,154 +324,167 @@ function LogoUploadMini({
   );
 }
 
-// ─── Activity Form ────────────────────────────────────────────────────────────
-function ActivityForm({ form, setForm }: {
-  form: Partial<BusinessActivity>; setForm: (f: Partial<BusinessActivity>) => void;
-}) {
-  const toggleModule = (id: string) => {
-    const cur = form.modules || [];
-    setForm({ ...form, modules: cur.includes(id) ? cur.filter((m) => m !== id) : [...cur, id] });
-  };
-
-  return (
-    <div className="space-y-5" dir="rtl">
-
-      {/* ── Company Branding Section ── */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
-            <Image className="w-3.5 h-3.5 text-primary" />
-          </div>
-          <h3 className="text-sm font-bold text-primary">هوية الشركة لهذا النشاط</h3>
-          <span className="text-xs text-muted-foreground">(تظهر في الشريط العلوي)</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">اسم الشركة بالعربي</Label>
-            <Input
-              value={form.companyNameAr ?? ""}
-              onChange={(e) => setForm({ ...form, companyNameAr: e.target.value })}
-              placeholder="شركة ريادة التعمير للمقاولات"
-              data-testid="input-activity-company-name-ar"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">اسم الشركة بالإنجليزي</Label>
-            <Input
-              style={{ direction: "ltr", textAlign: "left" }}
-              value={form.companyNameEn ?? ""}
-              onChange={(e) => setForm({ ...form, companyNameEn: e.target.value })}
-              placeholder="Riyada Construction Co."
-              data-testid="input-activity-company-name-en"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">شعار الشركة</Label>
-          <LogoUploadMini
-            value={form.companyLogoUrl}
-            onChange={(v) => setForm({ ...form, companyLogoUrl: v })}
-          />
-        </div>
-      </div>
-
-      {/* ── Activity Names ── */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>اسم النشاط (عربي) *</Label>
-          <Input
-            placeholder="استشارات هندسية"
-            value={form.nameAr || ""}
-            onChange={(e) => setForm({ ...form, nameAr: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Activity Name (EN) *</Label>
-          <Input
-            style={{ direction: "ltr", textAlign: "left" }}
-            placeholder="Engineering Consultancy"
-            value={form.nameEn || ""}
-            onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
-          />
-        </div>
-      </div>
-
-      {/* ── Color + Icon (dropdowns) ── */}
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="space-y-2">
-          <Label>اللون</Label>
-          <ColorPicker
-            value={(form.color as ActivityColor) || "blue"}
-            onChange={(c) => setForm({ ...form, color: c })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>الأيقونة</Label>
-          <IconPicker
-            value={form.icon || "HardHat"}
-            onChange={(k) => setForm({ ...form, icon: k })}
-          />
-        </div>
-
-        {/* Live mini-preview */}
-        {(form.color || form.icon) && (() => {
-          const c = ACTIVITY_COLOR_MAP[(form.color as ActivityColor) || "blue"];
-          return (
-            <div className="flex items-center gap-2 ms-auto">
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", c.badge)}>
-                <ActivityIcon name={form.icon || "HardHat"} className={cn("w-5 h-5", c.text)} />
-              </div>
-              <div>
-                <p className={cn("text-xs font-bold", c.text)}>{form.nameAr || "اسم النشاط"}</p>
-                <p className="text-[10px] text-muted-foreground">{form.nameEn || "Activity Name"}</p>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* ── Modules ── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label>الوحدات المفعّلة</Label>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
-              onClick={() => setForm({ ...form, modules: ALL_MODULES.map((m) => m.id) })}>تحديد الكل</Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
-              onClick={() => setForm({ ...form, modules: ["dashboard"] })}>إلغاء الكل</Button>
-          </div>
-        </div>
-        <div className="border rounded-xl overflow-hidden max-h-56 overflow-y-auto">
-          {Object.entries(groupedModules).map(([cat, mods], idx) => (
-            <div key={cat} className={cn("p-3", idx > 0 && "border-t border-border/50")}>
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                {MODULE_CATEGORIES[cat]}
-              </h4>
-              <div className="grid grid-cols-2 gap-1.5">
-                {mods.map((mod) => {
-                  const checked = (form.modules || []).includes(mod.id);
-                  return (
-                    <div key={mod.id} onClick={() => toggleModule(mod.id)}
-                      className={cn(
-                        "flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer text-xs transition-colors",
-                        checked ? "bg-primary/5 border-primary/30 font-medium" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
-                      )}>
-                      <Checkbox checked={checked} onCheckedChange={() => toggleModule(mod.id)} className="pointer-events-none h-3.5 w-3.5" />
-                      {mod.labelAr}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">{(form.modules || []).length} وحدة من {ALL_MODULES.length}</p>
-      </div>
-    </div>
-  );
+// ─── Activity Form (fully local state — fixes typing-in-Dialog issue) ─────────
+export interface ActivityFormHandle {
+  getValues: () => Partial<BusinessActivity>;
 }
+
+const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<BusinessActivity> }>(
+  ({ initialForm }, ref) => {
+    // All text / complex state is LOCAL — never causes parent re-renders while typing
+    const [nameAr, setNameAr] = useState(initialForm.nameAr ?? "");
+    const [nameEn, setNameEn] = useState(initialForm.nameEn ?? "");
+    const [companyNameAr, setCompanyNameAr] = useState(initialForm.companyNameAr ?? "");
+    const [companyNameEn, setCompanyNameEn] = useState(initialForm.companyNameEn ?? "");
+    const [companyLogoUrl, setCompanyLogoUrl] = useState(initialForm.companyLogoUrl ?? null);
+    const [color, setColor] = useState<ActivityColor>((initialForm.color as ActivityColor) ?? "blue");
+    const [icon, setIcon] = useState(initialForm.icon ?? "HardHat");
+    const [modules, setModules] = useState<string[]>(initialForm.modules ?? ["dashboard"]);
+
+    // Expose values to parent via ref
+    useImperativeHandle(ref, () => ({
+      getValues: () => ({
+        nameAr, nameEn, companyNameAr, companyNameEn, companyLogoUrl,
+        color, icon, modules,
+      }),
+    }));
+
+    const toggleModule = (id: string) =>
+      setModules((cur) => cur.includes(id) ? cur.filter((m) => m !== id) : [...cur, id]);
+
+    const c = ACTIVITY_COLOR_MAP[color];
+
+    return (
+      <div className="space-y-5" dir="rtl">
+
+        {/* Company Branding */}
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
+              <Image className="w-3.5 h-3.5 text-primary" />
+            </div>
+            <h3 className="text-sm font-bold text-primary">هوية الشركة لهذا النشاط</h3>
+            <span className="text-xs text-muted-foreground">(تظهر في الشريط العلوي)</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">اسم الشركة بالعربي</Label>
+              <input
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={companyNameAr}
+                onChange={(e) => setCompanyNameAr(e.target.value)}
+                placeholder="شركة ريادة التعمير للمقاولات"
+                data-testid="input-activity-company-name-ar"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">اسم الشركة بالإنجليزي</Label>
+              <input
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                style={{ direction: "ltr", textAlign: "left" }}
+                value={companyNameEn}
+                onChange={(e) => setCompanyNameEn(e.target.value)}
+                placeholder="Riyada Construction Co."
+                data-testid="input-activity-company-name-en"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">شعار الشركة</Label>
+            <LogoUploadMini value={companyLogoUrl} onChange={setCompanyLogoUrl} />
+          </div>
+        </div>
+
+        {/* Activity Names */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>اسم النشاط (عربي) *</Label>
+            <input
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              placeholder="استشارات هندسية"
+              value={nameAr}
+              onChange={(e) => setNameAr(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Activity Name (EN) *</Label>
+            <input
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              style={{ direction: "ltr", textAlign: "left" }}
+              placeholder="Engineering Consultancy"
+              value={nameEn}
+              onChange={(e) => setNameEn(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Color + Icon + Live preview */}
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="space-y-2">
+            <Label>اللون</Label>
+            <ColorPicker value={color} onChange={setColor} />
+          </div>
+          <div className="space-y-2">
+            <Label>الأيقونة</Label>
+            <IconPicker value={icon} onChange={setIcon} />
+          </div>
+
+          {/* Live preview */}
+          <div className="flex items-center gap-2 ms-auto">
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", c.badge)}>
+              <ActivityIcon name={icon} className={cn("w-5 h-5", c.text)} />
+            </div>
+            <div>
+              <p className={cn("text-xs font-bold", c.text)}>{nameAr || "اسم النشاط"}</p>
+              <p className="text-[10px] text-muted-foreground">{nameEn || "Activity Name"}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Modules */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>الوحدات المفعّلة</Label>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
+                onClick={() => setModules(ALL_MODULES.map((m) => m.id))}>تحديد الكل</Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
+                onClick={() => setModules(["dashboard"])}>إلغاء الكل</Button>
+            </div>
+          </div>
+          <div className="border rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+            {Object.entries(groupedModules).map(([cat, mods], idx) => (
+              <div key={cat} className={cn("p-3", idx > 0 && "border-t border-border/50")}>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  {MODULE_CATEGORIES[cat]}
+                </h4>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {mods.map((mod) => {
+                    const checked = modules.includes(mod.id);
+                    return (
+                      <div key={mod.id} onClick={() => toggleModule(mod.id)}
+                        className={cn(
+                          "flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer text-xs transition-colors",
+                          checked ? "bg-primary/5 border-primary/30 font-medium" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
+                        )}>
+                        <Checkbox checked={checked} onCheckedChange={() => toggleModule(mod.id)} className="pointer-events-none h-3.5 w-3.5" />
+                        {mod.labelAr}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">{modules.length} وحدة من {ALL_MODULES.length}</p>
+        </div>
+      </div>
+    );
+  }
+);
+ActivityForm.displayName = "ActivityForm";
 
 // ─── Inner Content ────────────────────────────────────────────────────────────
 function SystemAdminContent() {
@@ -387,39 +495,47 @@ function SystemAdminContent() {
   const [addOpen, setAddOpen] = useState(false);
   const [editActivity, setEditActivity] = useState<BusinessActivity | null>(null);
   const [deleteActivity, setDeleteActivity] = useState<BusinessActivity | null>(null);
-  const [form, setForm] = useState<Partial<BusinessActivity>>(emptyActivity());
+  const [initialForm, setInitialForm] = useState<Partial<BusinessActivity>>(emptyActivity());
+
+  // Refs to get form values from the forwardRef'd ActivityForm
+  const addFormRef = useRef<ActivityFormHandle>(null);
+  const editFormRef = useRef<ActivityFormHandle>(null);
 
   const handleAdd = () => {
-    if (!form.nameAr || !form.nameEn) {
+    const values = addFormRef.current?.getValues();
+    if (!values?.nameAr || !values?.nameEn) {
       toast({ title: "خطأ", description: "اسم النشاط مطلوب", variant: "destructive" }); return;
     }
     const a: BusinessActivity = {
-      id: generateId(), nameAr: form.nameAr!, nameEn: form.nameEn!,
-      color: (form.color as ActivityColor) ?? "blue", icon: form.icon ?? "HardHat",
-      modules: form.modules ?? ["dashboard"], active: form.active ?? true,
+      id: generateId(), nameAr: values.nameAr, nameEn: values.nameEn,
+      color: (values.color as ActivityColor) ?? "blue", icon: values.icon ?? "HardHat",
+      modules: values.modules ?? ["dashboard"], active: true,
       createdAt: new Date().toISOString(),
-      companyNameAr: form.companyNameAr, companyNameEn: form.companyNameEn,
-      companyLogoUrl: form.companyLogoUrl,
+      companyNameAr: values.companyNameAr, companyNameEn: values.companyNameEn,
+      companyLogoUrl: values.companyLogoUrl,
     };
-    setActivities([...activities, a]); setAddOpen(false); setForm(emptyActivity());
+    setActivities([...activities, a]);
+    setAddOpen(false);
     toast({ title: "تم بنجاح", description: `تمت إضافة "${a.nameAr}"` });
   };
 
   const handleEdit = () => {
-    if (!editActivity || !form.nameAr || !form.nameEn) {
+    if (!editActivity) return;
+    const values = editFormRef.current?.getValues();
+    if (!values?.nameAr || !values?.nameEn) {
       toast({ title: "خطأ", description: "اسم النشاط مطلوب", variant: "destructive" }); return;
     }
     setActivities(activities.map((a) =>
       a.id === editActivity.id ? {
         ...a,
-        nameAr: form.nameAr!, nameEn: form.nameEn!,
-        color: (form.color as ActivityColor) ?? a.color, icon: form.icon ?? a.icon,
-        modules: form.modules ?? a.modules, active: form.active ?? a.active,
-        companyNameAr: form.companyNameAr, companyNameEn: form.companyNameEn,
-        companyLogoUrl: form.companyLogoUrl,
+        nameAr: values.nameAr!, nameEn: values.nameEn!,
+        color: (values.color as ActivityColor) ?? a.color, icon: values.icon ?? a.icon,
+        modules: values.modules ?? a.modules,
+        companyNameAr: values.companyNameAr, companyNameEn: values.companyNameEn,
+        companyLogoUrl: values.companyLogoUrl,
       } : a
     ));
-    setEditActivity(null); setForm(emptyActivity());
+    setEditActivity(null);
     toast({ title: "تم بنجاح", description: "تم تحديث النشاط" });
   };
 
@@ -435,7 +551,7 @@ function SystemAdminContent() {
   };
 
   const openEdit = (a: BusinessActivity) => {
-    setForm({
+    setInitialForm({
       nameAr: a.nameAr, nameEn: a.nameEn, color: a.color, icon: a.icon,
       modules: [...a.modules], active: a.active,
       companyNameAr: a.companyNameAr ?? "", companyNameEn: a.companyNameEn ?? "",
@@ -486,12 +602,11 @@ function SystemAdminContent() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Activities ───────────────────────────────── */}
+        {/* ── Activities ─────────────────────── */}
         <TabsContent value="activities" className="mt-6 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">{activities.length} نشاط مُعرَّف</p>
-            <Button onClick={() => { setForm(emptyActivity()); setAddOpen(true); }}
-              className="gap-2" data-testid="button-add-activity">
+            <Button onClick={() => setAddOpen(true)} className="gap-2" data-testid="button-add-activity">
               <Plus className="w-4 h-4" /> إضافة نشاط
             </Button>
           </div>
@@ -505,7 +620,6 @@ function SystemAdminContent() {
                 <Card key={act.id} data-testid={`activity-card-${act.id}`}
                   className={cn("border-2 transition-all", act.active ? c.border : "border-border/40 opacity-60")}>
                   <CardContent className="p-4">
-                    {/* Company branding preview inside card */}
                     {hasCompany && (
                       <div className={cn("flex items-center gap-2 mb-3 p-2 rounded-lg", c.bg)}>
                         {act.companyLogoUrl && (
@@ -517,7 +631,6 @@ function SystemAdminContent() {
                         </div>
                       </div>
                     )}
-
                     <div className="flex items-start gap-3">
                       <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", c.badge)}>
                         <ActivityIcon name={act.icon} className={cn("w-6 h-6", c.text)} />
@@ -573,7 +686,7 @@ function SystemAdminContent() {
           </div>
         </TabsContent>
 
-        {/* ── User Assignments ─────────────────────────── */}
+        {/* ── User Assignments ───────────────── */}
         <TabsContent value="assignments" className="mt-6 space-y-4">
           <p className="text-sm text-muted-foreground">حدّد المستخدمين المسموح لهم بالوصول لكل نشاط.</p>
           <div className="grid gap-4">
@@ -624,15 +737,16 @@ function SystemAdminContent() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Dialogs ────────────────────────────────────── */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      {/* ── Add Dialog ─────────────────────── */}
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-right flex items-center gap-2">
               <Plus className="w-5 h-5 text-primary" /> إضافة نشاط جديد
             </DialogTitle>
           </DialogHeader>
-          <ActivityForm form={form} setForm={setForm} />
+          {/* key forces remount when dialog opens fresh */}
+          <ActivityForm key={addOpen ? "add-open" : "add-closed"} ref={addFormRef} initialForm={emptyActivity()} />
           <DialogFooter className="flex-row-reverse gap-2">
             <Button onClick={handleAdd} data-testid="button-confirm-add-activity">حفظ النشاط</Button>
             <Button variant="outline" onClick={() => setAddOpen(false)}>إلغاء</Button>
@@ -640,14 +754,18 @@ function SystemAdminContent() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editActivity} onOpenChange={(o) => !o && setEditActivity(null)}>
+      {/* ── Edit Dialog ────────────────────── */}
+      <Dialog open={!!editActivity} onOpenChange={(o) => { if (!o) setEditActivity(null); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-right flex items-center gap-2">
               <Pencil className="w-5 h-5 text-primary" /> تعديل: {editActivity?.nameAr}
             </DialogTitle>
           </DialogHeader>
-          <ActivityForm form={form} setForm={setForm} />
+          {/* key = editActivity.id ensures fresh mount per activity */}
+          {editActivity && (
+            <ActivityForm key={editActivity.id} ref={editFormRef} initialForm={initialForm} />
+          )}
           <DialogFooter className="flex-row-reverse gap-2">
             <Button onClick={handleEdit} data-testid="button-confirm-edit-activity">حفظ التعديلات</Button>
             <Button variant="outline" onClick={() => setEditActivity(null)}>إلغاء</Button>
@@ -655,6 +773,7 @@ function SystemAdminContent() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Delete Confirm ─────────────────── */}
       <AlertDialog open={!!deleteActivity} onOpenChange={(o) => !o && setDeleteActivity(null)}>
         <AlertDialogContent dir="rtl">
           <AlertDialogHeader>
