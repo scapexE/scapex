@@ -347,8 +347,9 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
   const [showPrices, setShowPrices] = useState(false);
   const [region, setRegion] = useState<PriceRegion>("riyadh");
   const [projectSize, setProjectSize] = useState<ProjectSize>("medium");
+  const [crmPrefill, setCrmPrefill] = useState<{ clientName: string; projectName?: string } | null>(null);
 
-  // Read CRM/Sales prefill
+  // Read CRM/Sales prefill — stay at step 1 so user picks service first
   useEffect(() => {
     try {
       const raw = localStorage.getItem("scapex_proposal_prefill");
@@ -359,9 +360,9 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         if (data.clientEmail)   setClientEmail(data.clientEmail);
         if (data.projectName)   setProjectName(data.projectName);
         localStorage.removeItem("scapex_proposal_prefill");
-        // إذا جاءت البيانات كاملة (من Pipeline) نقفز مباشرة لخطوة 3
-        if (data.clientName && data.projectName) setStep(3);
-        else if (data.clientName) setStep(2);
+        // Stay at step 1 so user picks the service type first;
+        // store hint for the banner
+        setCrmPrefill({ clientName: data.clientName, projectName: data.projectName });
       }
     } catch {}
   }, []);
@@ -438,35 +439,63 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         <div className="lg:col-span-2">
           {/* Step 1: Service type */}
           {step === 1 && (
-            <Card className="border-border/50">
-              <CardHeader className="pb-3 border-b border-border/40 bg-secondary/20">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-muted-foreground" />
-                  {isRtl ? "اختر نوع الخدمة أو النشاط" : "Select Service / Activity Type"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {SERVICE_TYPES.map((svc) => {
-                    const Icon = ICONS[svc.iconName] ?? FileText;
-                    const isSel = selectedService === svc.id;
-                    return (
-                      <button key={svc.id} onClick={() => { setSelectedService(svc.id); setStep(2); }}
-                        className={cn("flex flex-col items-start p-3.5 rounded-xl border-2 cursor-pointer transition-all gap-2 text-start", isSel ? "border-primary bg-primary/5 shadow-sm" : "border-border/50 hover:border-primary/40 hover:bg-secondary/50")}>
-                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0", `bg-${svc.color}-500`)}>
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold leading-tight">{isRtl ? svc.labelAr : svc.labelEn}</p>
-                          <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{isRtl ? svc.descAr : svc.descEn}</p>
-                        </div>
-                        {isSel && <CheckCircle2 className="w-4 h-4 text-primary absolute top-2 end-2" />}
-                      </button>
-                    );
-                  })}
+            <div className="space-y-3">
+              {/* CRM prefill notice */}
+              {crmPrefill && (
+                <div className="flex items-start gap-3 p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/20">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                      {isRtl ? "تم ملء بيانات العميل تلقائياً من CRM" : "Client data pre-filled from CRM"}
+                    </p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-0.5 truncate">
+                      <strong>{crmPrefill.clientName}</strong>
+                      {crmPrefill.projectName && <span className="text-emerald-500"> — {crmPrefill.projectName}</span>}
+                    </p>
+                    <p className="text-[10px] text-emerald-500 mt-1">
+                      {isRtl ? "اختر نوع الخدمة وسيفتح النموذج مكتملاً" : "Select service type and the form will open pre-filled"}
+                    </p>
+                  </div>
+                  <button onClick={() => setCrmPrefill(null)} className="text-emerald-400 hover:text-emerald-600 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+
+              <Card className="border-border/50">
+                <CardHeader className="pb-3 border-b border-border/40 bg-secondary/20">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-muted-foreground" />
+                    {isRtl ? "اختر نوع الخدمة أو النشاط" : "Select Service / Activity Type"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {SERVICE_TYPES.map((svc) => {
+                      const Icon = ICONS[svc.iconName] ?? FileText;
+                      const isSel = selectedService === svc.id;
+                      // When CRM data exists, skip step 2 (client info already filled) → go to step 3
+                      const nextStep = crmPrefill ? 3 : 2;
+                      return (
+                        <button key={svc.id} onClick={() => { setSelectedService(svc.id); setStep(nextStep); }}
+                          className={cn("relative flex flex-col items-start p-3.5 rounded-xl border-2 cursor-pointer transition-all gap-2 text-start", isSel ? "border-primary bg-primary/5 shadow-sm" : "border-border/50 hover:border-primary/40 hover:bg-secondary/50")}>
+                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0", `bg-${svc.color}-500`)}>
+                            <Icon className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold leading-tight">{isRtl ? svc.labelAr : svc.labelEn}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{isRtl ? svc.descAr : svc.descEn}</p>
+                          </div>
+                          {isSel && <CheckCircle2 className="w-4 h-4 text-primary absolute top-2 end-2" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* Step 2: Client info */}
@@ -1297,7 +1326,16 @@ export function ProposalGenerator() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
-  const [view, setView] = useState<View>("list");
+
+  // If CRM/Sales dropped a prefill in localStorage → open create form immediately
+  const [view, setView] = useState<View>(() => {
+    try {
+      const raw = localStorage.getItem("scapex_proposal_prefill");
+      if (raw) { const d = JSON.parse(raw); if (d?.clientName) return "create"; }
+    } catch {}
+    return "list";
+  });
+
   const [proposals, setProposals] = useState<Proposal[]>(() => getProposals());
   const [selected, setSelected] = useState<Proposal | null>(null);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
