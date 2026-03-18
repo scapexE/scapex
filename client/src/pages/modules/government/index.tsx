@@ -171,7 +171,7 @@ export default function GovernmentModule() {
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"><Landmark className="w-5 h-5 text-primary"/></div>
-                      <div><p className="font-semibold text-sm">{isRtl?e.nameAr:e.nameEn}</p><Badge variant="outline" className="text-xs mt-0.5">{ENTITY_TYPES.find(t=>t.id===e.type)?.(isRtl?"ar":"en")??e.type}</Badge></div>
+                      <div><p className="font-semibold text-sm">{isRtl?e.nameAr:e.nameEn}</p><Badge variant="outline" className="text-xs mt-0.5">{ENTITY_TYPES.find(t=>t.id===e.type)?.[isRtl?"ar":"en"]??e.type}</Badge></div>
                     </div>
                     <div className="space-y-1 text-xs text-muted-foreground">
                       <p><strong>{isRtl?"المسؤول:":"Contact:"}</strong> {e.contactPerson}</p>
