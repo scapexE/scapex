@@ -34,6 +34,8 @@ export interface Company {
   nameAr: string;
   nameEn: string;
   vatNumber?: string;
+  logoUrl?: string;
+  logoColor?: string;
   activities: CompanyActivity[];
 }
 

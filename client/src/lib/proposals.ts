@@ -464,18 +464,33 @@ export function printProposal(proposal: Proposal, isRtl: boolean): void {
     .toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
 
   // ── Read active company data ──────────────────────────────────────────────
-  let coNameAr = "شركة سكابكس للاستشارات والخدمات الهندسية";
-  let coNameEn = "Scapex Consulting & Engineering Services";
-  let coVat    = "300123456700003";
+  let coNameAr   = "شركة سكيب للاستشارات والخدمات الهندسية";
+  let coNameEn   = "Scapex Consulting & Engineering Services";
+  let coVat      = "300123456700003";
+  let coLogoUrl  = "";
+  let coLogoColor = "#1e40af";
+  let coLogoChar  = "S";
   try {
     const raw = localStorage.getItem("scapex_companies");
     if (raw) {
-      const companies = JSON.parse(raw) as Array<{id:string;nameAr:string;nameEn:string;vatNumber?:string}>;
+      const companies = JSON.parse(raw) as Array<{id:string;nameAr:string;nameEn:string;vatNumber?:string;logoUrl?:string;logoColor?:string}>;
       const activeId = localStorage.getItem("scapex_active_company");
       const co = activeId ? companies.find((c) => c.id === activeId) : companies[0];
-      if (co) { coNameAr = co.nameAr; coNameEn = co.nameEn; coVat = co.vatNumber || coVat; }
+      if (co) {
+        coNameAr    = co.nameAr;
+        coNameEn    = co.nameEn;
+        coVat       = co.vatNumber || coVat;
+        coLogoUrl   = co.logoUrl   || "";
+        coLogoColor = co.logoColor || "#1e40af";
+        coLogoChar  = co.nameEn?.charAt(0)?.toUpperCase() || "S";
+      }
     }
   } catch {}
+
+  // ── Build logo HTML ───────────────────────────────────────────────────────
+  const logoHtml = coLogoUrl
+    ? `<img src="${coLogoUrl}" style="width:64px;height:64px;object-fit:contain;border-radius:10px;display:block;" />`
+    : `<div style="background:${coLogoColor};color:white;width:64px;height:64px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.15);">${coLogoChar}</div>`;
 
   const rows = proposal.items.map((item, i) => `
     <tr>
@@ -529,7 +544,7 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 <!-- الهيدر: dir=ltr دائماً لضمان الشعار في اليسار الفيزيائي -->
 <div class="header" dir="ltr">
   <div class="header-logo">
-    <div class="logo">${coNameEn.charAt(0).toUpperCase() || "S"}</div>
+    ${logoHtml}
   </div>
   <div class="header-name" dir="${dir}">
     ${isRtl ? `
@@ -549,7 +564,7 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
   <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
   <div class="doc-date">${isRtl ? "صالح حتى:" : "Valid Until:"} ${validUntil}</div>
 </div>
-<div class="doc-title" dir="${dir}">${isRtl ? "عرض سعر" : "QUOTATION"}</div>
+<div class="doc-title" dir="${dir}">${isRtl ? `عرض سعر — ${svc.labelAr}` : `QUOTATION — ${svc.labelEn}`}</div>
 <div class="sec-title">${isRtl ? "معلومات العميل والمشروع" : "CLIENT & PROJECT INFORMATION"}</div>
 
 <div class="info-grid">
