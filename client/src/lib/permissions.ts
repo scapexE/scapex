@@ -2,6 +2,7 @@ export type Role = "admin" | "manager" | "accountant" | "engineer" | "hr_manager
 
 export interface SystemUser {
   id: string;
+  nationalId: string;   // رقم الهوية الوطنية — المعرّف الرئيسي
   name: string;
   email: string;
   password: string;
@@ -11,6 +12,11 @@ export interface SystemUser {
   createdAt: string;
   active: boolean;
   pendingApproval?: boolean;
+}
+
+/** Validates Saudi/Resident ID: 10 digits, starts with 1 or 2 */
+export function validateNationalId(id: string): boolean {
+  return /^[12]\d{9}$/.test(id.trim());
 }
 
 // Priority order for determining primary role when multiple are assigned
@@ -112,19 +118,19 @@ export function getUsers(): SystemUser[] {
 function initDefaultUsers(): SystemUser[] {
   const defaults: SystemUser[] = [
     {
-      id: "1", name: "Ahmed Al-Admin",     email: "admin@scapex.sa",      password: "Admin@123",
+      id: "1", nationalId: "1000000001", name: "Ahmed Al-Admin",     email: "admin@scapex.sa",      password: "Admin@123",
       role: "admin",      permissions: ROLE_DEFAULTS.admin,      createdAt: new Date().toISOString(), active: true,
     },
     {
-      id: "2", name: "Sara Manager",        email: "manager@scapex.sa",    password: "Manager@123",
+      id: "2", nationalId: "1000000002", name: "Sara Manager",        email: "manager@scapex.sa",    password: "Manager@123",
       role: "manager",    permissions: ROLE_DEFAULTS.manager,    createdAt: new Date().toISOString(), active: true,
     },
     {
-      id: "3", name: "Khalid Accountant",   email: "accountant@scapex.sa", password: "Account@123",
+      id: "3", nationalId: "1000000003", name: "Khalid Accountant",   email: "accountant@scapex.sa", password: "Account@123",
       role: "accountant", permissions: ROLE_DEFAULTS.accountant, createdAt: new Date().toISOString(), active: true,
     },
     {
-      id: "4", name: "Mohammed Engineer",   email: "engineer@scapex.sa",   password: "Engineer@123",
+      id: "4", nationalId: "1000000004", name: "Mohammed Engineer",   email: "engineer@scapex.sa",   password: "Engineer@123",
       role: "engineer",   permissions: ROLE_DEFAULTS.engineer,   createdAt: new Date().toISOString(), active: true,
     },
   ];

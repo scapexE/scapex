@@ -10,7 +10,7 @@ import { useTheme } from "next-themes";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ActivityIcon } from "@/pages/SystemAdmin";
+import { ActivityIcon } from "@/components/ActivityIcon";
 
 function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(" ");

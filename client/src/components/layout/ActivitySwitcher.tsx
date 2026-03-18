@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
-import { ActivityIcon } from "@/pages/SystemAdmin";
+import { ActivityIcon } from "@/components/ActivityIcon";
 import { ChevronDown, Check, Layers } from "lucide-react";
 
 export function ActivitySwitcher() {

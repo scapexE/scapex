@@ -1,5 +1,5 @@
 import {
-  useState, useRef, useImperativeHandle, forwardRef,
+  useState, useRef, useEffect, useImperativeHandle, forwardRef,
 } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,16 +21,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
   ChevronDown, Check, Image, Link as LinkIcon, Ban,
-  HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw, Globe,
-  Factory, TreePine, Zap, Wind, Droplets, Mountain, Wrench, Cpu,
-  FlaskConical, Anchor, Warehouse, Hammer, Recycle, Sprout, Fish,
-  Cog, Home, Star, Package, Truck, Sun, Landmark, BrainCircuit,
-  Microscope, Car, Ship, Train, Stethoscope, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type BusinessActivity, type ActivityColor, ACTIVITY_COLOR_MAP,
 } from "@/lib/activities";
+import { ICON_OPTIONS } from "@/lib/icons";
+import { ActivityIcon } from "@/components/ActivityIcon";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ALL_MODULES, ROLE_LABELS, getUsers, type SystemUser } from "@/lib/permissions";
 import { readFileAsDataUrl } from "@/lib/settings";
@@ -43,59 +40,6 @@ const MODULE_CATEGORIES: Record<string, string> = {
   hr: "الموارد البشرية", system: "النظام",
 };
 
-export const ICON_OPTIONS: {
-  key: string; Icon?: React.ComponentType<{ className?: string }>; ar: string;
-}[] = [
-  { key: "HardHat",     Icon: HardHat,      ar: "خوذة" },
-  { key: "Leaf",        Icon: Leaf,          ar: "ورقة" },
-  { key: "ShieldAlert", Icon: ShieldAlert,   ar: "درع" },
-  { key: "Flame",       Icon: Flame,         ar: "لهب" },
-  { key: "Building2",   Icon: Building2,     ar: "مبنى" },
-  { key: "RefreshCcw",  Icon: RefreshCcw,    ar: "تدوير" },
-  { key: "Globe",       Icon: Globe,         ar: "كرة أرضية" },
-  { key: "Layers",      Icon: Layers,        ar: "طبقات" },
-  { key: "Factory",     Icon: Factory,       ar: "مصنع" },
-  { key: "TreePine",    Icon: TreePine,      ar: "شجرة" },
-  { key: "Zap",         Icon: Zap,           ar: "طاقة" },
-  { key: "Wind",        Icon: Wind,          ar: "رياح" },
-  { key: "Droplets",    Icon: Droplets,      ar: "مياه" },
-  { key: "Mountain",    Icon: Mountain,      ar: "جبل" },
-  { key: "Wrench",      Icon: Wrench,        ar: "مفتاح" },
-  { key: "Cpu",         Icon: Cpu,           ar: "معالج" },
-  { key: "FlaskConical",Icon: FlaskConical,  ar: "كيمياء" },
-  { key: "Anchor",      Icon: Anchor,        ar: "مرساة" },
-  { key: "Warehouse",   Icon: Warehouse,     ar: "مستودع" },
-  { key: "Hammer",      Icon: Hammer,        ar: "مطرقة" },
-  { key: "Recycle",     Icon: Recycle,       ar: "إعادة تدوير" },
-  { key: "Sprout",      Icon: Sprout,        ar: "نبات" },
-  { key: "Fish",        Icon: Fish,          ar: "سمكة" },
-  { key: "Cog",         Icon: Cog,           ar: "تروس" },
-  { key: "Home",        Icon: Home,          ar: "منزل" },
-  { key: "Star",        Icon: Star,          ar: "نجمة" },
-  { key: "Package",     Icon: Package,       ar: "طرد" },
-  { key: "Truck",       Icon: Truck,         ar: "شاحنة" },
-  { key: "Sun",         Icon: Sun,           ar: "شمس" },
-  { key: "Landmark",    Icon: Landmark,      ar: "حكومي" },
-  { key: "BrainCircuit",Icon: BrainCircuit,  ar: "ذكاء اصطناعي" },
-  { key: "Microscope",  Icon: Microscope,    ar: "مجهر" },
-  { key: "Car",         Icon: Car,           ar: "سيارة" },
-  { key: "Ship",        Icon: Ship,          ar: "سفينة" },
-  { key: "Train",       Icon: Train,         ar: "قطار" },
-  { key: "Stethoscope", Icon: Stethoscope,   ar: "طب" },
-  { key: "BarChart3",   Icon: BarChart3,     ar: "إحصاء" },
-];
-
-const ICON_MAP = Object.fromEntries(ICON_OPTIONS.map(({ key, Icon }) => [key, Icon]));
-
-// Renders an activity icon: Lucide, custom image URL/base64, or nothing
-export function ActivityIcon({ name, className }: { name: string; className?: string }) {
-  if (!name || name === "none") return null;
-  if (name.startsWith("data:") || name.startsWith("http")) {
-    return <img src={name} alt="" className={cn("object-contain rounded", className)} />;
-  }
-  const Icon = (ICON_MAP[name] as React.ComponentType<{ className?: string }>) ?? Globe;
-  return <Icon className={className} />;
-}
 
 const COLOR_OPTIONS: { key: ActivityColor; ar: string }[] = [
   { key: "blue", ar: "أزرق" }, { key: "sky", ar: "سماوي" },
@@ -486,6 +430,158 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
 );
 ActivityForm.displayName = "ActivityForm";
 
+// ─── Activity Assignment Card (with searchable user dropdown) ─────────────────
+function ActivityAssignmentCard({
+  act,
+  allUsers,
+  getActivityUserIds,
+  isUserAssigned,
+  toggleUserAssignment,
+}: {
+  act: BusinessActivity;
+  allUsers: SystemUser[];
+  getActivityUserIds: (id: string) => string[];
+  isUserAssigned: (actId: string, userId: string) => boolean;
+  toggleUserAssignment: (actId: string, userId: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [dropOpen, setDropOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  const c = ACTIVITY_COLOR_MAP[(act.color as ActivityColor)] ?? ACTIVITY_COLOR_MAP.blue;
+  const assignedIds = getActivityUserIds(act.id);
+  const assignedUsers = allUsers.filter((u) => assignedIds.includes(u.id));
+  const unassigned = allUsers.filter((u) => !assignedIds.includes(u.id));
+
+  const filtered = unassigned.filter((u) =>
+    !search ||
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
+    (u.nationalId && u.nationalId.includes(search)) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
+        setDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <Card className={cn("border", c.border)}>
+      <CardHeader className={cn("pb-2 pt-4 px-4 rounded-t-xl", c.bg)}>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", c.badge)}>
+            <ActivityIcon name={act.icon} className={cn("w-4 h-4", c.text)} />
+          </div>
+          <span className={c.text}>{act.nameAr}</span>
+          {(act.companyNameAr || act.companyNameEn) && (
+            <span className="text-xs text-muted-foreground">— {act.companyNameAr || act.companyNameEn}</span>
+          )}
+          <Badge variant="outline" className={cn("border-transparent text-xs ms-auto", c.badge, c.text)}>
+            {assignedIds.length} مستخدم
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-3 space-y-3">
+        {/* Assigned users as removable chips */}
+        {assignedUsers.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {assignedUsers.map((user) => (
+              <div key={user.id}
+                className={cn("flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full text-xs font-medium border", c.bg, c.border, c.text)}>
+                <div className="w-4 h-4 rounded-full bg-current/20 flex items-center justify-center text-[9px] font-bold shrink-0">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <span className="max-w-[100px] truncate">{user.name}</span>
+                {user.nationalId && (
+                  <span className="opacity-60 font-mono text-[9px]">{user.nationalId.slice(-4)}</span>
+                )}
+                <button
+                  onClick={() => toggleUserAssignment(act.id, user.id)}
+                  className="w-4 h-4 rounded-full hover:bg-current/20 flex items-center justify-center transition-colors"
+                  data-testid={`remove-assign-${act.id}-${user.id}`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">لم يُعيَّن أي مستخدم بعد</p>
+        )}
+
+        {/* Searchable user dropdown */}
+        {unassigned.length > 0 && (
+          <div ref={dropRef} className="relative">
+            <div className="relative">
+              <input
+                className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                placeholder="ابحث باسم أو رقم هوية للإضافة..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setDropOpen(true); }}
+                onFocus={() => setDropOpen(true)}
+              />
+              <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            </div>
+
+            {dropOpen && filtered.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 rounded-lg border border-border shadow-xl bg-popover overflow-hidden">
+                <div className="max-h-44 overflow-y-auto">
+                  {filtered.slice(0, 15).map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      data-testid={`assign-${act.id}-${user.id}`}
+                      onClick={() => {
+                        toggleUserAssignment(act.id, user.id);
+                        setSearch("");
+                        setDropOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-right hover:bg-secondary/50 transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 font-bold text-primary text-xs">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{user.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          {user.nationalId && (
+                            <span className="text-[10px] text-muted-foreground font-mono">{user.nationalId}</span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">·</span>
+                          <Badge variant="outline" className={cn("border-transparent text-[9px] px-1 h-4", ROLE_LABELS[user.role].color)}>
+                            {ROLE_LABELS[user.role].ar}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Plus className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    </button>
+                  ))}
+                </div>
+                {filtered.length > 15 && (
+                  <p className="px-3 py-1.5 text-[10px] text-muted-foreground bg-secondary/30 border-t border-border">
+                    +{filtered.length - 15} نتيجة — دقّق البحث
+                  </p>
+                )}
+              </div>
+            )}
+
+            {dropOpen && search && filtered.length === 0 && (
+              <div className="absolute z-50 w-full mt-1 rounded-lg border border-border shadow-xl bg-popover p-3 text-center text-xs text-muted-foreground">
+                لا يوجد مستخدم مطابق
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Inner Content ────────────────────────────────────────────────────────────
 function SystemAdminContent() {
   const { toast } = useToast();
@@ -688,51 +784,20 @@ function SystemAdminContent() {
 
         {/* ── User Assignments ───────────────── */}
         <TabsContent value="assignments" className="mt-6 space-y-4">
-          <p className="text-sm text-muted-foreground">حدّد المستخدمين المسموح لهم بالوصول لكل نشاط.</p>
+          <p className="text-sm text-muted-foreground">
+            ابحث باسم المستخدم أو رقم هويته لتعيينه على نشاط. المعيّنون يظهرون كعلامات قابلة للإزالة.
+          </p>
           <div className="grid gap-4">
-            {activities.filter((a) => a.active).map((act) => {
-              const c = ACTIVITY_COLOR_MAP[(act.color as ActivityColor)] ?? ACTIVITY_COLOR_MAP.blue;
-              const assignedIds = getActivityUserIds(act.id);
-              return (
-                <Card key={act.id} className={cn("border", c.border)}>
-                  <CardHeader className={cn("pb-2 pt-4 px-4 rounded-t-xl", c.bg)}>
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", c.badge)}>
-                        <ActivityIcon name={act.icon} className={cn("w-4 h-4", c.text)} />
-                      </div>
-                      <span className={c.text}>{act.nameAr}</span>
-                      {(act.companyNameAr || act.companyNameEn) && (
-                        <span className="text-xs text-muted-foreground">— {act.companyNameAr || act.companyNameEn}</span>
-                      )}
-                      <Badge variant="outline" className={cn("border-transparent text-xs ms-auto", c.badge, c.text)}>
-                        {assignedIds.length} مستخدم
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {allUsers.map((user) => {
-                        const assigned = isUserAssigned(act.id, user.id);
-                        return (
-                          <div key={user.id} onClick={() => toggleUserAssignment(act.id, user.id)}
-                            data-testid={`assign-${act.id}-${user.id}`}
-                            className={cn(
-                              "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all text-xs",
-                              assigned ? cn("border-current font-medium", c.bg, c.text) : "border-border/50 text-muted-foreground hover:bg-secondary/30"
-                            )}>
-                            <Checkbox checked={assigned} onCheckedChange={() => toggleUserAssignment(act.id, user.id)} className="pointer-events-none h-3.5 w-3.5" />
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{user.name}</p>
-                              <p className="truncate opacity-70">{ROLE_LABELS[user.role].ar}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {activities.filter((a) => a.active).map((act) => (
+              <ActivityAssignmentCard
+                key={act.id}
+                act={act}
+                allUsers={allUsers}
+                getActivityUserIds={getActivityUserIds}
+                isUserAssigned={isUserAssigned}
+                toggleUserAssignment={toggleUserAssignment}
+              />
+            ))}
           </div>
         </TabsContent>
       </Tabs>

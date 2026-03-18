@@ -30,7 +30,7 @@ import {
   type SystemUser, type Role,
   ALL_MODULES, ROLE_DEFAULTS, ROLE_LABELS,
   getUsers, saveUsers, canApproveRegistrations,
-  getPrimaryRole, mergePermissions,
+  getPrimaryRole, mergePermissions, validateNationalId,
 } from "@/lib/permissions";
 import { useToast } from "@/hooks/use-toast";
 
@@ -59,7 +59,7 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 const emptyForm = (): Partial<SystemUser> => ({
-  name: "", email: "", password: "", role: "viewer",
+  nationalId: "", name: "", email: "", password: "", role: "viewer",
   roles: ["viewer"], permissions: ROLE_DEFAULTS.viewer, active: true,
 });
 
@@ -430,8 +430,14 @@ export default function Users() {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const handleAddSubmit = () => {
-    if (!form.name || !form.email || !form.password) {
-      toast({ title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة", variant: "destructive" }); return;
+    if (!form.nationalId || !form.name || !form.email || !form.password) {
+      toast({ title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة (الهوية، الاسم، البريد، كلمة المرور)", variant: "destructive" }); return;
+    }
+    if (!validateNationalId(form.nationalId)) {
+      toast({ title: "رقم الهوية غير صحيح", description: "يجب أن يكون رقم الهوية 10 أرقام ويبدأ بـ 1 أو 2", variant: "destructive" }); return;
+    }
+    if (users.find((u) => u.nationalId === form.nationalId)) {
+      toast({ title: "خطأ", description: "رقم الهوية مسجّل مسبقاً", variant: "destructive" }); return;
     }
     if (users.find((u) => u.email === form.email)) {
       toast({ title: "خطأ", description: "البريد مستخدم مسبقاً", variant: "destructive" }); return;
@@ -439,7 +445,7 @@ export default function Users() {
     const roles = form.roles && form.roles.length > 0 ? form.roles : [form.role as Role];
     const primary = getPrimaryRole(roles);
     const newUser: SystemUser = {
-      id: generateId(), name: form.name!, email: form.email!, password: form.password!,
+      id: generateId(), nationalId: form.nationalId!, name: form.name!, email: form.email!, password: form.password!,
       role: primary, roles, permissions: form.permissions || mergePermissions(roles),
       createdAt: new Date().toISOString(), active: form.active ?? true,
     };
@@ -448,14 +454,19 @@ export default function Users() {
   };
 
   const handleEditSubmit = () => {
-    if (!editUser || !form.name || !form.email) {
+    if (!editUser || !form.nationalId || !form.name || !form.email) {
       toast({ title: "خطأ", description: "يرجى ملء الحقول المطلوبة", variant: "destructive" }); return;
     }
+    if (!validateNationalId(form.nationalId)) {
+      toast({ title: "رقم الهوية غير صحيح", description: "يجب أن يكون رقم الهوية 10 أرقام ويبدأ بـ 1 أو 2", variant: "destructive" }); return;
+    }
+    const dupId = users.find((u) => u.nationalId === form.nationalId && u.id !== editUser.id);
+    if (dupId) { toast({ title: "خطأ", description: "رقم الهوية مسجّل لمستخدم آخر", variant: "destructive" }); return; }
     const roles = form.roles && form.roles.length > 0 ? form.roles : [form.role as Role];
     const primary = getPrimaryRole(roles);
     const updated = users.map((u) =>
       u.id === editUser.id
-        ? { ...u, name: form.name!, email: form.email!, role: primary, roles, permissions: form.permissions || [], active: form.active ?? true, ...(form.password ? { password: form.password } : {}) }
+        ? { ...u, nationalId: form.nationalId!, name: form.name!, email: form.email!, role: primary, roles, permissions: form.permissions || [], active: form.active ?? true, ...(form.password ? { password: form.password } : {}) }
         : u
     );
     persist(updated);
@@ -502,7 +513,7 @@ export default function Users() {
 
   const openEdit = (user: SystemUser) => {
     const roles = user.roles && user.roles.length > 0 ? user.roles : [user.role];
-    setForm({ name: user.name, email: user.email, password: "", role: user.role, roles, permissions: [...user.permissions], active: user.active });
+    setForm({ nationalId: user.nationalId ?? "", name: user.name, email: user.email, password: "", role: user.role, roles, permissions: [...user.permissions], active: user.active });
     setEditUser(user);
   };
 
@@ -601,6 +612,7 @@ export default function Users() {
               <TableHeader className="bg-secondary/50">
                 <TableRow className="border-border/50 hover:bg-transparent">
                   <TableHead className="text-right">المستخدم</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">رقم الهوية</TableHead>
                   <TableHead className="text-right">الأدوار</TableHead>
                   <TableHead className="text-right hidden md:table-cell">الصلاحيات</TableHead>
                   <TableHead className="text-right hidden sm:table-cell">تاريخ الإضافة</TableHead>
@@ -611,7 +623,7 @@ export default function Users() {
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                       لا يوجد مستخدمون مطابقون
                     </TableCell>
                   </TableRow>
@@ -629,6 +641,11 @@ export default function Users() {
                           <p className="text-xs text-muted-foreground">{user.email}</p>
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right hidden lg:table-cell">
+                      <span className="text-xs font-mono bg-secondary px-2 py-0.5 rounded text-muted-foreground">
+                        {user.nationalId || "—"}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <RoleBadges user={user} />
@@ -810,8 +827,37 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
     setForm({ ...form, roles: updated, role: primary, permissions: mergePermissions(updated) });
   };
 
+  const nationalIdVal = form.nationalId ?? "";
+  const idOk = nationalIdVal.length === 0 || validateNationalId(nationalIdVal);
+
   return (
     <div className="space-y-4" dir="rtl">
+      {/* National ID — Primary key */}
+      <div className="space-y-1.5">
+        <Label htmlFor="nationalId" className="flex items-center gap-1.5">
+          رقم الهوية الوطنية *
+          <span className="text-[10px] font-normal text-muted-foreground">(10 أرقام — يبدأ بـ 1 أو 2)</span>
+        </Label>
+        <div className="relative">
+          <Input
+            id="nationalId"
+            data-testid="input-user-national-id"
+            placeholder="1xxxxxxxxx"
+            maxLength={10}
+            style={{ direction: "ltr", textAlign: "left", letterSpacing: "0.08em" }}
+            value={nationalIdVal}
+            onChange={(e) => setForm({ ...form, nationalId: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+            className={cn(!idOk && nationalIdVal.length > 0 ? "border-destructive focus-visible:ring-destructive" : "")}
+          />
+        </div>
+        {!idOk && nationalIdVal.length > 0 && (
+          <p className="text-xs text-destructive">رقم الهوية غير صحيح — 10 أرقام يبدأ بـ 1 أو 2</p>
+        )}
+        {idOk && nationalIdVal.length === 10 && (
+          <p className="text-xs text-emerald-600">✓ رقم الهوية صحيح</p>
+        )}
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="name">الاسم الكامل *</Label>
         <Input id="name" data-testid="input-user-name" placeholder="Ahmed Al-..."

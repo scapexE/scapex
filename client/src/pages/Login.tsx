@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getUsers, saveUsers, ROLE_DEFAULTS, type SystemUser } from "@/lib/permissions";
+import { getUsers, saveUsers, ROLE_DEFAULTS, validateNationalId, type SystemUser } from "@/lib/permissions";
 
 
 type Tab = "login" | "register";
@@ -33,6 +33,7 @@ export default function Login() {
   const [loginError, setLoginError] = useState("");
 
   // --- Register State ---
+  const [regNationalId, setRegNationalId] = useState("");
   const [regName, setRegName] = useState("");
   const [regCompany, setRegCompany] = useState("");
   const [regEmail, setRegEmail] = useState("");
@@ -88,8 +89,11 @@ export default function Login() {
   // ── Register (Clients only) ────────────────────────────
   const handleRegister = () => {
     setRegError("");
-    if (!regName || !regEmail || !regPassword || !regConfirm) {
-      setRegError("يرجى ملء جميع الحقول"); return;
+    if (!regNationalId || !regName || !regEmail || !regPassword || !regConfirm) {
+      setRegError("يرجى ملء جميع الحقول المطلوبة (رقم الهوية، الاسم، البريد، كلمة المرور)"); return;
+    }
+    if (!validateNationalId(regNationalId)) {
+      setRegError("رقم الهوية غير صحيح — يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2"); return;
     }
     if (regPassword !== regConfirm) {
       setRegError("كلمتا المرور غير متطابقتين"); return;
@@ -98,11 +102,15 @@ export default function Login() {
       setRegError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return;
     }
     const users = getUsers();
+    if (users.find((u) => u.nationalId === regNationalId)) {
+      setRegError("رقم الهوية مسجّل مسبقاً"); return;
+    }
     if (users.find((u) => u.email.toLowerCase() === regEmail.toLowerCase())) {
       setRegError("هذا البريد الإلكتروني مسجل مسبقاً"); return;
     }
     const newUser: SystemUser = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      nationalId: regNationalId,
       name: regName,
       email: regEmail,
       password: regPassword,
@@ -224,6 +232,32 @@ export default function Login() {
               </div>
             ) : (
               <>
+                {/* National ID field — primary identifier */}
+                <div>
+                  <label style={labelStyle}>
+                    رقم الهوية الوطنية *
+                    <span style={{ color: "#6b7280", fontSize: "11px", marginRight: "4px" }}>(10 أرقام — يبدأ بـ 1 أو 2)</span>
+                  </label>
+                  <input
+                    data-testid="input-reg-national-id"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="1xxxxxxxxx"
+                    value={regNationalId}
+                    onChange={(e) => setRegNationalId(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onKeyDown={handleRegisterKey}
+                    style={{ ...inputStyle, direction: "ltr", textAlign: "left", letterSpacing: "0.1em" }}
+                  />
+                  {regNationalId.length > 0 && (
+                    <p style={{
+                      fontSize: "11px", marginTop: "4px",
+                      color: validateNationalId(regNationalId) ? "#34d399" : "#f87171"
+                    }}>
+                      {validateNationalId(regNationalId) ? "✓ رقم الهوية صحيح" : "✗ يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2"}
+                    </p>
+                  )}
+                </div>
                 <div>
                   <label style={labelStyle}>الاسم الكامل *</label>
                   <input data-testid="input-reg-name" type="text" placeholder="أحمد محمد"
