@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { type SystemUser, ROLE_LABELS, ROLE_DEFAULTS } from "@/lib/permissions";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { ActivitySwitcher } from "./ActivitySwitcher";
 
 const menuCategories = [
@@ -105,6 +106,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
   const { activeRole, isMultiRole } = useActiveRole();
   const { activeActivity } = useBusinessActivity();
+  const { settings } = useSettings();
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -162,21 +164,34 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         )}
       >
         {/* Logo Area */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border bg-sidebar-accent/30 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-white font-bold text-xl">S</span>
-            </div>
-            <span className="text-sidebar-foreground font-bold text-xl tracking-tight">
-              Scapex
-            </span>
+        <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border bg-sidebar-accent/30 flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {settings.companyLogoUrl ? (
+              /* Uploaded logo */
+              <img
+                src={settings.companyLogoUrl}
+                alt={settings.companyName}
+                className="h-9 max-w-[160px] object-contain"
+                data-testid="sidebar-company-logo"
+              />
+            ) : (
+              /* Default fallback */
+              <>
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+                  <span className="text-white font-bold text-lg">S</span>
+                </div>
+                <span className="text-sidebar-foreground font-bold text-xl tracking-tight truncate">
+                  {settings.companyName || "Scapex"}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Mobile Close Button */}
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden text-sidebar-foreground"
+            className="md:hidden text-sidebar-foreground shrink-0"
             onClick={() => setIsOpen?.(false)}
           >
             <X className="h-5 w-5" />
