@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { 
   Search, Filter, Mail, Phone, MapPin, ExternalLink,
-  MoreVertical, Building, Star, MessageSquare, Download, Copy, CheckSquare
+  MoreVertical, Building, Star, MessageSquare, Download, Copy, CheckSquare, FileText
 } from "lucide-react";
 import {
   Table,
@@ -32,7 +32,9 @@ const CUSTOMERS = [
   { id: '8', name: 'SABIC', industry: 'Petrochemicals', contact: 'Hassan Al-Zahrani', email: 'hassan.zahrani@sabic.com', phone: '+966 13 345 6789', status: 'lead', rating: 4 },
 ];
 
-export function CustomersList() {
+export function CustomersList({ onCreateProposal }: {
+  onCreateProposal?: (clientName: string, email: string, phone: string) => void;
+}) {
   const { t, dir } = useLanguage();
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -287,6 +289,12 @@ export function CustomersList() {
                         }
                       />
 
+                      {onCreateProposal && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10" title={dir === 'rtl' ? 'إنشاء عرض سعر' : 'Create Proposal'}
+                          onClick={() => onCreateProposal(customer.name, customer.email, customer.phone)}>
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
                         <MoreVertical className="h-4 w-4" />
                       </Button>

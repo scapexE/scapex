@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MoreHorizontal, Plus, Search, Filter, Mail, Phone,
-  Clock, Calendar, AlertCircle
+  Clock, Calendar, AlertCircle, FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,9 @@ const INITIAL_LEADS = [
   { id: '6', title: 'Red Sea Airport Terminal Expansion', client: 'Red Sea Global', value: '$5.8M', stage: 'negotiation', priority: 'high', nextAction: 'Final price negotiation meeting', date: 'Oct 18' },
 ];
 
-export function PipelineBoard() {
+export function PipelineBoard({ onCreateProposal }: {
+  onCreateProposal?: (clientName: string, contact: string) => void;
+}) {
   const { t, dir } = useLanguage();
   const [leads, setLeads] = useState(INITIAL_LEADS);
 
@@ -136,9 +138,21 @@ export function PipelineBoard() {
                         <span className="line-clamp-1">{lead.nextAction}</span>
                       </div>
                       
-                      <div className="flex items-center gap-1 mt-2 text-[10px] text-muted-foreground font-medium">
-                        <Calendar className="w-3 h-3" />
-                        {lead.date}
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                          <Calendar className="w-3 h-3" />
+                          {lead.date}
+                        </div>
+                        {onCreateProposal && (
+                          <button
+                            className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 font-medium bg-primary/5 hover:bg-primary/10 px-1.5 py-0.5 rounded transition-colors"
+                            onClick={() => onCreateProposal(lead.client, "")}
+                            title={dir === 'rtl' ? 'إنشاء عرض سعر' : 'Create Proposal'}
+                          >
+                            <FileText className="w-3 h-3" />
+                            {dir === 'rtl' ? 'عرض سعر' : 'Proposal'}
+                          </button>
+                        )}
                       </div>
                       </div>
                     </div>
