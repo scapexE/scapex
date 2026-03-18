@@ -1,6 +1,7 @@
 import Login from "@/pages/Login";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Users from "@/pages/Users";
+import SystemAdmin from "@/pages/SystemAdmin";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ function Router() {
       />
 
       <ProtectedRoute path="/users" component={Users} page="users" />
+      <ProtectedRoute path="/system-admin" component={SystemAdmin} page="system_admin" />
 
       {/* Core & Analytics */}
       <Route path="/ai-control">

@@ -58,6 +58,7 @@ export const ALL_MODULES = [
   { id: "client_portal",        labelAr: "بوابة العملاء",           labelEn: "Client Portal",      category: "system" },
   { id: "approve_registrations",labelAr: "اعتماد التسجيلات",        labelEn: "Approve Registrations", category: "system" },
   { id: "users",                labelAr: "إدارة المستخدمين",        labelEn: "Users",              category: "system" },
+  { id: "system_admin",         labelAr: "لوحة تحكم النظام",        labelEn: "System Admin",       category: "system" },
 ];
 
 export const ROLE_DEFAULTS: Record<Role, string[]> = {

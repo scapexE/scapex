@@ -33,6 +33,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { type SystemUser, ROLE_LABELS, ROLE_DEFAULTS } from "@/lib/permissions";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
+import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
+import { ActivitySwitcher } from "./ActivitySwitcher";
 
 const menuCategories = [
   {
@@ -86,6 +88,7 @@ const menuCategories = [
       { id: "dms", icon: FileText, path: "/dms" },
       { id: "client_portal", icon: Globe, path: "/client-portal" },
       { id: "users", icon: UserCog, path: "/users" },
+      { id: "system_admin", icon: Settings, path: "/system-admin" },
     ],
   },
 ];
@@ -101,6 +104,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
   const { activeRole, isMultiRole } = useActiveRole();
+  const { activeActivity } = useBusinessActivity();
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -108,18 +112,24 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     window.location.href = "/";
   };
 
-  // When the user has multiple roles and has selected an active role,
-  // show only items accessible by BOTH the active role defaults AND the user's custom permissions.
-  // When single role, use all user permissions as before.
   const userPerms = currentUser?.permissions || [];
-  const effectivePerms = isMultiRole && activeRole
+
+  // Step 1: filter by active role (multi-role mode)
+  const roleFilteredPerms = isMultiRole && activeRole
     ? userPerms.filter((p) => ROLE_DEFAULTS[activeRole as keyof typeof ROLE_DEFAULTS]?.includes(p))
     : userPerms;
+
+  // Step 2: further filter by active business activity's enabled modules
+  const effectivePerms = activeActivity
+    ? roleFilteredPerms.filter((p) => activeActivity.modules.includes(p))
+    : roleFilteredPerms;
 
   const visibleCategories = menuCategories.map((cat) => ({
     ...cat,
     items: cat.items.filter((item) => {
       if (!currentUser) return false;
+      // system_admin is only for admin role
+      if (item.id === "system_admin") return currentUser.role === "admin";
       if (currentUser.role === "admin") return true;
       // Users with approve_registrations can also access the users page
       if (item.id === "users") {
@@ -176,6 +186,9 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         {/* Navigation Menu */}
         <ScrollArea className="flex-1 py-4">
           <div className="px-3 space-y-6">
+            {/* Activity Switcher — always above nav links */}
+            <ActivitySwitcher />
+
             {visibleCategories.map((category) => (
               <div key={category.id} className="space-y-1">
                 <h3 className="px-3 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider mb-2">
