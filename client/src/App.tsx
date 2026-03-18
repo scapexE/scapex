@@ -1,4 +1,6 @@
 import Login from "@/pages/Login";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import Users from "@/pages/Users";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -20,7 +22,15 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Login} />
-      <Route path="/dashboard" component={Dashboard} />
+
+      <ProtectedRoute
+        path="/dashboard"
+        component={Dashboard}
+        page="dashboard"
+      />
+
+      <ProtectedRoute path="/users" component={Users} page="users" />
+
       {/* Core & Analytics */}
       <Route path="/ai-control">
         {() => (
