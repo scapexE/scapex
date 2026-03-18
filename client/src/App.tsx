@@ -11,300 +11,95 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "next-themes";
 import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
-import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
 import CRMModule from "@/pages/modules/crm/index";
 import ProjectsModule from "@/pages/modules/projects/index";
 import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 import SalesModule from "@/pages/modules/sales/index";
 import AccountingModule from "@/pages/modules/accounting/index";
 import ClientPortalModule from "@/pages/modules/client-portal/index";
+import HRModule from "@/pages/modules/hr/index";
+import PayrollModule from "@/pages/modules/payroll/index";
+import AttendanceModule from "@/pages/modules/attendance/index";
+import PurchasesModule from "@/pages/modules/purchases/index";
+import InventoryModule from "@/pages/modules/inventory/index";
+import EquipmentModule from "@/pages/modules/equipment/index";
+import HSEModule from "@/pages/modules/hse/index";
+import DMSModule from "@/pages/modules/dms/index";
+import EngineeringModule from "@/pages/modules/engineering/index";
+import GovernmentModule from "@/pages/modules/government/index";
+import BIModule from "@/pages/modules/bi/index";
+import AIControlModule from "@/pages/modules/ai-control/index";
+import { ModulePlaceholder } from "@/pages/modules/ModulePlaceholder";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Login} />
 
-      <ProtectedRoute
-        path="/dashboard"
-        component={Dashboard}
-        page="dashboard"
-      />
-
+      <ProtectedRoute path="/dashboard" component={Dashboard} page="dashboard" />
       <ProtectedRoute path="/users" component={Users} page="users" />
       <ProtectedRoute path="/system-admin" component={SystemAdmin} page="system_admin" />
 
       {/* Core & Analytics */}
-      <Route path="/ai-control">
-        {() => (
-          <ModulePlaceholder
-            moduleId="ai_control"
-            title="AI Control Center"
-            description="Centralized artificial intelligence insights and automated decision making."
-            mockDataCols={[
-              "Insight ID",
-              "Category",
-              "Confidence",
-              "Impact",
-              "Status",
-              "Date",
-            ]}
-          />
-        )}
-      </Route>
-      <Route path="/bi">
-        {() => (
-          <ModulePlaceholder
-            moduleId="bi"
-            title="BI Analytics"
-            description="Business intelligence dashboards and custom report generation."
-            mockDataCols={[
-              "Report Name",
-              "Owner",
-              "Last Generated",
-              "Views",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
+      <Route path="/ai-control" component={AIControlModule} />
+      <Route path="/bi" component={BIModule} />
       <Route path="/companies">
         {() => (
           <ModulePlaceholder
             moduleId="multi_tenant"
             title="Company Management"
             description="Multi-tenant branch and subsidiary management."
-            mockDataCols={[
-              "Branch Name",
-              "Location",
-              "Manager",
-              "Employees",
-              "Status",
-            ]}
+            mockDataCols={["Branch Name","Location","Manager","Employees","Status"]}
           />
         )}
       </Route>
-
-      {/* System & Portals */}
-      <Route path="/client-portal" component={ClientPortalModule} />
 
       {/* Business & Finance */}
       <Route path="/crm" component={CRMModule} />
       <Route path="/sales" component={SalesModule} />
-      <Route path="/purchases">
-        {() => (
-          <ModulePlaceholder
-            moduleId="purchases"
-            title="Purchases"
-            description="Purchase orders, RFQs, and vendor management."
-            mockDataCols={[
-              "PO Number",
-              "Vendor",
-              "Order Date",
-              "Total Amount",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
+      <Route path="/purchases" component={PurchasesModule} />
       <Route path="/accounting" component={AccountingModule} />
 
       {/* Operations */}
       <Route path="/projects" component={ProjectsModule} />
-      <Route path="/inventory">
-        {() => (
-          <ModulePlaceholder
-            moduleId="inventory"
-            title="Inventory"
-            description="Warehouse management, stock transfers, and valuation."
-            mockDataCols={[
-              "Item Code",
-              "Product Name",
-              "Category",
-              "On Hand",
-              "Reserved",
-              "Location",
-            ]}
-          />
-        )}
-      </Route>
-      <Route path="/equipment">
-        {() => (
-          <ModulePlaceholder
-            moduleId="equipment"
-            title="Equipment & Fleet"
-            description="Machinery, vehicles, maintenance schedules, and assignments."
-            mockDataCols={[
-              "Asset ID",
-              "Name",
-              "Category",
-              "Current Location",
-              "Next Maintenance",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
+      <Route path="/inventory" component={InventoryModule} />
+      <Route path="/equipment" component={EquipmentModule} />
 
       {/* Engineering */}
-      <Route path="/engineering">
-        {() => (
-          <ModulePlaceholder
-            moduleId="engineering"
-            title="Engineering Drawings"
-            description="CAD file versioning, revisions, and approval workflows."
-            mockDataCols={[
-              "Drawing No.",
-              "Title",
-              "Project",
-              "Version",
-              "Submitted By",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
+      <Route path="/engineering" component={EngineeringModule} />
       <Route path="/approvals">
         {() => (
           <ModulePlaceholder
             moduleId="approvals"
             title="Approvals"
             description="Centralized hub for all multi-level workflow approvals."
-            mockDataCols={[
-              "Request ID",
-              "Type",
-              "Requester",
-              "Date Submitted",
-              "Current Stage",
-              "Action",
-            ]}
+            mockDataCols={["Request ID","Type","Requester","Date Submitted","Current Stage","Action"]}
           />
         )}
       </Route>
-      <Route path="/government">
-        {() => (
-          <ModulePlaceholder
-            moduleId="government"
-            title="Government Entities"
-            description="Permits, municipality interactions, and compliance tracking."
-            mockDataCols={[
-              "Permit No.",
-              "Entity",
-              "Project",
-              "Issue Date",
-              "Expiry Date",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
+      <Route path="/government" component={GovernmentModule} />
       <Route path="/smart-proposal" component={SmartProposalModule} />
 
       {/* HR & Personnel */}
-      <Route path="/hr">
-        {() => (
-          <ModulePlaceholder
-            moduleId="hr"
-            title="Human Resources"
-            description="Employee directory, contracts, leave requests, and appraisals."
-            mockDataCols={[
-              "Employee ID",
-              "Name",
-              "Department",
-              "Job Title",
-              "Manager",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
-      <Route path="/payroll">
-        {() => (
-          <ModulePlaceholder
-            moduleId="payroll"
-            title="Payroll"
-            description="Salary processing, deductions, bonuses, and payslips."
-            mockDataCols={[
-              "Batch ID",
-              "Period",
-              "Total Employees",
-              "Total Amount",
-              "Processing Date",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
+      <Route path="/hr" component={HRModule} />
+      <Route path="/payroll" component={PayrollModule} />
+      <Route path="/attendance" component={AttendanceModule} />
+      <Route path="/hse" component={HSEModule} />
       <Route path="/mobile-app">
         {() => (
           <ModulePlaceholder
             moduleId="mobile_app"
-            title="Mobile App Management"
+            title="Engineers Mobile App"
             description="Configuration and access control for the site engineer mobile app."
-            mockDataCols={[
-              "Device ID",
-              "User",
-              "App Version",
-              "Last Sync",
-              "Location",
-              "Status",
-            ]}
-          />
-        )}
-      </Route>
-      <Route path="/attendance">
-        {() => (
-          <ModulePlaceholder
-            moduleId="attendance"
-            title="GPS Attendance"
-            description="Geofenced time tracking and site presence monitoring."
-            mockDataCols={[
-              "Date",
-              "Employee",
-              "Check In",
-              "Check Out",
-              "Site",
-              "Variance",
-            ]}
-          />
-        )}
-      </Route>
-      <Route path="/hse">
-        {() => (
-          <ModulePlaceholder
-            moduleId="hse"
-            title="HSE"
-            description="Health, Safety, and Environment incident logs and compliance."
-            mockDataCols={[
-              "Incident ID",
-              "Date",
-              "Type",
-              "Severity",
-              "Location",
-              "Reported By",
-              "Status",
-            ]}
+            mockDataCols={["Device ID","User","App Version","Last Sync","Location","Status"]}
           />
         )}
       </Route>
 
       {/* System & Portals */}
-      <Route path="/dms">
-        {() => (
-          <ModulePlaceholder
-            moduleId="dms"
-            title="Document Management"
-            description="Centralized document storage, indexing, and access control."
-            mockDataCols={[
-              "Document No.",
-              "Title",
-              "Category",
-              "Version",
-              "Uploaded Date",
-              "Size",
-            ]}
-          />
-        )}
-      </Route>
+      <Route path="/dms" component={DMSModule} />
+      <Route path="/client-portal" component={ClientPortalModule} />
+
       <Route component={NotFound} />
     </Switch>
   );
