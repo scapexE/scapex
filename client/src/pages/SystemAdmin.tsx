@@ -32,25 +32,28 @@ import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ALL_MODULES, ROLE_LABELS, getUsers, type SystemUser } from "@/lib/permissions";
 import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const MODULE_CATEGORIES: Record<string, string> = {
-  core: "النظام الأساسي", business: "الأعمال والمالية",
-  operations: "العمليات", engineering: "الهندسة",
-  hr: "الموارد البشرية", system: "النظام",
+const MODULE_CATEGORIES: Record<string, { ar: string; en: string }> = {
+  core:        { ar: "النظام الأساسي",   en: "Core" },
+  business:    { ar: "الأعمال والمالية", en: "Business & Finance" },
+  operations:  { ar: "العمليات",         en: "Operations" },
+  engineering: { ar: "الهندسة",          en: "Engineering" },
+  hr:          { ar: "الموارد البشرية",  en: "HR" },
+  system:      { ar: "النظام",           en: "System" },
 };
 
-
-const COLOR_OPTIONS: { key: ActivityColor; ar: string }[] = [
-  { key: "blue", ar: "أزرق" }, { key: "sky", ar: "سماوي" },
-  { key: "indigo", ar: "نيلي" }, { key: "violet", ar: "بنفسجي" },
-  { key: "purple", ar: "أرجواني" }, { key: "fuchsia", ar: "فوشيا" },
-  { key: "pink", ar: "وردي" }, { key: "rose", ar: "ورد" },
-  { key: "red", ar: "أحمر" }, { key: "orange", ar: "برتقالي" },
-  { key: "amber", ar: "عنبري" }, { key: "yellow", ar: "أصفر" },
-  { key: "lime", ar: "ليموني" }, { key: "green", ar: "أخضر" },
-  { key: "emerald", ar: "زمردي" }, { key: "teal", ar: "فيروزي" },
-  { key: "cyan", ar: "سيان" }, { key: "slate", ar: "رصاصي" },
+const COLOR_OPTIONS: { key: ActivityColor; ar: string; en: string }[] = [
+  { key: "blue",    ar: "أزرق",     en: "Blue" },    { key: "sky",     ar: "سماوي",    en: "Sky" },
+  { key: "indigo",  ar: "نيلي",     en: "Indigo" },  { key: "violet",  ar: "بنفسجي",   en: "Violet" },
+  { key: "purple",  ar: "أرجواني",  en: "Purple" },  { key: "fuchsia", ar: "فوشيا",    en: "Fuchsia" },
+  { key: "pink",    ar: "وردي",     en: "Pink" },    { key: "rose",    ar: "ورد",      en: "Rose" },
+  { key: "red",     ar: "أحمر",     en: "Red" },     { key: "orange",  ar: "برتقالي",  en: "Orange" },
+  { key: "amber",   ar: "عنبري",    en: "Amber" },   { key: "yellow",  ar: "أصفر",     en: "Yellow" },
+  { key: "lime",    ar: "ليموني",   en: "Lime" },    { key: "green",   ar: "أخضر",     en: "Green" },
+  { key: "emerald", ar: "زمردي",    en: "Emerald" }, { key: "teal",    ar: "فيروزي",   en: "Teal" },
+  { key: "cyan",    ar: "سيان",     en: "Cyan" },    { key: "slate",   ar: "رصاصي",    en: "Slate" },
 ];
 
 function generateId() { return `act_${Date.now().toString(36)}`; }
@@ -66,8 +69,11 @@ const groupedModules = ALL_MODULES.reduce<Record<string, typeof ALL_MODULES>>((a
 
 // ─── Color Picker ─────────────────────────────────────────────────────────────
 function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: ActivityColor) => void }) {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const c = ACTIVITY_COLOR_MAP[value];
-  const label = COLOR_OPTIONS.find((o) => o.key === value)?.ar ?? "لون";
+  const opt = COLOR_OPTIONS.find((o) => o.key === value);
+  const label = opt ? (isRtl ? opt.ar : opt.en) : (isRtl ? "لون" : "Color");
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -79,10 +85,10 @@ function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: 
           <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-60 p-2.5" dir="rtl" align="start">
-        <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">اختر اللون</p>
+      <PopoverContent className="w-60 p-2.5" dir={dir} align="start">
+        <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">{t("sa.picker.choose_color")}</p>
         <div className="flex flex-wrap gap-1.5">
-          {COLOR_OPTIONS.map(({ key, ar }) => {
+          {COLOR_OPTIONS.map(({ key, ar, en }) => {
             const cl = ACTIVITY_COLOR_MAP[key];
             const sel = value === key;
             return (
@@ -92,7 +98,7 @@ function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: 
                   sel ? cn(cl.border, cl.bg, cl.text) : "border-border/40 text-muted-foreground hover:bg-secondary/40"
                 )}>
                 <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", cl.dot)} />
-                {ar}
+                {isRtl ? ar : en}
                 {sel && <Check className="w-3 h-3 ms-0.5" />}
               </button>
             );
@@ -105,6 +111,8 @@ function ColorPicker({ value, onChange }: { value: ActivityColor; onChange: (c: 
 
 // ─── Icon Picker ──────────────────────────────────────────────────────────────
 function IconPicker({ value, onChange }: { value: string; onChange: (k: string) => void }) {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const { toast } = useToast();
   const imgInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState("");
@@ -113,16 +121,16 @@ function IconPicker({ value, onChange }: { value: string; onChange: (k: string) 
   const isCustom = value.startsWith("data:") || value.startsWith("http");
   const isNone = !value || value === "none";
   const current = !isCustom && !isNone ? ICON_OPTIONS.find((o) => o.key === value) : null;
-  const label = isNone ? "بلا أيقونة" : isCustom ? "أيقونة مخصصة" : current?.ar ?? "اختر";
+  const label = isNone ? t("sa.picker.no_icon") : isCustom ? t("sa.picker.custom_icon") : (isRtl ? current?.ar : current?.en) ?? t("sa.picker.choose");
 
   const handleImgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 512 * 1024) {
-      toast({ title: "الملف كبير", description: "بحد أقصى 512KB للأيقونة", variant: "destructive" }); return;
+      toast({ title: isRtl ? "الملف كبير" : "File too large", description: isRtl ? "بحد أقصى 512KB للأيقونة" : "Max 512KB for icon", variant: "destructive" }); return;
     }
     try { onChange(await readFileAsDataUrl(file)); }
-    catch { toast({ title: "خطأ", description: "تعذّر قراءة الملف", variant: "destructive" }); }
+    catch { toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "تعذّر قراءة الملف" : "Could not read file", variant: "destructive" }); }
   };
 
   const handleUrlSave = () => {
@@ -142,40 +150,35 @@ function IconPicker({ value, onChange }: { value: string; onChange: (k: string) 
           <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" dir="rtl" align="start">
+      <PopoverContent className="w-80 p-0" dir={dir} align="start">
         <div className="p-3 border-b border-border/50">
-          {/* Special options row */}
           <div className="flex gap-2 mb-3">
-            {/* No icon */}
             <button type="button" onClick={() => onChange("none")}
               className={cn(
                 "flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border text-[11px] transition-all",
                 isNone ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
               )}>
               <Ban className="w-4 h-4" />
-              بلا أيقونة
+              {t("sa.picker.no_icon")}
             </button>
-            {/* Upload image */}
             <button type="button" onClick={() => imgInputRef.current?.click()}
               className={cn(
                 "flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border text-[11px] transition-all",
                 isCustom && value.startsWith("data:") ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
               )}>
               <Upload className="w-4 h-4" />
-              رفع صورة
+              {t("sa.picker.upload")}
             </button>
-            {/* URL */}
             <button type="button" onClick={() => setShowUrl((v) => !v)}
               className={cn(
                 "flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border text-[11px] transition-all",
                 isCustom && value.startsWith("http") ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
               )}>
               <LinkIcon className="w-4 h-4" />
-              رابط URL
+              {t("sa.picker.url")}
             </button>
           </div>
 
-          {/* URL input */}
           {showUrl && (
             <div className="flex gap-2 mb-2">
               <Input
@@ -185,15 +188,14 @@ function IconPicker({ value, onChange }: { value: string; onChange: (k: string) 
                 style={{ direction: "ltr", textAlign: "left" }}
                 className="h-8 text-xs flex-1"
               />
-              <Button size="sm" className="h-8 text-xs px-3" type="button" onClick={handleUrlSave}>تطبيق</Button>
+              <Button size="sm" className="h-8 text-xs px-3" type="button" onClick={handleUrlSave}>{t("sa.picker.apply")}</Button>
             </div>
           )}
 
-          {/* Current custom preview */}
           {isCustom && (
             <div className="flex items-center gap-2 p-2 bg-secondary/30 rounded-lg text-xs">
               <img src={value} alt="" className="w-6 h-6 object-contain rounded" />
-              <span className="truncate text-muted-foreground flex-1">أيقونة مخصصة مفعّلة</span>
+              <span className="truncate text-muted-foreground flex-1">{t("sa.picker.custom_active")}</span>
               <button type="button" onClick={() => onChange("HardHat")}
                 className="text-destructive hover:text-destructive/70">
                 <X className="w-3.5 h-3.5" />
@@ -202,9 +204,8 @@ function IconPicker({ value, onChange }: { value: string; onChange: (k: string) 
           )}
         </div>
 
-        {/* Lucide icons grid */}
         <div className="p-2.5 max-h-48 overflow-y-auto">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">أيقونات متاحة</p>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">{t("sa.picker.available")}</p>
           <div className="flex flex-wrap gap-1.5">
             {ICON_OPTIONS.map(({ key, Icon, ar }) => {
               if (!Icon) return null;
@@ -232,6 +233,8 @@ function IconPicker({ value, onChange }: { value: string; onChange: (k: string) 
 function LogoUploadMini({
   value, onChange,
 }: { value: string | null | undefined; onChange: (v: string | null) => void }) {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const { toast } = useToast();
   const ref = useRef<HTMLInputElement>(null);
 
@@ -239,10 +242,10 @@ function LogoUploadMini({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "الملف كبير جداً", description: "بحد أقصى 2MB", variant: "destructive" }); return;
+      toast({ title: isRtl ? "الملف كبير جداً" : "File too large", description: isRtl ? "بحد أقصى 2MB" : "Max 2MB", variant: "destructive" }); return;
     }
     try { onChange(await readFileAsDataUrl(file)); }
-    catch { toast({ title: "خطأ", description: "تعذّر قراءة الملف", variant: "destructive" }); }
+    catch { toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "تعذّر قراءة الملف" : "Could not read file", variant: "destructive" }); }
   };
 
   return (
@@ -260,7 +263,7 @@ function LogoUploadMini({
         <button onClick={() => ref.current?.click()} type="button"
           className="flex flex-col items-center justify-center w-24 h-12 border-2 border-dashed border-border/60 rounded-lg text-muted-foreground hover:bg-secondary/20 transition-colors gap-1">
           <Upload className="w-4 h-4" />
-          <span className="text-[10px]">رفع شعار</span>
+          <span className="text-[10px]">{t("sa.picker.upload_logo")}</span>
         </button>
       )}
       <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile} />
@@ -277,19 +280,20 @@ function CompanyBrandingSection({
   onNameAr: (v: string) => void; onNameEn: (v: string) => void;
   onLogo: (v: string | null) => void;
 }) {
+  const { t, dir } = useLanguage();
   return (
-    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4" dir="rtl">
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4" dir={dir}>
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
           <Image className="w-3.5 h-3.5 text-primary" />
         </div>
-        <h3 className="text-sm font-bold text-primary">هوية الشركة لهذا النشاط</h3>
-        <span className="text-xs text-muted-foreground">(تظهر في الشريط العلوي)</span>
+        <h3 className="text-sm font-bold text-primary">{t("sa.form.company_id")}</h3>
+        <span className="text-xs text-muted-foreground">{t("sa.form.company_hint")}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">اسم الشركة بالعربي</Label>
+          <Label className="text-xs text-muted-foreground">{t("sa.form.name_ar_label")}</Label>
           <input
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             value={nameAr}
@@ -300,7 +304,7 @@ function CompanyBrandingSection({
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">اسم الشركة بالإنجليزي</Label>
+          <Label className="text-xs text-muted-foreground">{t("sa.form.name_en_label")}</Label>
           <input
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             style={{ direction: "ltr", textAlign: "left" }}
@@ -314,7 +318,7 @@ function CompanyBrandingSection({
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">شعار الشركة</Label>
+        <Label className="text-xs text-muted-foreground">{t("sa.form.logo")}</Label>
         <LogoUploadMini value={logoUrl} onChange={onLogo} />
       </div>
     </div>
@@ -328,6 +332,8 @@ export interface ActivityFormHandle {
 
 const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<BusinessActivity> }>(
   ({ initialForm }, ref) => {
+    const { t, dir } = useLanguage();
+    const isRtl = dir === 'rtl';
     const [nameAr, setNameAr] = useState(initialForm.nameAr ?? "");
     const [nameEn, setNameEn] = useState(initialForm.nameEn ?? "");
     const [color, setColor] = useState<ActivityColor>((initialForm.color as ActivityColor) ?? "blue");
@@ -344,12 +350,12 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
     const c = ACTIVITY_COLOR_MAP[color];
 
     return (
-      <div className="space-y-5" dir="rtl">
+      <div className="space-y-5" dir={dir}>
 
         {/* Activity Names */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>اسم النشاط (عربي) *</Label>
+            <Label>{t("sa.form.name_ar")}</Label>
             <input
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="استشارات هندسية"
@@ -358,7 +364,7 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
             />
           </div>
           <div className="space-y-2">
-            <Label>Activity Name (EN) *</Label>
+            <Label>{t("sa.form.name_en")}</Label>
             <input
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               style={{ direction: "ltr", textAlign: "left" }}
@@ -372,11 +378,11 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
         {/* Color + Icon + Live preview */}
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-2">
-            <Label>اللون</Label>
+            <Label>{t("sa.form.color")}</Label>
             <ColorPicker value={color} onChange={setColor} />
           </div>
           <div className="space-y-2">
-            <Label>الأيقونة</Label>
+            <Label>{t("sa.form.icon")}</Label>
             <IconPicker value={icon} onChange={setIcon} />
           </div>
 
@@ -386,7 +392,7 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
               <ActivityIcon name={icon} className={cn("w-5 h-5", c.text)} />
             </div>
             <div>
-              <p className={cn("text-xs font-bold", c.text)}>{nameAr || "اسم النشاط"}</p>
+              <p className={cn("text-xs font-bold", c.text)}>{nameAr || (isRtl ? "اسم النشاط" : "Activity Name")}</p>
               <p className="text-[10px] text-muted-foreground">{nameEn || "Activity Name"}</p>
             </div>
           </div>
@@ -395,19 +401,19 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
         {/* Modules */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>الوحدات المفعّلة</Label>
+            <Label>{t("sa.form.modules")}</Label>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
-                onClick={() => setModules(ALL_MODULES.map((m) => m.id))}>تحديد الكل</Button>
+                onClick={() => setModules(ALL_MODULES.map((m) => m.id))}>{t("sa.form.select_all")}</Button>
               <Button size="sm" variant="outline" className="h-7 text-xs" type="button"
-                onClick={() => setModules(["dashboard"])}>إلغاء الكل</Button>
+                onClick={() => setModules(["dashboard"])}>{t("sa.form.clear_all")}</Button>
             </div>
           </div>
           <div className="border rounded-xl overflow-hidden max-h-56 overflow-y-auto">
             {Object.entries(groupedModules).map(([cat, mods], idx) => (
               <div key={cat} className={cn("p-3", idx > 0 && "border-t border-border/50")}>
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  {MODULE_CATEGORIES[cat]}
+                  {isRtl ? MODULE_CATEGORIES[cat]?.ar : MODULE_CATEGORIES[cat]?.en}
                 </h4>
                 <div className="grid grid-cols-2 gap-1.5">
                   {mods.map((mod) => {
@@ -419,7 +425,7 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
                           checked ? "bg-primary/5 border-primary/30 font-medium" : "border-border/40 text-muted-foreground hover:bg-secondary/30"
                         )}>
                         <Checkbox checked={checked} onCheckedChange={() => toggleModule(mod.id)} className="pointer-events-none h-3.5 w-3.5" />
-                        {mod.labelAr}
+                        {isRtl ? mod.labelAr : (mod.labelEn ?? mod.labelAr)}
                       </div>
                     );
                   })}
@@ -427,7 +433,7 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">{modules.length} وحدة من {ALL_MODULES.length}</p>
+          <p className="text-xs text-muted-foreground">{modules.length} {t("sa.form.modules_count")} {ALL_MODULES.length}</p>
         </div>
       </div>
     );
@@ -449,6 +455,8 @@ function ActivityAssignmentCard({
   isUserAssigned: (actId: string, userId: string) => boolean;
   toggleUserAssignment: (actId: string, userId: string) => void;
 }) {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const [search, setSearch] = useState("");
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -487,7 +495,7 @@ function ActivityAssignmentCard({
             <span className="text-xs text-muted-foreground">— {act.companyNameAr || act.companyNameEn}</span>
           )}
           <Badge variant="outline" className={cn("border-transparent text-xs ms-auto", c.badge, c.text)}>
-            {assignedIds.length} مستخدم
+            {assignedIds.length} {t("sa.users_count")}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -516,7 +524,7 @@ function ActivityAssignmentCard({
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">لم يُعيَّن أي مستخدم بعد</p>
+          <p className="text-xs text-muted-foreground">{t("sa.assign.no_user")}</p>
         )}
 
         {/* Searchable user dropdown */}
@@ -525,7 +533,7 @@ function ActivityAssignmentCard({
             <div className="relative">
               <input
                 className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                placeholder="ابحث باسم أو رقم هوية للإضافة..."
+                placeholder={t("sa.assign.search")}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setDropOpen(true); }}
                 onFocus={() => setDropOpen(true)}
@@ -559,7 +567,7 @@ function ActivityAssignmentCard({
                           )}
                           <span className="text-[10px] text-muted-foreground">·</span>
                           <Badge variant="outline" className={cn("border-transparent text-[9px] px-1 h-4", ROLE_LABELS[user.role].color)}>
-                            {ROLE_LABELS[user.role].ar}
+                            {isRtl ? ROLE_LABELS[user.role].ar : ROLE_LABELS[user.role].en}
                           </Badge>
                         </div>
                       </div>
@@ -569,7 +577,7 @@ function ActivityAssignmentCard({
                 </div>
                 {filtered.length > 15 && (
                   <p className="px-3 py-1.5 text-[10px] text-muted-foreground bg-secondary/30 border-t border-border">
-                    +{filtered.length - 15} نتيجة — دقّق البحث
+                    +{filtered.length - 15} {t("sa.assign.refine")}
                   </p>
                 )}
               </div>
@@ -577,7 +585,7 @@ function ActivityAssignmentCard({
 
             {dropOpen && search && filtered.length === 0 && (
               <div className="absolute z-50 w-full mt-1 rounded-lg border border-border shadow-xl bg-popover p-3 text-center text-xs text-muted-foreground">
-                لا يوجد مستخدم مطابق
+                {t("sa.assign.no_match")}
               </div>
             )}
           </div>
@@ -589,6 +597,8 @@ function ActivityAssignmentCard({
 
 // ─── Inner Content ────────────────────────────────────────────────────────────
 function SystemAdminContent() {
+  const { t, dir } = useLanguage();
+  const isRtl = dir === 'rtl';
   const { toast } = useToast();
   const { activities, setActivities, assignments, setAssignments, getActivityUserIds } = useBusinessActivity();
   const allUsers = getUsers().filter((u) => u.active && !u.pendingApproval);
@@ -614,7 +624,7 @@ function SystemAdminContent() {
   const handleAdd = () => {
     const values = addFormRef.current?.getValues();
     if (!values?.nameAr || !values?.nameEn) {
-      toast({ title: "خطأ", description: "اسم النشاط مطلوب", variant: "destructive" }); return;
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "اسم النشاط مطلوب" : "Activity name is required", variant: "destructive" }); return;
     }
     const a: BusinessActivity = {
       id: generateId(), nameAr: values.nameAr, nameEn: values.nameEn,
@@ -628,14 +638,14 @@ function SystemAdminContent() {
     setActivities([...activities, a]);
     setAddOpen(false);
     setAddCompanyNameAr(""); setAddCompanyNameEn(""); setAddCompanyLogoUrl(null);
-    toast({ title: "تم بنجاح", description: `تمت إضافة "${a.nameAr}"` });
+    toast({ title: isRtl ? "تم بنجاح" : "Success", description: `${isRtl ? "تمت إضافة" : "Added"} "${isRtl ? a.nameAr : a.nameEn}"` });
   };
 
   const handleEdit = () => {
     if (!editActivity) return;
     const values = editFormRef.current?.getValues();
     if (!values?.nameAr || !values?.nameEn) {
-      toast({ title: "خطأ", description: "اسم النشاط مطلوب", variant: "destructive" }); return;
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "اسم النشاط مطلوب" : "Activity name is required", variant: "destructive" }); return;
     }
     setActivities(activities.map((a) =>
       a.id === editActivity.id ? {
@@ -649,14 +659,14 @@ function SystemAdminContent() {
       } : a
     ));
     setEditActivity(null);
-    toast({ title: "تم بنجاح", description: "تم تحديث النشاط" });
+    toast({ title: isRtl ? "تم بنجاح" : "Saved", description: isRtl ? "تم تحديث النشاط" : "Activity updated" });
   };
 
   const handleDelete = () => {
     if (!deleteActivity) return;
     setActivities(activities.filter((a) => a.id !== deleteActivity.id));
     setDeleteActivity(null);
-    toast({ title: "تم الحذف", variant: "destructive" });
+    toast({ title: isRtl ? "تم الحذف" : "Deleted", variant: "destructive" });
   };
 
   const handleToggleActive = (activity: BusinessActivity) => {
@@ -691,38 +701,38 @@ function SystemAdminContent() {
     assignments.find((a) => a.activityId === activityId)?.userIds.includes(userId) ?? false;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" dir={dir}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Settings2 className="w-6 h-6 text-primary" />
-            لوحة تحكم النظام
+            {t("sa.title")}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            إدارة أنشطة الشركة وتخصيص الوحدات والمستخدمين
+            {t("sa.desc")}
           </p>
         </div>
         <Badge variant="outline" className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-transparent gap-1.5 shrink-0">
-          <Shield className="w-3.5 h-3.5" /> مدير النظام
+          <Shield className="w-3.5 h-3.5" /> {t("sa.badge")}
         </Badge>
       </div>
 
-      <Tabs defaultValue="activities" dir="rtl">
+      <Tabs defaultValue="activities" dir={dir}>
         <TabsList className="grid grid-cols-2 w-full max-w-sm">
           <TabsTrigger value="activities" className="gap-2 text-xs sm:text-sm">
-            <Layers className="w-4 h-4" /> الأنشطة
+            <Layers className="w-4 h-4" /> {t("sa.tab.activities")}
           </TabsTrigger>
           <TabsTrigger value="assignments" className="gap-2 text-xs sm:text-sm">
-            <UserCheck className="w-4 h-4" /> المستخدمون
+            <UserCheck className="w-4 h-4" /> {t("sa.tab.users")}
           </TabsTrigger>
         </TabsList>
 
         {/* ── Activities ─────────────────────── */}
         <TabsContent value="activities" className="mt-6 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{activities.length} نشاط مُعرَّف</p>
+            <p className="text-sm text-muted-foreground">{activities.length} {t("sa.activities_count")}</p>
             <Button onClick={() => setAddOpen(true)} className="gap-2" data-testid="button-add-activity">
-              <Plus className="w-4 h-4" /> إضافة نشاط
+              <Plus className="w-4 h-4" /> {t("sa.add_activity")}
             </Button>
           </div>
 
@@ -760,10 +770,10 @@ function SystemAdminContent() {
                         </div>
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           <Badge variant="outline" className={cn("border-transparent text-xs", c.badge, c.text)}>
-                            {act.modules.length} وحدة
+                            {act.modules.length} {t("sa.units")}
                           </Badge>
                           <Badge variant="outline" className="border-transparent text-xs bg-secondary text-muted-foreground">
-                            <Users className="w-3 h-3 mr-1" />{assignedCount} مستخدم
+                            <Users className="w-3 h-3 mr-1" />{assignedCount} {t("sa.users_count")}
                           </Badge>
                         </div>
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -771,7 +781,7 @@ function SystemAdminContent() {
                             const mod = ALL_MODULES.find((m) => m.id === mid);
                             return mod ? (
                               <span key={mid} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
-                                {mod.labelAr}
+                                {isRtl ? mod.labelAr : (mod.labelEn ?? mod.labelAr)}
                               </span>
                             ) : null;
                           })}
@@ -786,7 +796,7 @@ function SystemAdminContent() {
                     <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
                       <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs h-8"
                         onClick={() => openEdit(act)} data-testid={`button-edit-activity-${act.id}`}>
-                        <Pencil className="w-3.5 h-3.5" /> تعديل
+                        <Pencil className="w-3.5 h-3.5" /> {t("sa.edit")}
                       </Button>
                       <Button size="sm" variant="outline"
                         className="gap-1 text-xs h-8 text-destructive border-destructive/30 hover:bg-destructive/10"
@@ -803,9 +813,7 @@ function SystemAdminContent() {
 
         {/* ── User Assignments ───────────────── */}
         <TabsContent value="assignments" className="mt-6 space-y-4">
-          <p className="text-sm text-muted-foreground">
-            ابحث باسم المستخدم أو رقم هويته لتعيينه على نشاط. المعيّنون يظهرون كعلامات قابلة للإزالة.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("sa.assign_desc")}</p>
           <div className="grid gap-4">
             {activities.filter((a) => a.active).map((act) => (
               <ActivityAssignmentCard
@@ -823,11 +831,11 @@ function SystemAdminContent() {
 
       {/* ── Add Dialog ─────────────────────── */}
       <Dialog open={addOpen} onOpenChange={(o) => { if (!o) { setAddOpen(false); setAddCompanyNameAr(""); setAddCompanyNameEn(""); setAddCompanyLogoUrl(null); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl"
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir={dir}
           onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle className="text-right flex items-center gap-2">
-              <Plus className="w-5 h-5 text-primary" /> إضافة نشاط جديد
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-primary" /> {t("sa.add_title")}
             </DialogTitle>
           </DialogHeader>
           <CompanyBrandingSection
@@ -836,19 +844,19 @@ function SystemAdminContent() {
           />
           <ActivityForm key={addOpen ? "add-open" : "add-closed"} ref={addFormRef} initialForm={emptyActivity()} />
           <DialogFooter className="flex-row-reverse gap-2">
-            <Button onClick={handleAdd} data-testid="button-confirm-add-activity">حفظ النشاط</Button>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>إلغاء</Button>
+            <Button onClick={handleAdd} data-testid="button-confirm-add-activity">{t("sa.save")}</Button>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>{t("sa.cancel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Edit Dialog ────────────────────── */}
       <Dialog open={!!editActivity} onOpenChange={(o) => { if (!o) setEditActivity(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl"
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir={dir}
           onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle className="text-right flex items-center gap-2">
-              <Pencil className="w-5 h-5 text-primary" /> تعديل: {editActivity?.nameAr}
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" /> {t("sa.edit_title")} {isRtl ? editActivity?.nameAr : editActivity?.nameEn}
             </DialogTitle>
           </DialogHeader>
           <CompanyBrandingSection
@@ -859,24 +867,24 @@ function SystemAdminContent() {
             <ActivityForm key={editActivity.id} ref={editFormRef} initialForm={initialForm} />
           )}
           <DialogFooter className="flex-row-reverse gap-2">
-            <Button onClick={handleEdit} data-testid="button-confirm-edit-activity">حفظ التعديلات</Button>
-            <Button variant="outline" onClick={() => setEditActivity(null)}>إلغاء</Button>
+            <Button onClick={handleEdit} data-testid="button-confirm-edit-activity">{t("sa.save_edit")}</Button>
+            <Button variant="outline" onClick={() => setEditActivity(null)}>{t("sa.cancel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Delete Confirm ─────────────────── */}
       <AlertDialog open={!!deleteActivity} onOpenChange={(o) => !o && setDeleteActivity(null)}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-right">تأكيد الحذف</AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
-              هل أنت متأكد من حذف <strong>{deleteActivity?.nameAr}</strong>؟
+            <AlertDialogTitle>{t("sa.delete_confirm")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("sa.delete_sure")} <strong>{isRtl ? deleteActivity?.nameAr : deleteActivity?.nameEn}</strong>؟
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row-reverse gap-2">
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">{t("sa.delete")}</AlertDialogAction>
+            <AlertDialogCancel>{t("sa.cancel")}</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -886,6 +894,7 @@ function SystemAdminContent() {
 
 // ─── Page Shell ───────────────────────────────────────────────────────────────
 export default function SystemAdmin() {
+  const { t } = useLanguage();
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
 
   if (currentUser?.role !== "admin") {
@@ -894,8 +903,8 @@ export default function SystemAdmin() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center space-y-2">
             <Shield className="w-12 h-12 mx-auto text-destructive/50" />
-            <p className="text-lg font-semibold">لا تملك صلاحية الوصول</p>
-            <p className="text-sm text-muted-foreground">هذه الصفحة خاصة بمدير النظام فقط</p>
+            <p className="text-lg font-semibold">{t("sa.no_access")}</p>
+            <p className="text-sm text-muted-foreground">{t("sa.no_access_desc")}</p>
           </div>
         </div>
       </MainLayout>

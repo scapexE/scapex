@@ -248,6 +248,62 @@ const translations: Record<string, Record<Language, string>> = {
   'users.form.merged_perms':  { en: '— Permissions merged from all roles',        ar: '— الصلاحيات مدمجة من جميع الأدوار' },
   'users.form.active':        { en: 'Account Active',                             ar: 'الحساب نشط (مفعّل)' },
   'users.form.inactive':      { en: 'Account Disabled',                           ar: 'الحساب معطّل' },
+
+  // System Admin page
+  'sa.title':              { en: 'System Control Panel',                      ar: 'لوحة تحكم النظام' },
+  'sa.desc':               { en: 'Manage business activities, assign modules and users', ar: 'إدارة أنشطة الشركة وتخصيص الوحدات والمستخدمين' },
+  'sa.badge':              { en: 'System Admin',                               ar: 'مدير النظام' },
+  'sa.tab.activities':     { en: 'Activities',                                 ar: 'الأنشطة' },
+  'sa.tab.users':          { en: 'Users',                                      ar: 'المستخدمون' },
+  'sa.add_activity':       { en: 'Add Activity',                               ar: 'إضافة نشاط' },
+  'sa.activities_count':   { en: 'activities defined',                         ar: 'نشاط مُعرَّف' },
+  'sa.units':              { en: 'modules',                                    ar: 'وحدة' },
+  'sa.users_count':        { en: 'users',                                      ar: 'مستخدم' },
+  'sa.no_access':          { en: 'You do not have access to this page',        ar: 'لا تملك صلاحية الوصول' },
+  'sa.no_access_desc':     { en: 'This page is for system admins only',        ar: 'هذه الصفحة خاصة بمدير النظام فقط' },
+  'sa.edit':               { en: 'Edit',                                       ar: 'تعديل' },
+  'sa.delete_confirm':     { en: 'Confirm Delete',                             ar: 'تأكيد الحذف' },
+  'sa.delete_sure':        { en: 'Are you sure you want to delete',            ar: 'هل أنت متأكد من حذف' },
+  'sa.delete':             { en: 'Delete',                                     ar: 'حذف' },
+  'sa.cancel':             { en: 'Cancel',                                     ar: 'إلغاء' },
+  'sa.save':               { en: 'Save Activity',                              ar: 'حفظ النشاط' },
+  'sa.save_edit':          { en: 'Save Changes',                               ar: 'حفظ التعديلات' },
+  'sa.add_title':          { en: 'Add New Activity',                           ar: 'إضافة نشاط جديد' },
+  'sa.edit_title':         { en: 'Edit:',                                      ar: 'تعديل:' },
+  'sa.assign_desc':        { en: 'Search by user name or national ID to assign them to an activity.', ar: 'ابحث باسم المستخدم أو رقم هويته لتعيينه على نشاط.' },
+
+  // Activity Form
+  'sa.form.name_ar':       { en: 'Activity Name (Arabic) *',                  ar: 'اسم النشاط (عربي) *' },
+  'sa.form.name_en':       { en: 'Activity Name (EN) *',                      ar: 'اسم النشاط (إنجليزي) *' },
+  'sa.form.color':         { en: 'Color',                                      ar: 'اللون' },
+  'sa.form.icon':          { en: 'Icon',                                       ar: 'الأيقونة' },
+  'sa.form.modules':       { en: 'Enabled Modules',                           ar: 'الوحدات المفعّلة' },
+  'sa.form.select_all':    { en: 'Select All',                                 ar: 'تحديد الكل' },
+  'sa.form.clear_all':     { en: 'Clear All',                                  ar: 'إلغاء الكل' },
+  'sa.form.modules_count': { en: 'modules of',                                ar: 'وحدة من' },
+  'sa.form.company_id':    { en: 'Company Identity for this Activity',         ar: 'هوية الشركة لهذا النشاط' },
+  'sa.form.company_hint':  { en: '(shown in the top header)',                  ar: '(تظهر في الشريط العلوي)' },
+  'sa.form.name_ar_label': { en: 'Company Name (Arabic)',                      ar: 'اسم الشركة بالعربي' },
+  'sa.form.name_en_label': { en: 'Company Name (English)',                     ar: 'اسم الشركة بالإنجليزي' },
+  'sa.form.logo':          { en: 'Company Logo',                               ar: 'شعار الشركة' },
+
+  // Icon/Color pickers
+  'sa.picker.choose_color':  { en: 'Choose Color',                            ar: 'اختر اللون' },
+  'sa.picker.no_icon':       { en: 'No Icon',                                 ar: 'بلا أيقونة' },
+  'sa.picker.custom_icon':   { en: 'Custom Icon',                             ar: 'أيقونة مخصصة' },
+  'sa.picker.choose':        { en: 'Choose',                                  ar: 'اختر' },
+  'sa.picker.upload':        { en: 'Upload Image',                            ar: 'رفع صورة' },
+  'sa.picker.url':           { en: 'URL Link',                                ar: 'رابط URL' },
+  'sa.picker.apply':         { en: 'Apply',                                   ar: 'تطبيق' },
+  'sa.picker.custom_active': { en: 'Custom icon active',                      ar: 'أيقونة مخصصة مفعّلة' },
+  'sa.picker.available':     { en: 'Available Icons',                         ar: 'أيقونات متاحة' },
+  'sa.picker.upload_logo':   { en: 'Upload Logo',                             ar: 'رفع شعار' },
+
+  // Assignment card
+  'sa.assign.no_user':    { en: 'No users assigned yet',                      ar: 'لم يُعيَّن أي مستخدم بعد' },
+  'sa.assign.search':     { en: 'Search by name or national ID to add...',    ar: 'ابحث باسم أو رقم هوية للإضافة...' },
+  'sa.assign.no_match':   { en: 'No matching user',                           ar: 'لا يوجد مستخدم مطابق' },
+  'sa.assign.refine':     { en: 'results — refine your search',               ar: 'نتيجة — دقّق البحث' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
