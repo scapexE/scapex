@@ -63,6 +63,7 @@ function generateCode(): string {
 
 export default function Login() {
   const [tab, setTab] = useState<Tab>("login");
+  const [showAbout, setShowAbout] = useState(false);
   const { dir, language, toggleLanguage } = useLanguage();
   const isRtl = dir === "rtl";
 
@@ -747,26 +748,96 @@ export default function Login() {
           </button>
         </div>
 
-        <div style={{
-          marginTop: "16px", padding: "14px 16px", borderRadius: "10px",
-          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
-        }}>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "12px", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>
-            {[
-              { icon: "📊", v: isRtl ? "22 وحدة عمل" : "22 Modules" },
-              { icon: "🌐", v: isRtl ? "عربي / إنجليزي" : "AR / EN" },
-              { icon: "🔒", v: isRtl ? "نظام صلاحيات" : "RBAC" },
-              { icon: "🏢", v: isRtl ? "متعدد الشركات" : "Multi-Tenant" },
-            ].map((item, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ fontSize: "13px" }}>{item.icon}</span> {item.v}
-              </span>
-            ))}
-          </div>
-          <p style={{ textAlign: "center", fontSize: "10px", color: "rgba(255,255,255,0.2)", marginTop: "8px" }}>
-            {isRtl ? "نظام إدارة موارد المؤسسات المتكامل — مصمم للسوق السعودي" : "Integrated ERP System — Designed for the Saudi Market"}
-          </p>
+        <div style={{ marginTop: "12px", textAlign: "center" }}>
+          <button
+            data-testid="button-about-system"
+            onClick={() => setShowAbout(true)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "rgba(255,255,255,0.3)",
+              fontSize: "11px",
+              cursor: "pointer",
+              padding: "4px 8px",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
+          >
+            {isRtl ? "حول النظام" : "About System"}
+          </button>
         </div>
+
+        {showAbout && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
+            display: "flex", justifyContent: "center", alignItems: "center", padding: "16px",
+          }} onClick={() => setShowAbout(false)}>
+            <div
+              style={{
+                background: "#111827", borderRadius: "16px", padding: "28px 24px",
+                maxWidth: "420px", width: "100%", border: "1px solid #1f2937",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
+              }}
+              dir={dir}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                <div style={{
+                  width: "48px", height: "48px", borderRadius: "12px",
+                  background: "#3b82f6", display: "flex", alignItems: "center",
+                  justifyContent: "center", margin: "0 auto 10px",
+                  fontSize: "22px", fontWeight: "bold", color: "white",
+                }}>S</div>
+                <h3 style={{ fontSize: "18px", fontWeight: "bold", color: "white", margin: "0 0 4px" }}>Scapex</h3>
+                <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+                  {isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Management Platform"}
+                </p>
+              </div>
+
+              <div style={{
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px",
+              }}>
+                {[
+                  { icon: "📊", label: isRtl ? "وحدة عمل" : "Modules", value: "22" },
+                  { icon: "🌐", label: isRtl ? "ثنائي اللغة" : "Bilingual", value: "AR/EN" },
+                  { icon: "🔒", label: isRtl ? "نظام صلاحيات" : "Access Control", value: "RBAC" },
+                  { icon: "🏢", label: isRtl ? "متعدد الشركات" : "Multi-Tenant", value: "Yes" },
+                ].map((item, i) => (
+                  <div key={i} style={{
+                    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "10px", padding: "10px", textAlign: "center",
+                  }}>
+                    <div style={{ fontSize: "16px", marginBottom: "4px" }}>{item.icon}</div>
+                    <div style={{ fontSize: "14px", fontWeight: "700", color: "white" }}>{item.value}</div>
+                    <div style={{ fontSize: "10px", color: "#6b7280" }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <p style={{
+                fontSize: "12px", color: "#9ca3af", lineHeight: "1.7",
+                textAlign: "center", margin: "0 0 16px",
+              }}>
+                {isRtl
+                  ? "نظام متكامل لإدارة موارد المؤسسات مصمم خصيصاً للسوق السعودي. يغطي إدارة العملاء والمبيعات والمشتريات والمحاسبة والموارد البشرية والمشاريع الهندسية وغيرها."
+                  : "A comprehensive ERP system designed for the Saudi market. Covers CRM, Sales, Purchasing, Accounting, HR, Engineering Projects, and more."}
+              </p>
+
+              <button
+                onClick={() => setShowAbout(false)}
+                style={{
+                  width: "100%", padding: "10px", background: "#1f2937",
+                  color: "#d1d5db", border: "1px solid #374151", borderRadius: "8px",
+                  fontSize: "13px", cursor: "pointer", fontWeight: "500",
+                }}
+              >
+                {isRtl ? "إغلاق" : "Close"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
