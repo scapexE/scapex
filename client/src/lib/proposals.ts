@@ -491,46 +491,47 @@ export function printProposal(proposal: Proposal, isRtl: boolean): void {
 <title>${proposal.proposalNumber}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
-.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
-.header-name { flex:1; text-align:${isRtl ? "right" : "left"}; }
-.co-name-ar { font-size:20px; font-weight:700; color:#1a202c; line-height:1.3; }
-.co-name-en { font-size:15px; font-weight:500; color:#4a5568; line-height:1.3; margin-top:3px; }
-.co-vat { font-size:10px; color:#94a3b8; margin-top:6px; }
-.header-logo { display:flex; align-items:center; justify-content:center; ${isRtl ? "margin-left:0;margin-right:0;" : ""} }
-.logo { background:#1e40af; color:white; width:70px; height:70px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold; box-shadow:0 2px 8px rgba(30,64,175,0.2); }
-.divider { border:none; border-top:2px solid #1e40af; margin:16px 0; }
-.doc-num-block { text-align:${isRtl ? "right" : "left"}; margin-bottom:20px; }
-.doc-num { font-size:16px; font-weight:700; color:#1e40af; font-family:monospace; }
-.doc-date { font-size:12px; color:#64748b; margin-top:5px; }
-.doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; padding-bottom:6px; border-bottom:2px solid #1e40af; margin-bottom:20px; }
-.intro-box { background:#f0f7ff; border-right:4px solid #1e40af; border-radius:0 6px 6px 0; padding:12px 16px; font-size:12px; line-height:2; color:#1e3a5f; margin-bottom:18px; }
-.sec-title { font-size:12px; font-weight:700; color:#1e40af; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid #bfdbfe; letter-spacing:0.5px; }
-.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
-.info-item label { font-size:10px; color:#64748b; display:block; }
-.info-item span { font-size:13px; font-weight:500; }
-.scope-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:12px; font-size:12px; line-height:1.8; margin-bottom:18px; }
-table { width:100%; border-collapse:collapse; margin-bottom:18px; }
-thead th { background:#1e40af; color:white; padding:9px 6px; font-size:11px; font-weight:600; border:1px solid #1e40af; }
+.header { display:flex; flex-direction:row; align-items:flex-start; margin-bottom:10px; gap:16px; }
+.header-logo { flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.logo { background:#1e40af; color:white; width:64px; height:64px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow:0 2px 6px rgba(30,64,175,0.2); }
+.header-name { flex:1; text-align:right; direction:rtl; }
+.co-name-ar { font-size:19px; font-weight:700; color:#1a202c; line-height:1.25; }
+.co-name-en { font-size:13px; font-weight:500; color:#4a5568; line-height:1.25; margin-top:2px; }
+.co-vat { font-size:9px; color:#94a3b8; margin-top:4px; }
+.divider { border:none; border-top:2px solid #1e40af; margin:10px 0; }
+.doc-num-block { direction:ltr; text-align:left; margin-bottom:10px; }
+.doc-num { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; }
+.doc-date { font-size:11px; color:#64748b; margin-top:2px; }
+.doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; padding-bottom:5px; border-bottom:2px solid #1e40af; margin-bottom:12px; }
+.intro-box { background:#f0f7ff; ${isRtl ? "border-right:4px solid #1e40af; border-radius:0 6px 6px 0;" : "border-left:4px solid #1e40af; border-radius:6px 0 0 6px;"} padding:9px 14px; font-size:12px; line-height:1.8; color:#1e3a5f; margin-bottom:12px; }
+.sec-title { font-size:11px; font-weight:700; color:#1e40af; margin-bottom:5px; padding-bottom:3px; border-bottom:1px solid #bfdbfe; letter-spacing:0.4px; }
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.info-item label { font-size:9px; color:#64748b; display:block; }
+.info-item span { font-size:12px; font-weight:500; }
+.scope-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:5px; padding:10px; font-size:12px; line-height:1.7; margin-bottom:12px; }
+table { width:100%; border-collapse:collapse; margin-bottom:12px; }
+thead th { background:#1e40af; color:white; padding:8px 5px; font-size:11px; font-weight:600; border:1px solid #1e40af; }
 tbody tr:nth-child(even) { background:#f8fafc; }
-tfoot td { background:#f1f5f9; font-weight:600; padding:7px 6px; }
+tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 .total-row td { background:#1e40af !important; color:white !important; font-size:14px; font-weight:700; }
-.bd { border:1px solid #e2e8f0; padding:7px 6px; }
+.bd { border:1px solid #e2e8f0; padding:6px 5px; }
 .tc { text-align:center; } .tr { text-align:${isRtl ? "left" : "right"}; } .mono { font-family:monospace; } .fw { font-weight:bold; }
-.bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
-.valid-box { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:12px; font-size:12px; color:#065f46; }
-.notes-box { background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:12px; font-size:12px; color:#92400e; }
-.sig-grid { display:grid; grid-template-columns:1fr 1fr; gap:50px; margin-top:36px; }
+.bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.valid-box { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:5px; padding:9px; font-size:11px; color:#065f46; }
+.notes-box { background:#fffbeb; border:1px solid #fde68a; border-radius:5px; padding:9px; font-size:11px; color:#92400e; }
+.sig-grid { display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:24px; }
 .sig-box { text-align:center; }
-.sig-line { border-bottom:2px solid #374151; height:56px; margin-bottom:8px; }
-.sig-lbl { font-size:12px; font-weight:600; }
-.footer { margin-top:24px; padding-top:10px; border-top:1px solid #e2e8f0; text-align:center; font-size:9px; color:#94a3b8; }
+.sig-line { border-bottom:2px solid #374151; height:48px; margin-bottom:6px; }
+.sig-lbl { font-size:11px; font-weight:600; }
+.footer { margin-top:16px; padding-top:8px; border-top:1px solid #e2e8f0; text-align:center; font-size:9px; color:#94a3b8; }
 </style></head><body>
 <div class="page">
-<div class="header">
+<!-- الهيدر: dir=ltr دائماً لضمان الشعار في اليسار الفيزيائي -->
+<div class="header" dir="ltr">
   <div class="header-logo">
     <div class="logo">${coNameEn.charAt(0).toUpperCase() || "S"}</div>
   </div>
-  <div class="header-name">
+  <div class="header-name" dir="${dir}">
     ${isRtl ? `
       <div class="co-name-ar">${coNameAr}</div>
       <div class="co-name-en">${coNameEn}</div>
@@ -542,12 +543,13 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:7px 6px; }
   </div>
 </div>
 <hr class="divider"/>
-<div class="doc-num-block">
+<!-- رقم العرض والتاريخ: dir=ltr لضمان أنه في اليسار الفيزيائي دائماً -->
+<div class="doc-num-block" dir="ltr">
   <div class="doc-num">${proposal.proposalNumber}</div>
   <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
   <div class="doc-date">${isRtl ? "صالح حتى:" : "Valid Until:"} ${validUntil}</div>
 </div>
-<div class="doc-title">${isRtl ? "عرض سعر" : "QUOTATION"}</div>
+<div class="doc-title" dir="${dir}">${isRtl ? "عرض سعر" : "QUOTATION"}</div>
 <div class="sec-title">${isRtl ? "معلومات العميل والمشروع" : "CLIENT & PROJECT INFORMATION"}</div>
 
 <div class="info-grid">
