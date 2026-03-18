@@ -2,16 +2,17 @@ export type Role = "admin" | "manager" | "accountant" | "engineer" | "hr_manager
 
 export interface SystemUser {
   id: string;
-  nationalId: string;   // رقم الهوية الوطنية — المعرّف الرئيسي
+  nationalId: string;
   name: string;
   email: string;
   password: string;
-  role: Role;           // primary role (highest priority)
-  roles?: Role[];       // all assigned roles (multi-role support)
+  role: Role;
+  roles?: Role[];
   permissions: string[];
   createdAt: string;
   active: boolean;
   pendingApproval?: boolean;
+  emailVerified?: boolean;
 }
 
 /** Validates Saudi/Resident ID: 10 digits, starts with 1 or 2 */
