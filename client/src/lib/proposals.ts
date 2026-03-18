@@ -35,6 +35,7 @@ export interface Proposal {
   clientEmail?: string;
   projectName: string;
   projectDesc: string;
+  introduction?: string;
   scopeAr?: string;
   scopeEn?: string;
   serviceType: ServiceType;
@@ -192,6 +193,7 @@ export interface AITemplate {
   titleAr: string; titleEn: string;
   items: Omit<ProposalItem, "id">[];
   scopeAr: string; scopeEn: string;
+  introAr: string; introEn: string;
   estimatedMargin: number;
 }
 
@@ -199,6 +201,8 @@ export function generateAITemplate(serviceType: ServiceType, projectDesc: string
   const templates: Record<ServiceType, AITemplate> = {
     eng_consulting: {
       titleAr: "عرض سعر – استشارات هندسية", titleEn: "Quotation – Engineering Consulting",
+      introAr: `يسعدنا أن نتقدم إليكم بعرض أسعارنا المتعلق بـ (${projectDesc})، ونأمل أن يلبي تطلعاتكم ويرقى إلى مستوى ثقتكم بنا. نضع بين أيديكم خبرتنا الهندسية المتخصصة في خدمة مشروعكم الكريم، مُلتزمين بأعلى معايير الجودة والدقة الفنية.`,
+      introEn: `We are pleased to submit our proposal for (${projectDesc}). We place our specialized engineering expertise at the service of your esteemed project, committed to the highest standards of quality and technical precision.`,
       scopeAr: `بناءً على طلبكم المتعلق بـ (${projectDesc})، نقدم لكم عرضنا الفني والمالي لتقديم خدمات الاستشارات الهندسية المتخصصة وفق أحدث المعايير والمتطلبات النظامية في المملكة العربية السعودية.`,
       scopeEn: `Based on your request regarding (${projectDesc}), we present our technical and commercial proposal for specialized engineering consulting services in accordance with the latest standards and regulatory requirements in Saudi Arabia.`,
       estimatedMargin: 35,
@@ -211,6 +215,8 @@ export function generateAITemplate(serviceType: ServiceType, projectDesc: string
     },
     environmental: {
       titleAr: "عرض سعر – خدمات بيئية", titleEn: "Quotation – Environmental Services",
+      introAr: `نتشرف بتقديم عرض أسعارنا لخدمات بيئية متكاملة لمشروع (${projectDesc}). فريقنا المتخصص جاهز لتقديم أفضل الحلول البيئية المعتمدة والمتوافقة مع اشتراطات الجهات التنظيمية في المملكة العربية السعودية.`,
+      introEn: `We are honored to present our integrated environmental services proposal for (${projectDesc}). Our specialized team is ready to deliver the best accredited environmental solutions compliant with Saudi regulatory requirements.`,
       scopeAr: `نقدم لكم خدماتنا البيئية المتكاملة لمشروع (${projectDesc}) وفق اشتراطات وزارة البيئة والمياه والزراعة والهيئة السعودية للمواصفات والمقاييس SASO.`,
       scopeEn: `We present our integrated environmental services for (${projectDesc}) in accordance with MEWA requirements and SASO standards.`,
       estimatedMargin: 32,
@@ -223,6 +229,8 @@ export function generateAITemplate(serviceType: ServiceType, projectDesc: string
     },
     safety_consulting: {
       titleAr: "عرض سعر – استشارات السلامة والصحة المهنية", titleEn: "Quotation – Safety & HSE Consulting",
+      introAr: `يسعدنا تقديم عرض أسعارنا لخدمات السلامة والصحة المهنية لمشروع (${projectDesc}). ونحرص على تزويدكم بأعلى مستوى من الكفاءة والاحترافية في مجال HSE وفق أحدث المعايير الدولية والمحلية.`,
+      introEn: `We are pleased to submit our HSE consulting proposal for (${projectDesc}). We are committed to delivering the highest level of professionalism in health, safety, and environment per international and local standards.`,
       scopeAr: `نقدم خدمات الاستشارات في السلامة والصحة المهنية لمشروع (${projectDesc}) وفق معايير OSHA والمتطلبات المحلية للهيئة العامة للصناعة.`,
       scopeEn: `We provide Safety & HSE consulting services for (${projectDesc}) in accordance with OSHA standards and local GPCA requirements.`,
       estimatedMargin: 38,
@@ -235,6 +243,8 @@ export function generateAITemplate(serviceType: ServiceType, projectDesc: string
     },
     safety_services: {
       titleAr: "عرض سعر – خدمات السلامة الميدانية", titleEn: "Quotation – Field Safety Services",
+      introAr: `نقدم إليكم عرض أسعارنا للخدمات الميدانية في إدارة السلامة لمشروع (${projectDesc}). كوادرنا المعتمدون مستعدون لبدء العمل فور الموافقة لضمان بيئة عمل آمنة تمامًا وفق أعلى المعايير المهنية.`,
+      introEn: `We present our field safety management services proposal for (${projectDesc}). Our certified professionals are ready to begin immediately upon approval to ensure a fully safe work environment.`,
       scopeAr: `نقدم خدماتنا الميدانية في إدارة السلامة لمشروع (${projectDesc}) مع توفير الكوادر المتخصصة المعتمدة والمعدات اللازمة.`,
       scopeEn: `We provide field safety management services for (${projectDesc}), including certified specialized personnel and required equipment.`,
       estimatedMargin: 28,
@@ -247,6 +257,8 @@ export function generateAITemplate(serviceType: ServiceType, projectDesc: string
     },
     contracting: {
       titleAr: "عرض سعر – أعمال مقاولات وتنفيذ", titleEn: "Quotation – Contracting & Execution Works",
+      introAr: `يسرنا تقديم عرض أسعارنا لتنفيذ أعمال (${projectDesc}). نُؤكد التزامنا الكامل بإنجاز المشروع وفق الجدول الزمني المحدد وبجودة عالية، معتمدين على خبرتنا الواسعة وكوادرنا الهندسية المتخصصة.`,
+      introEn: `We are pleased to offer our proposal for (${projectDesc}). We confirm our full commitment to completing the project on schedule and with high quality, backed by our extensive experience and specialized engineering teams.`,
       scopeAr: `نقدم عرضنا لتنفيذ أعمال (${projectDesc}) شاملاً جميع مستلزمات العمل من مواد وعمالة وإشراف وفق الكميات والمواصفات المعتمدة.`,
       scopeEn: `We present our offer to execute (${projectDesc}) works including all required materials, labor, and supervision per approved quantities and specifications.`,
       estimatedMargin: 22,
@@ -260,6 +272,8 @@ export function generateAITemplate(serviceType: ServiceType, projectDesc: string
     },
     metal_recycling: {
       titleAr: "عرض سعر – خدمات تدوير المعادن", titleEn: "Quotation – Metal Recycling Services",
+      introAr: `نتشرف بتقديم عرض أسعارنا لخدمات تدوير وإدارة المعادن المتعلقة بـ (${projectDesc}). نلتزم بتقديم خدمة احترافية ومتكاملة وفق أعلى معايير البيئة والسلامة المعتمدة في المملكة العربية السعودية.`,
+      introEn: `We are honored to present our metal recycling and management services proposal for (${projectDesc}). We commit to providing a professional and comprehensive service per the highest environmental and safety standards in Saudi Arabia.`,
       scopeAr: `نقدم خدماتنا في مجال تدوير وإدارة المعادن لمشروع (${projectDesc}) بما يتوافق مع اشتراطات هيئة المواد البتروكيماوية السعودية ووزارة البيئة.`,
       scopeEn: `We provide metal recycling and management services for (${projectDesc}) in compliance with GPCA and Ministry of Environment requirements.`,
       estimatedMargin: 25,
@@ -449,6 +463,20 @@ export function printProposal(proposal: Proposal, isRtl: boolean): void {
   const validUntil = new Date(new Date(proposal.createdAt).getTime() + proposal.validity * 86400000)
     .toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
 
+  // ── Read active company data ──────────────────────────────────────────────
+  let coNameAr = "شركة سكابكس للاستشارات والخدمات الهندسية";
+  let coNameEn = "Scapex Consulting & Engineering Services";
+  let coVat    = "300123456700003";
+  try {
+    const raw = localStorage.getItem("scapex_companies");
+    if (raw) {
+      const companies = JSON.parse(raw) as Array<{id:string;nameAr:string;nameEn:string;vatNumber?:string}>;
+      const activeId = localStorage.getItem("scapex_active_company");
+      const co = activeId ? companies.find((c) => c.id === activeId) : companies[0];
+      if (co) { coNameAr = co.nameAr; coNameEn = co.nameEn; coVat = co.vatNumber || coVat; }
+    }
+  } catch {}
+
   const rows = proposal.items.map((item, i) => `
     <tr>
       <td class="tc bd">${i + 1}</td>
@@ -464,17 +492,18 @@ export function printProposal(proposal: Proposal, isRtl: boolean): void {
 <style>
 ${FONT_IMPORT}${BASE_CSS}
 .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
-.header-right { flex:1; text-align:${isRtl ? "right" : "left"}; }
+.header-name { flex:1; text-align:${isRtl ? "right" : "left"}; }
 .co-name-ar { font-size:20px; font-weight:700; color:#1a202c; line-height:1.3; }
-.co-name-en { font-size:16px; font-weight:600; color:#4a5568; line-height:1.3; margin-top:2px; }
-.header-left { width:80px; display:flex; align-items:center; justify-content:center; }
+.co-name-en { font-size:15px; font-weight:500; color:#4a5568; line-height:1.3; margin-top:3px; }
+.co-vat { font-size:10px; color:#94a3b8; margin-top:6px; }
+.header-logo { display:flex; align-items:center; justify-content:center; ${isRtl ? "margin-left:0;margin-right:0;" : ""} }
 .logo { background:#1e40af; color:white; width:70px; height:70px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold; box-shadow:0 2px 8px rgba(30,64,175,0.2); }
 .divider { border:none; border-top:2px solid #1e40af; margin:16px 0; }
-.doc-meta { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
-.doc-left { text-align:${isRtl ? "right" : "left"}; }
-.doc-num { font-size:15px; font-weight:700; color:#1e40af; font-family:monospace; }
-.doc-date { font-size:12px; color:#64748b; margin-top:4px; }
+.doc-num-block { text-align:${isRtl ? "right" : "left"}; margin-bottom:20px; }
+.doc-num { font-size:16px; font-weight:700; color:#1e40af; font-family:monospace; }
+.doc-date { font-size:12px; color:#64748b; margin-top:5px; }
 .doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; padding-bottom:6px; border-bottom:2px solid #1e40af; margin-bottom:20px; }
+.intro-box { background:#f0f7ff; border-right:4px solid #1e40af; border-radius:0 6px 6px 0; padding:12px 16px; font-size:12px; line-height:2; color:#1e3a5f; margin-bottom:18px; }
 .sec-title { font-size:12px; font-weight:700; color:#1e40af; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid #bfdbfe; letter-spacing:0.5px; }
 .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
 .info-item label { font-size:10px; color:#64748b; display:block; }
@@ -498,39 +527,37 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:7px 6px; }
 </style></head><body>
 <div class="page">
 <div class="header">
-  <div class="header-right">
-    ${isRtl ? `
-      <div class="co-name-ar">شركة سكابكس للاستشارات والخدمات الهندسية</div>
-      <div class="co-name-en">Scapex Consulting & Engineering Services</div>
-    ` : `
-      <div class="co-name-en">Scapex Consulting & Engineering Services</div>
-      <div class="co-name-ar">شركة سكابكس للاستشارات والخدمات الهندسية</div>
-    `}
-    <div style="font-size:10px;color:#94a3b8;margin-top:6px;">${isRtl ? "الرقم الضريبي: 300123456700003" : "VAT No: 300123456700003"}</div>
+  <div class="header-logo">
+    <div class="logo">${coNameEn.charAt(0).toUpperCase() || "S"}</div>
   </div>
-  <div class="header-left">
-    <div class="logo">S</div>
+  <div class="header-name">
+    ${isRtl ? `
+      <div class="co-name-ar">${coNameAr}</div>
+      <div class="co-name-en">${coNameEn}</div>
+    ` : `
+      <div class="co-name-en">${coNameEn}</div>
+      <div class="co-name-ar">${coNameAr}</div>
+    `}
+    <div class="co-vat">${isRtl ? `الرقم الضريبي: ${coVat}` : `VAT No: ${coVat}`}</div>
   </div>
 </div>
 <hr class="divider"/>
-<div class="doc-meta">
-  <div class="doc-left">
-    <div class="doc-num">${proposal.proposalNumber}</div>
-    <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
-    <div class="doc-date">${isRtl ? "صالح حتى:" : "Valid Until:"} ${validUntil}</div>
-  </div>
-  <div style="text-align:${isRtl ? "left" : "right"};">
-    <div style="background:#1e40af;color:white;font-size:11px;padding:4px 12px;border-radius:6px;display:inline-block;">${isRtl ? svc.labelAr : svc.labelEn}</div>
-  </div>
+<div class="doc-num-block">
+  <div class="doc-num">${proposal.proposalNumber}</div>
+  <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
+  <div class="doc-date">${isRtl ? "صالح حتى:" : "Valid Until:"} ${validUntil}</div>
 </div>
-<div class="doc-title">${isRtl ? "عرض سعر" : "QUOTATION"} (${isRtl ? svc.labelAr : svc.labelEn})</div>
+<div class="doc-title">${isRtl ? "عرض سعر" : "QUOTATION"}</div>
 <div class="sec-title">${isRtl ? "معلومات العميل والمشروع" : "CLIENT & PROJECT INFORMATION"}</div>
+
 <div class="info-grid">
   <div class="info-item"><label>${isRtl ? "اسم العميل / الجهة" : "Client / Entity"}</label><span>${proposal.clientName}</span></div>
   <div class="info-item"><label>${isRtl ? "اسم المشروع" : "Project Name"}</label><span>${proposal.projectName}</span></div>
   ${proposal.clientContact ? `<div class="info-item"><label>${isRtl ? "التواصل" : "Contact"}</label><span dir="ltr">${proposal.clientContact}</span></div>` : ""}
   ${proposal.clientEmail ? `<div class="info-item"><label>${isRtl ? "البريد الإلكتروني" : "Email"}</label><span dir="ltr">${proposal.clientEmail}</span></div>` : ""}
 </div>
+${proposal.introduction ? `
+<div class="intro-box">${proposal.introduction}</div>` : ""}
 ${proposal.projectDesc ? `
 <div class="sec-title">${isRtl ? "نطاق العمل" : "SCOPE OF WORK"}</div>
 <div class="scope-box">${proposal.projectDesc}</div>` : ""}

@@ -283,6 +283,11 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         clientEmail: clientEmail.trim() || undefined,
         projectName: projectName.trim() || (isRtl ? `مشروع ${clientName.trim()}` : `${clientName.trim()} Project`),
         projectDesc: projectDesc.trim(),
+        introduction: template
+          ? (isRtl ? template.introAr : template.introEn)
+          : (isRtl
+            ? `يسعدنا تقديم عرض أسعارنا لمشروعكم الكريم (${projectDesc.trim()})، ونأمل أن يلبي تطلعاتكم ويرقى إلى مستوى ثقتكم بنا.`
+            : `We are pleased to submit our proposal for your esteemed project (${projectDesc.trim()}), and we hope it meets your expectations.`),
         scopeAr: template?.scopeAr,
         scopeEn: template?.scopeEn,
         serviceType: selectedService,
@@ -714,10 +719,30 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
               </CardTitle>
             </CardHeader>
             {showScope && (
-              <CardContent className="p-4">
-                <Textarea value={proposal.projectDesc} onChange={(e) => upd("projectDesc", e.target.value)}
-                  className="text-sm bg-secondary/20 resize-none min-h-[100px]"
-                  placeholder={isRtl ? "وصف تفصيلي لنطاق العمل والمتطلبات..." : "Detailed scope of work and requirements..."} />
+              <CardContent className="p-4 space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                    {isRtl ? "المقدمة / التحية الافتتاحية" : "Introduction / Opening"}
+                  </Label>
+                  <Textarea
+                    value={proposal.introduction || ""}
+                    onChange={(e) => upd("introduction", e.target.value)}
+                    className="mt-1 text-sm bg-secondary/20 resize-none min-h-[72px]"
+                    placeholder={isRtl
+                      ? "يسعدنا تقديم عرض أسعارنا لمشروعكم الكريم..."
+                      : "We are pleased to submit our proposal for your esteemed project..."}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                    {isRtl ? "نطاق العمل" : "Scope of Work"}
+                  </Label>
+                  <Textarea value={proposal.projectDesc} onChange={(e) => upd("projectDesc", e.target.value)}
+                    className="mt-1 text-sm bg-secondary/20 resize-none min-h-[100px]"
+                    placeholder={isRtl ? "وصف تفصيلي لنطاق العمل والمتطلبات..." : "Detailed scope of work and requirements..."} />
+                </div>
               </CardContent>
             )}
           </Card>

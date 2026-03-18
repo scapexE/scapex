@@ -8,8 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Plus, Edit2, Trash2, ChevronRight, ChevronDown, Building2, Briefcase, Tags,
-  Save, X, HardHat, Leaf, ShieldAlert, Flame, RefreshCcw
+  Plus, Trash2, ChevronRight, ChevronDown, Building2, Briefcase, Tags,
+  Save, X, HardHat, Leaf, ShieldAlert, Flame, RefreshCcw, Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";

@@ -92,7 +92,7 @@ function getDefaultCompanies(): Company[] {
   return [
     {
       id: "scapex-main",
-      nameAr: "شركة سكابكس للاستشارات والخدمات الهندسية",
+      nameAr: "شركة سكيب للاستشارات والخدمات الهندسية",
       nameEn: "Scapex Consulting & Engineering Services",
       vatNumber: "300123456700003",
       activities: [
