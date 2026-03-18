@@ -84,7 +84,6 @@ const menuCategories = [
     items: [
       { id: "dms", icon: FileText, path: "/dms" },
       { id: "client_portal", icon: Globe, path: "/client-portal" },
-      { id: "approve_registrations", icon: UserCheck, path: "/users" },
       { id: "users", icon: UserCog, path: "/users" },
     ],
   },
@@ -106,12 +105,17 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     window.location.href = "/";
   };
 
+  const userPerms = currentUser?.permissions || [];
   const visibleCategories = menuCategories.map((cat) => ({
     ...cat,
     items: cat.items.filter((item) => {
       if (!currentUser) return false;
       if (currentUser.role === "admin") return true;
-      return (currentUser.permissions || []).includes(item.id);
+      // Users with approve_registrations can also access the users page
+      if (item.id === "users") {
+        return userPerms.includes("users") || userPerms.includes("approve_registrations");
+      }
+      return userPerms.includes(item.id);
     }),
   })).filter((cat) => cat.items.length > 0);
 

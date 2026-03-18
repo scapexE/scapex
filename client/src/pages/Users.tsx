@@ -23,7 +23,7 @@ import {
 import {
   Plus, Search, Pencil, Trash2, Shield, ShieldCheck,
   Users as UsersIcon, Filter, Eye, EyeOff, RefreshCw,
-  UserCheck, UserX, Clock,
+  UserCheck, UserX, Clock, Building, Hammer, UserCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -47,18 +47,212 @@ const ROLES: Role[] = ["admin", "manager", "accountant", "engineer", "hr_manager
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
-
 const emptyForm = (): Partial<SystemUser> => ({
   name: "", email: "", password: "", role: "viewer",
   permissions: ROLE_DEFAULTS.viewer, active: true,
 });
 
-// ── Pending Approvals Section ──────────────────────────────────────────────
-function PendingApprovals({
-  users, onApprove, onReject,
+// ─────────────────────────────────────────────────────────────────────────────
+// Activation Dialog — picks role category then specific role + permissions
+// ─────────────────────────────────────────────────────────────────────────────
+type RoleCategory = "client" | "employee" | "supervisor";
+
+const EMPLOYEE_ROLES: { role: Role; ar: string; en: string }[] = [
+  { role: "accountant",  ar: "محاسب",              en: "Accountant" },
+  { role: "engineer",    ar: "مهندس",               en: "Engineer" },
+  { role: "hr_manager",  ar: "مدير موارد بشرية",   en: "HR Manager" },
+  { role: "viewer",      ar: "مشاهد (للقراءة فقط)", en: "Viewer" },
+];
+
+function ActivationDialog({
+  user,
+  onActivate,
+  onClose,
+}: {
+  user: SystemUser;
+  onActivate: (user: SystemUser, role: Role, permissions: string[]) => void;
+  onClose: () => void;
+}) {
+  const [category, setCategory] = useState<RoleCategory | "">("");
+  const [employeeRole, setEmployeeRole] = useState<Role>("accountant");
+  const [permissions, setPermissions] = useState<string[]>([]);
+
+  const resolvedRole = (): Role => {
+    if (category === "client")     return "client";
+    if (category === "supervisor") return "manager";
+    if (category === "employee")   return employeeRole;
+    return "viewer";
+  };
+
+  const handleCategoryChange = (cat: RoleCategory) => {
+    setCategory(cat);
+    const role: Role = cat === "client" ? "client" : cat === "supervisor" ? "manager" : "accountant";
+    setEmployeeRole(role);
+    setPermissions(ROLE_DEFAULTS[role]);
+  };
+
+  const handleEmployeeRoleChange = (role: Role) => {
+    setEmployeeRole(role);
+    setPermissions(ROLE_DEFAULTS[role]);
+  };
+
+  const togglePerm = (id: string) => {
+    setPermissions((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  };
+
+  const groupedModules = ALL_MODULES.reduce<Record<string, typeof ALL_MODULES>>((acc, mod) => {
+    if (!acc[mod.category]) acc[mod.category] = [];
+    acc[mod.category].push(mod); return acc;
+  }, {});
+
+  const finalRole = resolvedRole();
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-right flex items-center gap-2">
+            <UserCheck className="w-5 h-5 text-emerald-600" />
+            تفعيل الحساب — {user.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* User Info */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{user.name}</p>
+              <p className="text-xs text-muted-foreground">{user.email}</p>
+            </div>
+          </div>
+
+          {/* Step 1: Category */}
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">نوع الحساب</Label>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { key: "client" as RoleCategory,     icon: Building,      ar: "عميل",   desc: "وصول لبوابة العملاء" },
+                { key: "employee" as RoleCategory,    icon: Hammer,        ar: "موظف",   desc: "وصول لوحدات العمل" },
+                { key: "supervisor" as RoleCategory,  icon: UserCircle2,   ar: "مشرف",   desc: "صلاحيات إدارية" },
+              ].map(({ key, icon: Icon, ar, desc }) => (
+                <button
+                  key={key}
+                  onClick={() => handleCategoryChange(key)}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer",
+                    category === key
+                      ? "border-primary bg-primary/10"
+                      : "border-border/50 hover:border-border hover:bg-secondary/30"
+                  )}
+                >
+                  <Icon className={cn("w-6 h-6", category === key ? "text-primary" : "text-muted-foreground")} />
+                  <span className="font-semibold text-sm">{ar}</span>
+                  <span className="text-[11px] text-muted-foreground text-center">{desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Step 2: Employee sub-role */}
+          {category === "employee" && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">تخصص الموظف</Label>
+              <Select value={employeeRole} onValueChange={(v) => handleEmployeeRoleChange(v as Role)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EMPLOYEE_ROLES.map((er) => (
+                    <SelectItem key={er.role} value={er.role}>
+                      {er.ar} <span className="text-muted-foreground text-xs">({er.en})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Step 3: Permissions (shown after category is selected) */}
+          {category && (
+            <>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">الصلاحيات</Label>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[finalRole].color)}>
+                    {ROLE_LABELS[finalRole].ar}
+                  </Badge>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                    onClick={() => setPermissions(ROLE_DEFAULTS[finalRole])}>
+                    <RefreshCw className="w-3 h-3" /> إعادة ضبط
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4 border rounded-lg p-4 bg-secondary/20">
+                {Object.entries(groupedModules).map(([cat, mods]) => (
+                  <div key={cat}>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      {MODULE_CATEGORIES[cat]?.ar}
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {mods.map((mod) => {
+                        const checked = permissions.includes(mod.id);
+                        return (
+                          <div key={mod.id}
+                            className={cn(
+                              "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-sm",
+                              checked ? "bg-primary/5 border-primary/30" : "bg-card border-border/40 hover:bg-secondary/40"
+                            )}
+                            onClick={() => togglePerm(mod.id)}
+                          >
+                            <Checkbox checked={checked} onCheckedChange={() => togglePerm(mod.id)} className="pointer-events-none" />
+                            <span className={checked ? "font-medium" : "text-muted-foreground"}>{mod.labelAr}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground text-left mt-2">
+                  {permissions.length} صلاحية من {ALL_MODULES.length}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+
+        <DialogFooter className="flex-row-reverse gap-2 mt-4">
+          <Button
+            disabled={!category}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            onClick={() => onActivate(user, finalRole, permissions)}
+            data-testid="button-confirm-activate"
+          >
+            <UserCheck className="w-4 h-4" />
+            تفعيل الحساب
+          </Button>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pending Section
+// ─────────────────────────────────────────────────────────────────────────────
+function PendingSection({
+  users,
+  onActivateClick,
+  onReject,
 }: {
   users: SystemUser[];
-  onApprove: (user: SystemUser) => void;
+  onActivateClick: (user: SystemUser) => void;
   onReject: (user: SystemUser) => void;
 }) {
   const pending = users.filter((u) => u.pendingApproval && !u.active);
@@ -74,8 +268,8 @@ function PendingApprovals({
             <Clock className={cn("w-4 h-4", pending.length > 0 ? "text-amber-500" : "text-muted-foreground")} />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-sm">طلبات تسجيل العملاء المعلّقة</h3>
-            <p className="text-xs text-muted-foreground">تحتاج إلى موافقة لتفعيل الوصول لبوابة العملاء</p>
+            <h3 className="font-semibold text-sm">تفعيل الحساب</h3>
+            <p className="text-xs text-muted-foreground">طلبات تسجيل تنتظر تحديد الدور وتفعيل الوصول</p>
           </div>
           {pending.length > 0 && (
             <Badge className="bg-amber-500 text-white border-0">{pending.length} طلب</Badge>
@@ -84,7 +278,7 @@ function PendingApprovals({
 
         {pending.length === 0 ? (
           <div className="text-center py-6 text-sm text-muted-foreground">
-            لا توجد طلبات تسجيل معلّقة
+            لا توجد حسابات تنتظر التفعيل
           </div>
         ) : (
           <div className="space-y-2">
@@ -101,18 +295,18 @@ function PendingApprovals({
                   <p className="font-semibold text-sm truncate">{user.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    سُجِّل في: {new Date(user.createdAt).toLocaleDateString("ar-SA")}
+                    التسجيل: {new Date(user.createdAt).toLocaleDateString("ar-SA")}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button
-                    data-testid={`button-approve-${user.id}`}
+                    data-testid={`button-activate-${user.id}`}
                     size="sm"
                     className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                    onClick={() => onApprove(user)}
+                    onClick={() => onActivateClick(user)}
                   >
                     <UserCheck className="w-3.5 h-3.5" />
-                    قبول
+                    تفعيل
                   </Button>
                   <Button
                     data-testid={`button-reject-${user.id}`}
@@ -134,7 +328,9 @@ function PendingApprovals({
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Page
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Users() {
   const { toast } = useToast();
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
@@ -149,10 +345,10 @@ export default function Users() {
   const [editUser, setEditUser] = useState<SystemUser | null>(null);
   const [deleteUser, setDeleteUser] = useState<SystemUser | null>(null);
   const [permUser, setPermUser] = useState<SystemUser | null>(null);
+  const [activatingUser, setActivatingUser] = useState<SystemUser | null>(null);
   const [form, setForm] = useState<Partial<SystemUser>>(emptyForm());
   const [showPass, setShowPass] = useState(false);
 
-  // Access control: admin gets full access; approvers get pending-only view
   if (!isAdmin && !canApprove) {
     return (
       <MainLayout>
@@ -167,18 +363,16 @@ export default function Users() {
     );
   }
 
-  const persist = (updated: SystemUser[]) => {
-    setUsers(updated);
-    saveUsers(updated);
-  };
+  const persist = (updated: SystemUser[]) => { setUsers(updated); saveUsers(updated); };
 
-  // ── Pending approval handlers ───────────────────────────────────────────
-  const handleApprove = (user: SystemUser) => {
+  // ── Activation ────────────────────────────────────────────────────────────
+  const handleActivate = (user: SystemUser, role: Role, permissions: string[]) => {
     const updated = users.map((u) =>
-      u.id === user.id ? { ...u, active: true, pendingApproval: false } : u
+      u.id === user.id ? { ...u, role, permissions, active: true, pendingApproval: false } : u
     );
     persist(updated);
-    toast({ title: "تم الاعتماد", description: `تم تفعيل حساب "${user.name}" بنجاح` });
+    setActivatingUser(null);
+    toast({ title: "تم التفعيل", description: `تم تفعيل حساب "${user.name}" كـ ${ROLE_LABELS[role].ar}` });
   };
 
   const handleReject = (user: SystemUser) => {
@@ -186,10 +380,10 @@ export default function Users() {
     toast({ title: "تم الرفض", description: `تم حذف طلب تسجيل "${user.name}"`, variant: "destructive" });
   };
 
-  // ── Filtered list (active users only in the main table) ─────────────────
+  // ── CRUD ──────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     return users.filter((u) => {
-      if (u.pendingApproval && !u.active) return false; // shown separately
+      if (u.pendingApproval && !u.active) return false;
       const matchSearch =
         u.name.toLowerCase().includes(search.toLowerCase()) ||
         u.email.toLowerCase().includes(search.toLowerCase());
@@ -198,7 +392,6 @@ export default function Users() {
     });
   }, [users, search, roleFilter]);
 
-  // ── Admin-only handlers ─────────────────────────────────────────────────
   const handleAddSubmit = () => {
     if (!form.name || !form.email || !form.password) {
       toast({ title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة", variant: "destructive" }); return;
@@ -211,9 +404,8 @@ export default function Users() {
       role: form.role as Role, permissions: form.permissions || ROLE_DEFAULTS[form.role as Role],
       createdAt: new Date().toISOString(), active: form.active ?? true,
     };
-    persist([...users, newUser]);
-    setAddOpen(false); setForm(emptyForm());
-    toast({ title: "تم بنجاح", description: `تمت إضافة المستخدم "${newUser.name}"` });
+    persist([...users, newUser]); setAddOpen(false); setForm(emptyForm());
+    toast({ title: "تم بنجاح", description: `تمت إضافة "${newUser.name}"` });
   };
 
   const handleEditSubmit = () => {
@@ -227,8 +419,8 @@ export default function Users() {
     );
     persist(updated);
     if (currentUser?.email === editUser.email) {
-      const newCurrent = updated.find((u) => u.id === editUser.id);
-      if (newCurrent) localStorage.setItem("user", JSON.stringify(newCurrent));
+      const nc = updated.find((u) => u.id === editUser.id);
+      if (nc) localStorage.setItem("user", JSON.stringify(nc));
     }
     setEditUser(null); setForm(emptyForm());
     toast({ title: "تم بنجاح", description: "تم تحديث بيانات المستخدم" });
@@ -240,21 +432,19 @@ export default function Users() {
       toast({ title: "خطأ", description: "لا يمكنك حذف حسابك الحالي", variant: "destructive" });
       setDeleteUser(null); return;
     }
-    persist(users.filter((u) => u.id !== deleteUser.id));
-    setDeleteUser(null);
-    toast({ title: "تم الحذف", description: `تم حذف المستخدم "${deleteUser.name}"` });
+    persist(users.filter((u) => u.id !== deleteUser.id)); setDeleteUser(null);
+    toast({ title: "تم الحذف", description: `تم حذف "${deleteUser.name}"` });
   };
 
   const handleToggleActive = (user: SystemUser) => {
     if (user.email === currentUser?.email) return;
-    const updated = users.map((u) => u.id === user.id ? { ...u, active: !u.active } : u);
-    persist(updated);
+    persist(users.map((u) => u.id === user.id ? { ...u, active: !u.active } : u));
   };
 
   const handlePermSave = () => {
     if (!permUser) return;
-    const updated = users.map((u) => u.id === permUser.id ? { ...u, permissions: permUser.permissions } : u);
-    persist(updated); setPermUser(null);
+    persist(users.map((u) => u.id === permUser.id ? { ...u, permissions: permUser.permissions } : u));
+    setPermUser(null);
     toast({ title: "تم بنجاح", description: "تم حفظ الصلاحيات" });
   };
 
@@ -274,25 +464,31 @@ export default function Users() {
     setEditUser(user);
   };
 
-  const activeCnt = users.filter((u) => u.active).length;
   const pendingCnt = users.filter((u) => u.pendingApproval && !u.active).length;
 
-  // ── Approver-only view (not admin) ──────────────────────────────────────
+  // ── Approver-only view ────────────────────────────────────────────────────
   if (!isAdmin && canApprove) {
     return (
       <MainLayout>
         <div className="flex flex-col gap-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">اعتماد طلبات التسجيل</h1>
-            <p className="text-muted-foreground mt-1 text-sm">مراجعة وقبول أو رفض طلبات تسجيل العملاء الجدد</p>
+            <h1 className="text-2xl font-bold tracking-tight">تفعيل الحساب</h1>
+            <p className="text-muted-foreground mt-1 text-sm">مراجعة طلبات التسجيل وتحديد الدور قبل التفعيل</p>
           </div>
-          <PendingApprovals users={users} onApprove={handleApprove} onReject={handleReject} />
+          <PendingSection users={users} onActivateClick={setActivatingUser} onReject={handleReject} />
         </div>
+        {activatingUser && (
+          <ActivationDialog
+            user={activatingUser}
+            onActivate={handleActivate}
+            onClose={() => setActivatingUser(null)}
+          />
+        )}
       </MainLayout>
     );
   }
 
-  // ── Admin full view ──────────────────────────────────────────────────────
+  // ── Admin full view ───────────────────────────────────────────────────────
   return (
     <MainLayout>
       <div className="flex flex-col gap-6">
@@ -314,67 +510,37 @@ export default function Users() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card className="border-border/50">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <UsersIcon className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{users.length}</p>
-                <p className="text-xs text-muted-foreground">الإجمالي</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <ShieldCheck className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{activeCnt}</p>
-                <p className="text-xs text-muted-foreground">نشط</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{users.filter((u) => u.role === "admin").length}</p>
-                <p className="text-xs text-muted-foreground">مديرو النظام</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className={cn("border-border/50", pendingCnt > 0 && "border-amber-500/40 bg-amber-500/5")}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", pendingCnt > 0 ? "bg-amber-500/20" : "bg-secondary")}>
-                <Clock className={cn("w-5 h-5", pendingCnt > 0 ? "text-amber-500" : "text-muted-foreground")} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{pendingCnt}</p>
-                <p className="text-xs text-muted-foreground">طلبات معلّقة</p>
-              </div>
-            </CardContent>
-          </Card>
+          {[
+            { icon: UsersIcon, color: "text-primary", bg: "bg-primary/10",      val: users.filter(u => !(u.pendingApproval && !u.active)).length, label: "الإجمالي" },
+            { icon: ShieldCheck, color: "text-emerald-600", bg: "bg-emerald-500/10", val: users.filter(u => u.active).length, label: "نشط" },
+            { icon: Shield, color: "text-red-600", bg: "bg-red-500/10",         val: users.filter(u => u.role === "admin").length, label: "مديرو النظام" },
+            { icon: Clock, color: pendingCnt > 0 ? "text-amber-500" : "text-muted-foreground", bg: pendingCnt > 0 ? "bg-amber-500/20" : "bg-secondary", val: pendingCnt, label: "تفعيل الحساب" },
+          ].map(({ icon: Icon, color, bg, val, label }) => (
+            <Card key={label} className={cn("border-border/50", label === "تفعيل الحساب" && pendingCnt > 0 && "border-amber-500/40 bg-amber-500/5")}>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", bg)}>
+                  <Icon className={cn("w-5 h-5", color)} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{val}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Pending Approvals */}
-        <PendingApprovals users={users} onApprove={handleApprove} onReject={handleReject} />
+        {/* Pending Section */}
+        <PendingSection users={users} onActivateClick={setActivatingUser} onReject={handleReject} />
 
         {/* Search & Filter */}
         <Card className="border-border/50">
           <CardContent className="p-3 flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                data-testid="input-search-users"
-                placeholder="بحث بالاسم أو البريد..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pr-9 h-9 bg-secondary/50 border-0"
-              />
+              <Input data-testid="input-search-users" placeholder="بحث بالاسم أو البريد..."
+                value={search} onChange={(e) => setSearch(e.target.value)}
+                className="pr-9 h-9 bg-secondary/50 border-0" />
             </div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
@@ -393,7 +559,7 @@ export default function Users() {
           </CardContent>
         </Card>
 
-        {/* Users Table */}
+        {/* Table */}
         <Card className="border-border/50 overflow-hidden">
           <div className="overflow-auto">
             <Table>
@@ -437,11 +603,8 @@ export default function Users() {
                       <div className="flex items-center gap-1">
                         <span className="text-sm font-medium">{user.permissions.length}</span>
                         <span className="text-xs text-muted-foreground">/ {ALL_MODULES.length} وحدة</span>
-                        <button
-                          onClick={() => setPermUser({ ...user, permissions: [...user.permissions] })}
-                          className="ml-2 text-xs text-primary hover:underline"
-                          data-testid={`button-permissions-${user.id}`}
-                        >
+                        <button onClick={() => setPermUser({ ...user, permissions: [...user.permissions] })}
+                          className="ml-2 text-xs text-primary hover:underline" data-testid={`button-permissions-${user.id}`}>
                           تعديل
                         </button>
                       </div>
@@ -452,30 +615,19 @@ export default function Users() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Switch
-                        data-testid={`switch-active-${user.id}`}
-                        checked={user.active}
-                        onCheckedChange={() => handleToggleActive(user)}
-                        disabled={user.email === currentUser?.email}
-                      />
+                      <Switch data-testid={`switch-active-${user.id}`}
+                        checked={user.active} onCheckedChange={() => handleToggleActive(user)}
+                        disabled={user.email === currentUser?.email} />
                     </TableCell>
                     <TableCell className="text-left">
                       <div className="flex items-center gap-1">
-                        <Button
-                          data-testid={`button-edit-${user.id}`}
-                          variant="ghost" size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => openEdit(user)}
-                        >
+                        <Button data-testid={`button-edit-${user.id}`} variant="ghost" size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(user)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          data-testid={`button-delete-${user.id}`}
-                          variant="ghost" size="icon"
+                        <Button data-testid={`button-delete-${user.id}`} variant="ghost" size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteUser(user)}
-                          disabled={user.email === currentUser?.email}
-                        >
+                          onClick={() => setDeleteUser(user)} disabled={user.email === currentUser?.email}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -486,12 +638,21 @@ export default function Users() {
             </Table>
           </div>
           <div className="border-t border-border/50 p-3 text-xs text-muted-foreground bg-secondary/20">
-            عرض {filtered.length} من {users.filter((u) => !(u.pendingApproval && !u.active)).length} مستخدم
+            عرض {filtered.length} من {users.filter(u => !(u.pendingApproval && !u.active)).length} مستخدم
           </div>
         </Card>
       </div>
 
-      {/* Add User Dialog */}
+      {/* Activation Dialog */}
+      {activatingUser && (
+        <ActivationDialog
+          user={activatingUser}
+          onActivate={handleActivate}
+          onClose={() => setActivatingUser(null)}
+        />
+      )}
+
+      {/* Add Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
@@ -505,7 +666,7 @@ export default function Users() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit User Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
@@ -525,7 +686,7 @@ export default function Users() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-right">تأكيد الحذف</AlertDialogTitle>
             <AlertDialogDescription className="text-right">
-              هل أنت متأكد من حذف المستخدم <strong>{deleteUser?.name}</strong>؟ لا يمكن التراجع عن هذه العملية.
+              هل أنت متأكد من حذف <strong>{deleteUser?.name}</strong>؟ لا يمكن التراجع.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row-reverse gap-2">
@@ -568,8 +729,7 @@ export default function Users() {
                         <div key={mod.id}
                           className={cn("flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
                             checked ? "bg-primary/5 border-primary/30" : "bg-card border-border/50 hover:bg-secondary/30")}
-                          onClick={() => togglePerm(mod.id)}
-                          data-testid={`perm-${mod.id}`}
+                          onClick={() => togglePerm(mod.id)} data-testid={`perm-${mod.id}`}
                         >
                           <Checkbox checked={checked} onCheckedChange={() => togglePerm(mod.id)} className="pointer-events-none" />
                           <div>
@@ -582,9 +742,9 @@ export default function Users() {
                   </div>
                 </div>
               ))}
-              <div className="text-sm text-muted-foreground text-right">
-                {permUser.permissions.length} صلاحية محددة من أصل {ALL_MODULES.length}
-              </div>
+              <p className="text-sm text-muted-foreground text-right">
+                {permUser.permissions.length} صلاحية من أصل {ALL_MODULES.length}
+              </p>
             </div>
           )}
           <DialogFooter className="flex-row-reverse gap-2">
@@ -597,13 +757,13 @@ export default function Users() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// UserForm
+// ─────────────────────────────────────────────────────────────────────────────
 function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
   form: Partial<SystemUser>; setForm: (f: Partial<SystemUser>) => void;
   showPass: boolean; setShowPass: (v: boolean) => void; isNew?: boolean;
 }) {
-  const handleRoleChange = (role: Role) => {
-    setForm({ ...form, role, permissions: ROLE_DEFAULTS[role] });
-  };
   return (
     <div className="space-y-4" dir="rtl">
       <div className="space-y-2">
@@ -632,26 +792,23 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
       </div>
       <div className="space-y-2">
         <Label>الدور *</Label>
-        <Select value={form.role} onValueChange={(v) => handleRoleChange(v as Role)}>
+        <Select value={form.role} onValueChange={(v: Role) => setForm({ ...form, role: v, permissions: ROLE_DEFAULTS[v] })}>
           <SelectTrigger data-testid="select-user-role"><SelectValue /></SelectTrigger>
           <SelectContent>
             {(["admin", "manager", "accountant", "engineer", "hr_manager", "client", "viewer"] as Role[]).map((r) => (
               <SelectItem key={r} value={r}>
-                <div className="flex items-center gap-2">
-                  <span>{ROLE_LABELS[r].ar}</span>
-                  <span className="text-xs text-muted-foreground">({ROLE_LABELS[r].en})</span>
-                </div>
+                {ROLE_LABELS[r].ar} <span className="text-xs text-muted-foreground">({ROLE_LABELS[r].en})</span>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">سيتم ضبط الصلاحيات تلقائياً حسب الدور. يمكنك تعديلها لاحقاً.</p>
+        <p className="text-xs text-muted-foreground">الصلاحيات تُضبط تلقائياً حسب الدور.</p>
       </div>
       <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
         <Switch data-testid="switch-user-active" id="active"
           checked={form.active ?? true} onCheckedChange={(v) => setForm({ ...form, active: v })} />
         <Label htmlFor="active" className="cursor-pointer">
-          الحساب نشط {form.active ? "(مفعّل)" : "(معطّل)"}
+          {form.active ? "الحساب نشط (مفعّل)" : "الحساب معطّل"}
         </Label>
       </div>
     </div>
