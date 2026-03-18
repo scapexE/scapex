@@ -15,12 +15,14 @@ import { Input } from "@/components/ui/input";
 import { getProposals, getContracts, STATUS_META, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
 import { Separator } from "@/components/ui/separator";
+import { PORTAL_THEMES, type PortalTheme } from "@/pages/modules/client-portal/index";
 
-// The logged-in client name — in a real multi-tenant system this would come from auth.
-// For demo purposes we use "NEOM Co." as default client portal client.
 const CLIENT_NAME = "NEOM Co.";
 
-export function ClientDashboard() {
+const cardClass = "border-border/40 shadow-sm dark:border-border dark:shadow-none";
+const cardHeaderClass = "border-b border-border/40 dark:border-border";
+
+export function ClientDashboard({ portalTheme }: { portalTheme: PortalTheme }) {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const [chatMessage, setChatMessage] = useState("");
@@ -29,6 +31,8 @@ export function ClientDashboard() {
     { id: 2, sender: isRtl ? "أنت" : "You", role: "client", text: isRtl ? "شكراً لك. هل تم اعتمادها من البلدية؟" : "Thank you. Have they been approved by the municipality?", time: "10:45 AM" },
     { id: 3, sender: isRtl ? "أحمد (سكابكس)" : "Ahmed (SCAPE)", role: "support", text: isRtl ? "نعم، تم الاعتماد وصدرت رخصة البناء." : "Yes, approved and the building permit has been issued.", time: "11:00 AM" },
   ]);
+
+  const theme = PORTAL_THEMES.find(t => t.id === portalTheme) || PORTAL_THEMES[0];
 
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -64,29 +68,26 @@ export function ClientDashboard() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" dir={dir}>
 
-      {/* ── Main Column ── */}
       <div className="lg:col-span-2 space-y-6">
 
-        {/* Welcome & KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <Card className="bg-primary text-primary-foreground border-transparent sm:col-span-4">
+          <Card className={cn("sm:col-span-4 border-2 rounded-xl overflow-hidden", theme.welcomeBg, "border-transparent dark:border-border")}>
             <CardContent className="p-6 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold mb-1">
+                <h2 className={cn("text-2xl font-bold mb-1", theme.welcomeText)}>
                   {isRtl ? `مرحباً بك، ${CLIENT_NAME}` : `Welcome back, ${CLIENT_NAME}`}
                 </h2>
-                <p className="text-primary-foreground/80 text-sm">
+                <p className="text-muted-foreground text-sm">
                   {isRtl ? "إليك ملخص لمشاريعك وعروضك وعقودك الحالية." : "Here is a summary of your active projects, proposals, and contracts."}
                 </p>
               </div>
-              <div className="w-16 h-16 rounded-full bg-white/20 hidden sm:flex items-center justify-center shrink-0">
-                <Building2 className="w-8 h-8" />
+              <div className={cn("w-16 h-16 rounded-2xl hidden sm:flex items-center justify-center shrink-0", theme.welcomeBg)}>
+                <Building2 className={cn("w-8 h-8", theme.welcomeText)} />
               </div>
             </CardContent>
           </Card>
 
-          {/* KPI Cards */}
-          <Card className="border-border/50 shadow-sm">
+          <Card className={cardClass}>
             <CardContent className="p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"><Briefcase className="w-5 h-5" /></div>
@@ -96,7 +97,7 @@ export function ClientDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-sm">
+          <Card className={cardClass}>
             <CardContent className="p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"><FileCheck className="w-5 h-5" /></div>
@@ -106,7 +107,7 @@ export function ClientDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-sm">
+          <Card className={cardClass}>
             <CardContent className="p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"><Clock className="w-5 h-5" /></div>
@@ -116,7 +117,7 @@ export function ClientDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-sm">
+          <Card className={cardClass}>
             <CardContent className="p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400"><TrendingUp className="w-5 h-5" /></div>
@@ -127,9 +128,8 @@ export function ClientDashboard() {
           </Card>
         </div>
 
-        {/* ── Projects ── */}
-        <Card className="border-border/50 shadow-sm">
-          <CardHeader className="p-5 border-b border-border/50">
+        <Card className={cardClass}>
+          <CardHeader className={cn("p-5", cardHeaderClass)}>
             <CardTitle className="text-lg flex items-center justify-between">
               {isRtl ? "متابعة المشاريع" : "Project Tracking"}
               <Badge variant="secondary">{projects.length}</Badge>
@@ -141,7 +141,7 @@ export function ClientDashboard() {
                 {isRtl ? "لا توجد مشاريع حتى الآن. سيظهر مشروعك هنا فور توقيع العقد." : "No projects yet. Your project will appear here once a contract is signed."}
               </div>
             ) : (
-              <div className="divide-y divide-border/50">
+              <div className="divide-y divide-border/40 dark:divide-border">
                 {projects.map(proj => (
                   <div key={proj.id} className="p-5 hover:bg-muted/20 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
@@ -172,7 +172,6 @@ export function ClientDashboard() {
                         </div>
                       </div>
                     </div>
-                    {/* Phase mini-timeline */}
                     <div className="relative pt-5 pb-1">
                       <div className="absolute top-7 left-0 right-0 h-0.5 bg-border z-0" />
                       <div className="relative z-10 flex justify-between">
@@ -198,7 +197,6 @@ export function ClientDashboard() {
                         })}
                       </div>
                     </div>
-                    {/* Linked docs */}
                     {(proj.proposalNumber || proj.contractNumber) && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {proj.proposalNumber && (
@@ -225,17 +223,16 @@ export function ClientDashboard() {
           </CardContent>
         </Card>
 
-        {/* ── Proposals ── */}
         {proposals.length > 0 && (
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="p-5 border-b border-border/50">
+          <Card className={cardClass}>
+            <CardHeader className={cn("p-5", cardHeaderClass)}>
               <CardTitle className="text-lg flex items-center justify-between">
                 {isRtl ? "عروض الأسعار" : "Proposals"}
                 <Badge variant="secondary">{proposals.length}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-border/50">
+              <div className="divide-y divide-border/40 dark:divide-border">
                 {proposals.slice(0, 4).map(p => {
                   const sm = STATUS_META[p.status];
                   return (
@@ -265,12 +262,10 @@ export function ClientDashboard() {
 
       </div>
 
-      {/* ── Sidebar ── */}
       <div className="space-y-6">
 
-        {/* Contracts */}
-        <Card className="border-border/50 shadow-sm">
-          <CardHeader className="p-5 border-b border-border/50 pb-4">
+        <Card className={cardClass}>
+          <CardHeader className={cn("p-5 pb-4", cardHeaderClass)}>
             <CardTitle className="text-lg flex items-center gap-2">
               <FileCheck className="w-5 h-5 text-violet-600" />
               {isRtl ? "العقود" : "Contracts"}
@@ -282,7 +277,7 @@ export function ClientDashboard() {
                 {isRtl ? "لا توجد عقود حتى الآن" : "No contracts yet"}
               </div>
             ) : (
-              <div className="divide-y divide-border/50">
+              <div className="divide-y divide-border/40 dark:divide-border">
                 {contracts.map(c => (
                   <div key={c.id} className="p-4 hover:bg-muted/20 transition-colors">
                     <div className="flex items-start justify-between gap-2">
@@ -309,16 +304,15 @@ export function ClientDashboard() {
           </CardContent>
         </Card>
 
-        {/* Documents */}
-        <Card className="border-border/50 shadow-sm">
-          <CardHeader className="p-5 border-b border-border/50 pb-4">
+        <Card className={cardClass}>
+          <CardHeader className={cn("p-5 pb-4", cardHeaderClass)}>
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
               {isRtl ? "أحدث المستندات" : "Recent Documents"}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y divide-border/50">
+            <div className="divide-y divide-border/40 dark:divide-border">
               <div className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className="w-10 h-10 rounded bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 flex items-center justify-center shrink-0">
@@ -355,7 +349,7 @@ export function ClientDashboard() {
               )}
             </div>
           </CardContent>
-          <CardFooter className="p-3 border-t border-border/50 bg-muted/10 justify-center">
+          <CardFooter className="p-3 border-t border-border/40 dark:border-border bg-muted/10 justify-center">
             <Button variant="outline" size="sm" className="w-full gap-2 border-dashed">
               <Upload className="w-4 h-4" />
               {isRtl ? "رفع مستند جديد" : "Upload Document"}
@@ -363,9 +357,8 @@ export function ClientDashboard() {
           </CardFooter>
         </Card>
 
-        {/* Chat */}
-        <Card className="border-border/50 shadow-sm flex flex-col h-[380px]">
-          <CardHeader className="p-4 border-b border-border/50 bg-primary/5 pb-3">
+        <Card className={cn(cardClass, "flex flex-col h-[380px]")}>
+          <CardHeader className={cn("p-4 pb-3", cardHeaderClass)}>
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 border border-primary/20">
                 <AvatarFallback className="bg-primary/10 text-primary">SC</AvatarFallback>
@@ -396,7 +389,7 @@ export function ClientDashboard() {
               </div>
             </ScrollArea>
           </CardContent>
-          <CardFooter className="p-3 border-t border-border/50">
+          <CardFooter className="p-3 border-t border-border/40 dark:border-border">
             <form className="flex w-full gap-2" onSubmit={e => { e.preventDefault(); handleSendMessage(); }}>
               <Input
                 placeholder={isRtl ? "اكتب رسالة..." : "Type a message..."}

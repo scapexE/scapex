@@ -7,15 +7,15 @@ import { cn } from "@/lib/utils";
 import { getUsers, type SystemUser } from "@/lib/permissions";
 import { useTheme } from "next-themes";
 
-type PortalTheme = "default" | "ocean" | "forest" | "royal" | "sunset" | "slate";
+export type PortalTheme = "default" | "ocean" | "forest" | "royal" | "sunset" | "slate";
 
-const PORTAL_THEMES: { id: PortalTheme; nameAr: string; nameEn: string; primary: string; accent: string; gradient: string; bg: string }[] = [
-  { id: "default", nameAr: "افتراضي", nameEn: "Default", primary: "from-blue-600 to-blue-700", accent: "bg-blue-600", gradient: "from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30", bg: "bg-slate-50 dark:bg-slate-950" },
-  { id: "ocean", nameAr: "أزرق محيطي", nameEn: "Ocean", primary: "from-cyan-600 to-teal-600", accent: "bg-teal-600", gradient: "from-cyan-50 to-teal-50 dark:from-cyan-950/30 dark:to-teal-950/30", bg: "bg-cyan-50/30 dark:bg-cyan-950/20" },
-  { id: "forest", nameAr: "أخضر غابات", nameEn: "Forest", primary: "from-emerald-600 to-green-700", accent: "bg-emerald-600", gradient: "from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30", bg: "bg-emerald-50/30 dark:bg-emerald-950/20" },
-  { id: "royal", nameAr: "بنفسجي ملكي", nameEn: "Royal", primary: "from-violet-600 to-purple-700", accent: "bg-violet-600", gradient: "from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30", bg: "bg-violet-50/30 dark:bg-violet-950/20" },
-  { id: "sunset", nameAr: "غروب", nameEn: "Sunset", primary: "from-orange-500 to-rose-600", accent: "bg-orange-600", gradient: "from-orange-50 to-rose-50 dark:from-orange-950/30 dark:to-rose-950/30", bg: "bg-orange-50/30 dark:bg-orange-950/20" },
-  { id: "slate", nameAr: "رمادي أنيق", nameEn: "Slate", primary: "from-slate-700 to-gray-800", accent: "bg-slate-700", gradient: "from-slate-100 to-gray-100 dark:from-slate-900/30 dark:to-gray-900/30", bg: "bg-gray-50 dark:bg-gray-950" },
+export const PORTAL_THEMES: { id: PortalTheme; nameAr: string; nameEn: string; primary: string; primaryLight: string; accent: string; gradient: string; bg: string; welcomeBg: string; welcomeText: string }[] = [
+  { id: "default", nameAr: "افتراضي", nameEn: "Default", primary: "from-blue-500 to-indigo-500", primaryLight: "from-blue-400 to-indigo-400", accent: "bg-blue-500", gradient: "from-blue-50/80 to-indigo-50/60 dark:from-blue-950/20 dark:to-indigo-950/20", bg: "bg-slate-50 dark:bg-slate-950", welcomeBg: "bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-blue-500/15 dark:to-indigo-500/15", welcomeText: "text-blue-700 dark:text-blue-300" },
+  { id: "ocean", nameAr: "أزرق محيطي", nameEn: "Ocean", primary: "from-cyan-500 to-teal-500", primaryLight: "from-cyan-400 to-teal-400", accent: "bg-teal-500", gradient: "from-cyan-50/60 to-teal-50/60 dark:from-cyan-950/20 dark:to-teal-950/20", bg: "bg-cyan-50/20 dark:bg-cyan-950/10", welcomeBg: "bg-gradient-to-r from-cyan-500/10 to-teal-500/10 dark:from-cyan-500/15 dark:to-teal-500/15", welcomeText: "text-teal-700 dark:text-teal-300" },
+  { id: "forest", nameAr: "أخضر غابات", nameEn: "Forest", primary: "from-emerald-500 to-green-500", primaryLight: "from-emerald-400 to-green-400", accent: "bg-emerald-500", gradient: "from-emerald-50/60 to-green-50/60 dark:from-emerald-950/20 dark:to-green-950/20", bg: "bg-emerald-50/20 dark:bg-emerald-950/10", welcomeBg: "bg-gradient-to-r from-emerald-500/10 to-green-500/10 dark:from-emerald-500/15 dark:to-green-500/15", welcomeText: "text-emerald-700 dark:text-emerald-300" },
+  { id: "royal", nameAr: "بنفسجي ملكي", nameEn: "Royal", primary: "from-violet-500 to-purple-500", primaryLight: "from-violet-400 to-purple-400", accent: "bg-violet-500", gradient: "from-violet-50/60 to-purple-50/60 dark:from-violet-950/20 dark:to-purple-950/20", bg: "bg-violet-50/20 dark:bg-violet-950/10", welcomeBg: "bg-gradient-to-r from-violet-500/10 to-purple-500/10 dark:from-violet-500/15 dark:to-purple-500/15", welcomeText: "text-violet-700 dark:text-violet-300" },
+  { id: "sunset", nameAr: "غروب", nameEn: "Sunset", primary: "from-orange-400 to-rose-500", primaryLight: "from-orange-300 to-rose-400", accent: "bg-orange-500", gradient: "from-orange-50/60 to-rose-50/60 dark:from-orange-950/20 dark:to-rose-950/20", bg: "bg-orange-50/20 dark:bg-orange-950/10", welcomeBg: "bg-gradient-to-r from-orange-500/10 to-rose-500/10 dark:from-orange-500/15 dark:to-rose-500/15", welcomeText: "text-orange-700 dark:text-orange-300" },
+  { id: "slate", nameAr: "رمادي أنيق", nameEn: "Slate", primary: "from-slate-500 to-gray-600", primaryLight: "from-slate-400 to-gray-500", accent: "bg-slate-600", gradient: "from-slate-100/60 to-gray-100/60 dark:from-slate-900/20 dark:to-gray-900/20", bg: "bg-gray-50 dark:bg-gray-950", welcomeBg: "bg-gradient-to-r from-slate-500/10 to-gray-500/10 dark:from-slate-500/15 dark:to-gray-500/15", welcomeText: "text-slate-700 dark:text-slate-300" },
 ];
 
 const STORAGE_THEME = "scapex_portal_theme";
@@ -310,7 +310,7 @@ export default function ClientPortalModule() {
 
       <main className={cn("flex-1 p-4 md:p-6 lg:p-8 bg-gradient-to-b", currentTheme.gradient)}>
         <div className="max-w-7xl mx-auto">
-          <ClientDashboard />
+          <ClientDashboard portalTheme={portalTheme} />
         </div>
       </main>
 
