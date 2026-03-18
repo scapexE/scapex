@@ -52,6 +52,7 @@ const translations: Record<string, Record<Language, string>> = {
   
   // Header
   'header.search': { en: 'Search modules...', ar: 'البحث في الوحدات...' },
+  'header.modules_active': { en: 'active modules', ar: 'وحدة مفعّلة' },
   'header.notifications': { en: 'Notifications', ar: 'الإشعارات' },
   'header.profile': { en: 'Profile', ar: 'الملف الشخصي' },
 

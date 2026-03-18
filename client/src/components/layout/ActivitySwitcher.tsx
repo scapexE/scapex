@@ -5,9 +5,12 @@ import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { ChevronDown, Check, Layers } from "lucide-react";
 import type { SystemUser } from "@/lib/permissions";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export function ActivitySwitcher() {
   const { userActivities, activeActivity, setActiveActivity } = useBusinessActivity();
+  const { dir } = useLanguage();
+  const isRtl = dir === "rtl";
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -49,7 +52,7 @@ export function ActivitySwitcher() {
             <ActivityIcon name={act.icon} className={cn("w-3 h-3", c.text)} />
           </div>
           <p className={cn("flex-1 text-right text-[11px] font-semibold truncate leading-none", c.text)}>
-            {act.nameAr}
+            {isRtl ? act.nameAr : act.nameEn}
           </p>
         </div>
       </div>
@@ -85,7 +88,7 @@ export function ActivitySwitcher() {
           "flex-1 text-right text-[11px] font-semibold truncate leading-none",
           activeActivity && colors ? colors.text : "text-sidebar-foreground/50"
         )}>
-          {activeActivity ? activeActivity.nameAr : "جميع الأنشطة"}
+          {activeActivity ? (isRtl ? activeActivity.nameAr : activeActivity.nameEn) : (isRtl ? "جميع الأنشطة" : "All Activities")}
         </p>
 
         <ChevronDown className={cn(
@@ -112,8 +115,8 @@ export function ActivitySwitcher() {
                 <Layers className="w-3.5 h-3.5 text-sidebar-foreground/60" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">جميع الأنشطة</p>
-                <p className="text-[10px] text-sidebar-foreground/40 truncate">بدون تصفية</p>
+                <p className="text-xs font-medium truncate">{isRtl ? "جميع الأنشطة" : "All Activities"}</p>
+                <p className="text-[10px] text-sidebar-foreground/40 truncate">{isRtl ? "بدون تصفية" : "No filter"}</p>
               </div>
               {!activeActivity && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
             </button>
@@ -143,11 +146,11 @@ export function ActivitySwitcher() {
                     "text-xs font-medium truncate",
                     isSelected ? c.text : "text-sidebar-foreground/80"
                   )}>
-                    {activity.nameAr}
+                    {isRtl ? activity.nameAr : activity.nameEn}
                   </p>
                   {(activity.companyNameAr || activity.companyNameEn) && (
                     <p className="text-[10px] text-sidebar-foreground/40 truncate">
-                      {activity.companyNameAr || activity.companyNameEn}
+                      {isRtl ? (activity.companyNameAr || activity.companyNameEn) : (activity.companyNameEn || activity.companyNameAr)}
                     </p>
                   )}
                 </div>

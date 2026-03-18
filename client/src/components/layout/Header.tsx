@@ -62,17 +62,17 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             </div>
             <div>
               <p className={cn("text-xs font-semibold leading-tight", colors.text)}>
-                {activeActivity.nameAr}
+                {dir === "rtl" ? activeActivity.nameAr : activeActivity.nameEn}
               </p>
               <p className="text-[10px] text-muted-foreground leading-tight">
-                {activeActivity.modules.length} وحدة مفعّلة
+                {activeActivity.modules.length} {t("header.modules_active")}
               </p>
             </div>
             <div className={cn("w-px h-6 mx-1 rounded border-r", colors.border)} />
           </div>
         )}
 
-        <div className="relative w-full max-w-md hidden sm:block">
+        <div className="relative w-full max-w-[200px] hidden sm:block">
           <Search className={cn(
             "absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground",
             dir === "rtl" ? "right-3" : "left-3"
@@ -95,7 +95,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         {activeActivity && colors && (
           <Badge variant="outline" className={cn("border-transparent text-xs gap-1 sm:hidden", colors.badge, colors.text)}>
             <ActivityIcon name={activeActivity.icon} className="w-3 h-3" />
-            {activeActivity.nameAr}
+            {dir === "rtl" ? activeActivity.nameAr : activeActivity.nameEn}
           </Badge>
         )}
 

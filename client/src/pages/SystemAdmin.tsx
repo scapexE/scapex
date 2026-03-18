@@ -490,9 +490,9 @@ function ActivityAssignmentCard({
           <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", c.badge)}>
             <ActivityIcon name={act.icon} className={cn("w-4 h-4", c.text)} />
           </div>
-          <span className={c.text}>{act.nameAr}</span>
+          <span className={c.text}>{isRtl ? act.nameAr : act.nameEn}</span>
           {(act.companyNameAr || act.companyNameEn) && (
-            <span className="text-xs text-muted-foreground">— {act.companyNameAr || act.companyNameEn}</span>
+            <span className="text-xs text-muted-foreground">— {isRtl ? (act.companyNameAr || act.companyNameEn) : (act.companyNameEn || act.companyNameAr)}</span>
           )}
           <Badge variant="outline" className={cn("border-transparent text-xs ms-auto", c.badge, c.text)}>
             {assignedIds.length} {t("sa.users_count")}
@@ -763,8 +763,8 @@ function SystemAdminContent() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className="font-bold text-sm">{act.nameAr}</h3>
-                            <p className="text-xs text-muted-foreground">{act.nameEn}</p>
+                            <h3 className="font-bold text-sm">{isRtl ? act.nameAr : act.nameEn}</h3>
+                            <p className="text-xs text-muted-foreground">{isRtl ? act.nameEn : act.nameAr}</p>
                           </div>
                           <Switch checked={act.active} onCheckedChange={() => handleToggleActive(act)} />
                         </div>
