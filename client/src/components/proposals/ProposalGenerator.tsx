@@ -720,12 +720,15 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
       {/* Top bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 h-8">
-            {isRtl ? <ArrowRight className="w-4 h-4" /> : <ArrowRight className="w-4 h-4 rotate-180" />}
-            {isRtl ? "العروض" : "Proposals"}
+          <Button variant="outline" size="sm" onClick={onBack}
+            className="gap-1.5 h-8 border-border/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all group">
+            {isRtl
+              ? <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              : <ArrowRight className="w-3.5 h-3.5 rotate-180 group-hover:-translate-x-0.5 transition-transform" />}
+            <span className="text-xs font-medium">{isRtl ? "العروض" : "All Proposals"}</span>
           </Button>
-          <span className="text-muted-foreground">/</span>
-          <span className="text-sm font-mono font-medium">{proposal.proposalNumber}</span>
+          <span className="text-muted-foreground/40 text-xs">/</span>
+          <span className="text-sm font-mono font-semibold text-foreground/80">{proposal.proposalNumber}</span>
           <Badge className={cn("text-[10px] px-1.5 border", st.bg, st.color, st.border)}>{isRtl ? st.labelAr : st.labelEn}</Badge>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1123,12 +1126,15 @@ function ContractView({ contract: init, isRtl, onBack }: {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 h-8">
-            {isRtl ? <ArrowRight className="w-4 h-4" /> : <ArrowRight className="w-4 h-4 rotate-180" />}
-            {isRtl ? "العروض" : "Proposals"}
+          <Button variant="outline" size="sm" onClick={onBack}
+            className="gap-1.5 h-8 border-border/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all group">
+            {isRtl
+              ? <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              : <ArrowRight className="w-3.5 h-3.5 rotate-180 group-hover:-translate-x-0.5 transition-transform" />}
+            <span className="text-xs font-medium">{isRtl ? "العروض" : "All Proposals"}</span>
           </Button>
-          <span className="text-muted-foreground">/</span>
-          <span className="text-sm font-mono font-medium text-violet-600">{contract.contractNumber}</span>
+          <span className="text-muted-foreground/40 text-xs">/</span>
+          <span className="text-sm font-mono font-semibold text-violet-600">{contract.contractNumber}</span>
           <Badge className="text-[10px] px-1.5 bg-violet-50 text-violet-700 border-violet-200">{isRtl ? "عقد" : "Contract"}</Badge>
         </div>
         <div className="flex items-center gap-2">
