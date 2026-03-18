@@ -20,7 +20,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
-  ChevronDown, Check, Image, Link as LinkIcon, Ban,
+  ChevronDown, Check, Image, Link as LinkIcon, Ban, Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,7 @@ import { ALL_MODULES, ROLE_LABELS, getUsers, type SystemUser } from "@/lib/permi
 import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { CompanyServicesManager } from "@/components/system-admin/CompanyServicesManager";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MODULE_CATEGORIES: Record<string, { ar: string; en: string }> = {
@@ -718,9 +719,12 @@ function SystemAdminContent() {
       </div>
 
       <Tabs defaultValue="activities" dir={dir}>
-        <TabsList className="grid grid-cols-2 w-full max-w-sm">
+        <TabsList className="grid grid-cols-3 w-full max-w-2xl">
           <TabsTrigger value="activities" className="gap-2 text-xs sm:text-sm">
             <Layers className="w-4 h-4" /> {t("sa.tab.activities")}
+          </TabsTrigger>
+          <TabsTrigger value="services" className="gap-2 text-xs sm:text-sm">
+            <Building2 className="w-4 h-4" /> {dir === "rtl" ? "الأنشطة والخدمات" : "Company Services"}
           </TabsTrigger>
           <TabsTrigger value="assignments" className="gap-2 text-xs sm:text-sm">
             <UserCheck className="w-4 h-4" /> {t("sa.tab.users")}
@@ -809,6 +813,11 @@ function SystemAdminContent() {
               );
             })}
           </div>
+        </TabsContent>
+
+        {/* ── Company Services ──────────────── */}
+        <TabsContent value="services" className="mt-6">
+          <CompanyServicesManager />
         </TabsContent>
 
         {/* ── User Assignments ───────────────── */}

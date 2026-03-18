@@ -463,14 +463,18 @@ export function printProposal(proposal: Proposal, isRtl: boolean): void {
 <title>${proposal.proposalNumber}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
-.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; padding-bottom:18px; border-bottom:3px solid #1e40af; }
-.logo-wrap { display:flex; align-items:center; gap:12px; }
-.logo { background:#1e40af; color:white; width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:bold; }
-.co-name { font-size:19px; font-weight:700; color:#1e40af; }
-.co-sub { font-size:11px; color:#64748b; margin-top:2px; }
-.doc-right { text-align:${isRtl ? "left" : "right"}; }
-.doc-num { font-size:17px; font-weight:700; color:#1e40af; }
-.doc-lbl { font-size:11px; color:#64748b; }
+.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+.header-right { flex:1; text-align:${isRtl ? "right" : "left"}; }
+.co-name-ar { font-size:20px; font-weight:700; color:#1a202c; line-height:1.3; }
+.co-name-en { font-size:16px; font-weight:600; color:#4a5568; line-height:1.3; margin-top:2px; }
+.header-left { width:80px; display:flex; align-items:center; justify-content:center; }
+.logo { background:#1e40af; color:white; width:70px; height:70px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold; box-shadow:0 2px 8px rgba(30,64,175,0.2); }
+.divider { border:none; border-top:2px solid #1e40af; margin:16px 0; }
+.doc-meta { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
+.doc-left { text-align:${isRtl ? "right" : "left"}; }
+.doc-num { font-size:15px; font-weight:700; color:#1e40af; font-family:monospace; }
+.doc-date { font-size:12px; color:#64748b; margin-top:4px; }
+.doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; padding-bottom:6px; border-bottom:2px solid #1e40af; margin-bottom:20px; }
 .sec-title { font-size:12px; font-weight:700; color:#1e40af; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid #bfdbfe; letter-spacing:0.5px; }
 .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
 .info-item label { font-size:10px; color:#64748b; display:block; }
@@ -490,26 +494,36 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:7px 6px; }
 .sig-box { text-align:center; }
 .sig-line { border-bottom:2px solid #374151; height:56px; margin-bottom:8px; }
 .sig-lbl { font-size:12px; font-weight:600; }
-.footer { margin-top:24px; padding-top:10px; border-top:1px solid #e2e8f0; text-align:center; font-size:10px; color:#94a3b8; }
+.footer { margin-top:24px; padding-top:10px; border-top:1px solid #e2e8f0; text-align:center; font-size:9px; color:#94a3b8; }
 </style></head><body>
 <div class="page">
 <div class="header">
-  <div class="logo-wrap">
-    <div class="logo">S</div>
-    <div>
-      <div class="co-name">Scapex</div>
-      <div class="co-sub">${isRtl ? "منصة إدارة الأعمال الذكية | المملكة العربية السعودية" : "Smart Business Platform | Saudi Arabia"}</div>
-      <div style="font-size:10px;color:#94a3b8;margin-top:2px;">${isRtl ? "الرقم الضريبي: 300123456700003" : "VAT No: 300123456700003"}</div>
-    </div>
+  <div class="header-right">
+    ${isRtl ? `
+      <div class="co-name-ar">شركة سكابكس للاستشارات والخدمات الهندسية</div>
+      <div class="co-name-en">Scapex Consulting & Engineering Services</div>
+    ` : `
+      <div class="co-name-en">Scapex Consulting & Engineering Services</div>
+      <div class="co-name-ar">شركة سكابكس للاستشارات والخدمات الهندسية</div>
+    `}
+    <div style="font-size:10px;color:#94a3b8;margin-top:6px;">${isRtl ? "الرقم الضريبي: 300123456700003" : "VAT No: 300123456700003"}</div>
   </div>
-  <div class="doc-right">
-    <div class="doc-lbl">${isRtl ? "عرض سعر" : "QUOTATION"}</div>
-    <div class="doc-num">${proposal.proposalNumber}</div>
-    <div style="font-size:11px;color:#374151;margin-top:4px;">${isRtl ? "التاريخ" : "Date"}: ${date}</div>
-    <div style="font-size:11px;color:#374151;">${isRtl ? "صالح حتى" : "Valid Until"}: ${validUntil}</div>
-    <div style="margin-top:6px;background:#1e40af;color:white;font-size:10px;padding:3px 10px;border-radius:4px;display:inline-block;">${isRtl ? svc.labelAr : svc.labelEn}</div>
+  <div class="header-left">
+    <div class="logo">S</div>
   </div>
 </div>
+<hr class="divider"/>
+<div class="doc-meta">
+  <div class="doc-left">
+    <div class="doc-num">${proposal.proposalNumber}</div>
+    <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
+    <div class="doc-date">${isRtl ? "صالح حتى:" : "Valid Until:"} ${validUntil}</div>
+  </div>
+  <div style="text-align:${isRtl ? "left" : "right"};">
+    <div style="background:#1e40af;color:white;font-size:11px;padding:4px 12px;border-radius:6px;display:inline-block;">${isRtl ? svc.labelAr : svc.labelEn}</div>
+  </div>
+</div>
+<div class="doc-title">${isRtl ? "عرض سعر" : "QUOTATION"} (${isRtl ? svc.labelAr : svc.labelEn})</div>
 <div class="sec-title">${isRtl ? "معلومات العميل والمشروع" : "CLIENT & PROJECT INFORMATION"}</div>
 <div class="info-grid">
   <div class="info-item"><label>${isRtl ? "اسم العميل / الجهة" : "Client / Entity"}</label><span>${proposal.clientName}</span></div>
@@ -545,7 +559,7 @@ ${proposal.projectDesc ? `
   <div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">${isRtl ? "شركة سكابكس — التوقيع والختم" : "Scapex — Signature & Stamp"}</div></div>
   <div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">${proposal.clientName} — ${isRtl ? "التوقيع والختم" : "Signature & Stamp"}</div></div>
 </div>
-<div class="footer">${isRtl ? `شركة سكابكس للاستشارات والخدمات | المملكة العربية السعودية | وثيقة رقم ${proposal.proposalNumber}` : `Scapex Consulting & Engineering Services | Saudi Arabia | Document ${proposal.proposalNumber}`}</div>
+<div class="footer">${isRtl ? `تم إنشاء هذا العرض من منصة Scapex الذكية لإدارة الأعمال` : `Generated from Scapex Smart Business Management Platform`}</div>
 </div>
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
