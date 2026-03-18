@@ -5,11 +5,32 @@ export interface SystemUser {
   name: string;
   email: string;
   password: string;
-  role: Role;
+  role: Role;           // primary role (highest priority)
+  roles?: Role[];       // all assigned roles (multi-role support)
   permissions: string[];
   createdAt: string;
   active: boolean;
   pendingApproval?: boolean;
+}
+
+// Priority order for determining primary role when multiple are assigned
+export const ROLE_PRIORITY: Role[] = [
+  "admin", "manager", "hr_manager", "accountant", "engineer", "client", "viewer",
+];
+
+export function getPrimaryRole(roles: Role[]): Role {
+  for (const r of ROLE_PRIORITY) {
+    if (roles.includes(r)) return r;
+  }
+  return roles[0] ?? "viewer";
+}
+
+export function mergePermissions(roles: Role[]): string[] {
+  const merged = new Set<string>();
+  for (const r of roles) {
+    (ROLE_DEFAULTS[r] || []).forEach((p) => merged.add(p));
+  }
+  return Array.from(merged);
 }
 
 export const ALL_MODULES = [
