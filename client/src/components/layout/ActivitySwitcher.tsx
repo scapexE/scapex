@@ -27,11 +27,15 @@ export function ActivitySwitcher() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // If user has only one activity and is not admin, auto-select and hide switcher
-  if (!isAdmin && userActivities.length <= 1) {
-    if (userActivities.length === 1 && activeActivity?.id !== userActivities[0].id) {
+  // For non-admin with one assigned activity: auto-select it
+  useEffect(() => {
+    if (!isAdmin && userActivities.length === 1 && activeActivity?.id !== userActivities[0].id) {
       setActiveActivity(userActivities[0]);
     }
+  }, [isAdmin, userActivities, activeActivity, setActiveActivity]);
+
+  // Non-admin with exactly one activity: show static badge (no switcher needed)
+  if (!isAdmin && userActivities.length <= 1) {
     if (userActivities.length === 0) return null;
     const act = userActivities[0];
     const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor];

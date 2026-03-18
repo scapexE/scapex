@@ -137,7 +137,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         {hasCompanyInfo && (
           <div
             className={cn(
-              "flex items-center gap-2 px-2 py-1 rounded-lg border transition-colors shrink-0",
+              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors shrink-0",
               activeActivity && colors
                 ? cn(colors.border, "bg-white/40 dark:bg-black/20")
                 : "border-border/50 bg-secondary/30"
@@ -153,11 +153,11 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 data-testid="header-company-logo"
               />
             )}
-            {/* Company name */}
+            {/* Company name — visible on sm+ */}
             {displayName && (
               <span
                 className={cn(
-                  "text-xs font-bold hidden sm:inline leading-tight max-w-[120px] truncate",
+                  "hidden sm:inline text-xs font-bold leading-tight max-w-[160px] truncate",
                   activeActivity && colors ? colors.text : "text-foreground/80"
                 )}
                 data-testid="header-company-name"

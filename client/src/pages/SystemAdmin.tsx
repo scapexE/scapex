@@ -319,6 +319,9 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
                 value={companyNameAr}
                 onChange={(e) => setCompanyNameAr(e.target.value)}
                 placeholder="شركة ريادة التعمير للمقاولات"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck="false"
                 data-testid="input-activity-company-name-ar"
               />
             </div>
@@ -330,6 +333,9 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
                 value={companyNameEn}
                 onChange={(e) => setCompanyNameEn(e.target.value)}
                 placeholder="Riyada Construction Co."
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck="false"
                 data-testid="input-activity-company-name-en"
               />
             </div>
@@ -804,7 +810,8 @@ function SystemAdminContent() {
 
       {/* ── Add Dialog ─────────────────────── */}
       <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl"
+          onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="text-right flex items-center gap-2">
               <Plus className="w-5 h-5 text-primary" /> إضافة نشاط جديد
@@ -821,7 +828,8 @@ function SystemAdminContent() {
 
       {/* ── Edit Dialog ────────────────────── */}
       <Dialog open={!!editActivity} onOpenChange={(o) => { if (!o) setEditActivity(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl"
+          onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="text-right flex items-center gap-2">
               <Pencil className="w-5 h-5 text-primary" /> تعديل: {editActivity?.nameAr}
