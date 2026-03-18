@@ -516,7 +516,7 @@ ${FONT_IMPORT}${BASE_CSS}
 .divider { border:none; border-top:2px solid #1e40af; margin:10px 0; }
 .doc-num-block { direction:ltr; text-align:left; margin-bottom:6px; }
 .doc-num { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; }
-.doc-date { font-size:11px; color:#64748b; margin-top:1px; }
+.doc-date { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; margin-top:2px; }
 .doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; margin-bottom:8px; }
 .intro-box { background:#f0f7ff; ${isRtl ? "border-right:4px solid #1e40af; border-radius:0 6px 6px 0;" : "border-left:4px solid #1e40af; border-radius:6px 0 0 6px;"} padding:8px 14px; font-size:12px; line-height:1.7; color:#1e3a5f; margin-bottom:8px; }
 .sec-title { font-size:11px; font-weight:700; color:#1e40af; margin-bottom:4px; padding-bottom:2px; border-bottom:1px solid #bfdbfe; letter-spacing:0.4px; }
@@ -563,7 +563,7 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
   <div class="doc-num">${proposal.proposalNumber}</div>
   <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
 </div>
-<div class="doc-title" dir="${dir}">${isRtl ? `عرض سعر · ${svc.labelAr}` : `QUOTATION · ${svc.labelEn}`}</div>
+<div class="doc-title" dir="${dir}">${isRtl ? `عرض سعر ${svc.labelAr}` : `QUOTATION ${svc.labelEn}`}</div>
 <div class="sec-title">${isRtl ? "معلومات العميل والمشروع" : "CLIENT & PROJECT INFORMATION"}</div>
 
 <div class="info-grid">
@@ -572,11 +572,20 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
   ${proposal.clientContact ? `<div class="info-item"><label>${isRtl ? "التواصل" : "Contact"}</label><span dir="ltr">${proposal.clientContact}</span></div>` : ""}
   ${proposal.clientEmail ? `<div class="info-item"><label>${isRtl ? "البريد الإلكتروني" : "Email"}</label><span dir="ltr">${proposal.clientEmail}</span></div>` : ""}
 </div>
-${proposal.introduction ? `
-<div class="intro-box">${proposal.introduction}</div>` : ""}
-${proposal.projectDesc ? `
+${(() => {
+  const introText = (proposal.introduction || "").trim();
+  const scopeText = (proposal.projectDesc || "").trim();
+  if (introText && scopeText) {
+    return `<div class="intro-box">${introText}</div>
 <div class="sec-title">${isRtl ? "نطاق العمل" : "SCOPE OF WORK"}</div>
-<div class="scope-box">${proposal.projectDesc}</div>` : ""}
+<div class="scope-box">${scopeText}</div>`;
+  } else if (introText) {
+    return `<div class="intro-box">${introText}</div>`;
+  } else if (scopeText) {
+    return `<div class="intro-box">${scopeText}</div>`;
+  }
+  return "";
+})()}
 <div class="sec-title">${isRtl ? "جدول الكميات والأسعار" : "BILL OF QUANTITIES & PRICES"}</div>
 <table>
 <thead><tr>
