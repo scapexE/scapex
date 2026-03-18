@@ -149,7 +149,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               <img
                 src={displayLogoUrl}
                 alt={displayName || "logo"}
-                className="w-7 h-7 rounded-full object-cover border border-border/40 shrink-0"
+                className="w-9 h-9 rounded-full object-cover border border-border/40 shrink-0"
                 data-testid="header-company-logo"
               />
             )}
@@ -157,7 +157,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             {displayName && (
               <span
                 className={cn(
-                  "hidden sm:inline text-xs font-bold leading-tight max-w-[160px] truncate",
+                  "hidden sm:inline text-xs font-bold leading-tight max-w-[240px] truncate",
                   activeActivity && colors ? colors.text : "text-foreground/80"
                 )}
                 data-testid="header-company-name"
