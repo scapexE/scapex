@@ -70,6 +70,11 @@ export function BusinessActivityProvider({
   const setActivities = (list: BusinessActivity[]) => {
     setActivitiesState(list);
     saveActivities(list);
+    // Keep activeActivity in sync — if the active one was edited, reflect changes immediately
+    setActiveActivityState((prev) => {
+      if (!prev) return prev;
+      return list.find((a) => a.id === prev.id) ?? prev;
+    });
   };
 
   const setAssignments = (list: ActivityUserAssignment[]) => {
