@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ClientDashboard } from "@/components/client-portal/ClientDashboard";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bell, Menu, X, Building2 } from "lucide-react";
+import { LogOut, Bell, Menu, X, Building2, ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getUsers, type SystemUser } from "@/lib/permissions";
 
@@ -166,6 +166,15 @@ export default function ClientPortalModule() {
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-card" />
             </Button>
 
+            <Button variant="outline" size="sm"
+              className="hidden sm:flex items-center gap-2 text-primary hover:bg-primary/10"
+              onClick={() => { window.location.href = "/dashboard"; }}
+              data-testid="button-back-to-system"
+            >
+              {dir === "rtl" ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
+              {dir === "rtl" ? "العودة للنظام" : "Back to System"}
+            </Button>
+
             <Button variant="ghost" size="sm"
               className="hidden sm:flex items-center gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               onClick={handleLogout}
@@ -188,6 +197,10 @@ export default function ClientPortalModule() {
             <div className="py-2 px-3 bg-muted/50 rounded-md font-medium text-sm text-center">
               {portalUser.name}
             </div>
+            <Button variant="outline" className={cn("w-full text-primary", dir === "rtl" ? "justify-end" : "justify-start")} onClick={() => { window.location.href = "/dashboard"; }}>
+              {dir === "rtl" ? <ArrowRight className="w-4 h-4 ml-2" /> : <ArrowLeft className="w-4 h-4 mr-2" />}
+              {dir === "rtl" ? "العودة للنظام" : "Back to System"}
+            </Button>
             <Button variant="ghost" className={cn("w-full text-destructive hover:text-destructive hover:bg-destructive/10", dir === "rtl" ? "justify-end" : "justify-start")} onClick={handleLogout}>
               <LogOut className={cn("w-4 h-4", dir === "rtl" ? "ml-2" : "mr-2")} />
               {dir === "rtl" ? "تسجيل الخروج" : "Logout"}
