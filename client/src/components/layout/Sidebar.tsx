@@ -101,6 +101,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const [location] = useLocation();
   const { t, dir } = useLanguage();
+  const isRtl = dir === "rtl";
 
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
   const { activeRole, isMultiRole } = useActiveRole();
@@ -244,8 +245,12 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 {currentUser?.name ?? "Guest"}
               </p>
               <p className="text-xs text-sidebar-foreground/50 truncate">
-                {activeRole ? ROLE_LABELS[activeRole]?.ar : currentUser ? ROLE_LABELS[currentUser.role]?.ar : ""}
-                {isMultiRole && <span className="opacity-60"> · متعدد الأدوار</span>}
+                {activeRole
+                  ? (isRtl ? ROLE_LABELS[activeRole]?.ar : ROLE_LABELS[activeRole]?.en)
+                  : currentUser
+                    ? (isRtl ? ROLE_LABELS[currentUser.role]?.ar : ROLE_LABELS[currentUser.role]?.en)
+                    : ""}
+                {isMultiRole && <span className="opacity-60"> · {isRtl ? "متعدد الأدوار" : "Multi-role"}</span>}
               </p>
             </div>
             <Button
