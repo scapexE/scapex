@@ -70,9 +70,17 @@ export function hasAccess(user: SystemUser | null, page: string): boolean {
 export function getUsers(): SystemUser[] {
   const saved = localStorage.getItem("users");
   if (!saved) return initDefaultUsers();
-  const users = JSON.parse(saved);
-  if (users.length === 0) return initDefaultUsers();
-  return users;
+  try {
+    const users = JSON.parse(saved);
+    if (!Array.isArray(users) || users.length === 0) return initDefaultUsers();
+    // Detect old format (missing id or permissions fields) → force re-init
+    if (!users[0].id || !users[0].permissions || !users[0].name) {
+      return initDefaultUsers();
+    }
+    return users;
+  } catch {
+    return initDefaultUsers();
+  }
 }
 
 function initDefaultUsers(): SystemUser[] {

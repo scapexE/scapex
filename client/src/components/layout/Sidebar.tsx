@@ -223,7 +223,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             </Button>
           </div>
           <div className="text-center text-[10px] opacity-40 text-sidebar-foreground">
-            © 2026 Scapex. All rights reserved.
+            © 2026 Scapex · Smart Business Platform
           </div>
         </div>
       </aside>

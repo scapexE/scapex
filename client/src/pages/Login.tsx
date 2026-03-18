@@ -1,10 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getUsers } from "@/lib/permissions";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Clear any stale/incompatible session from old versions
+    const saved = localStorage.getItem("user");
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (!u.id || !u.permissions) localStorage.removeItem("user");
+      } catch {
+        localStorage.removeItem("user");
+      }
+    }
+    // Pre-initialize users so defaults are ready
+    getUsers();
+  }, []);
 
   const handleLogin = () => {
     setError("");
@@ -69,7 +84,7 @@ export default function Login() {
             fontWeight: "bold",
           }}>S</div>
           <h1 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>Scapex</h1>
-          <p style={{ color: "#6b7280", fontSize: "14px", marginTop: "4px" }}>نظام إدارة المقاولات</p>
+          <p style={{ color: "#6b7280", fontSize: "14px", marginTop: "4px" }}>منصة إدارة الأعمال الذكية</p>
         </div>
 
         {/* Form */}
