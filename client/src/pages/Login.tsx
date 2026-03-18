@@ -724,7 +724,7 @@ export default function Login() {
           </>
         )}
 
-        <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #1f2937", textAlign: "center" }}>
+        <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #1f2937", display: "flex", justifyContent: "center", gap: "10px" }}>
           <button
             data-testid="button-toggle-language"
             onClick={toggleLanguage}
@@ -746,25 +746,26 @@ export default function Login() {
           >
             🌐 {language === "ar" ? "English" : "عربي"}
           </button>
-        </div>
-
-        <div style={{ marginTop: "12px", textAlign: "center" }}>
           <button
             data-testid="button-about-system"
             onClick={() => setShowAbout(true)}
             style={{
               background: "transparent",
-              border: "none",
-              color: "rgba(255,255,255,0.3)",
-              fontSize: "11px",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "20px",
+              color: "rgba(255,255,255,0.45)",
+              fontSize: "12px",
+              padding: "6px 18px",
               cursor: "pointer",
-              padding: "4px 8px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
               transition: "all 0.2s",
             }}
-            onMouseEnter={e => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
           >
-            {isRtl ? "حول النظام" : "About System"}
+            ℹ️ {isRtl ? "حول النظام" : "About"}
           </button>
         </div>
 
