@@ -354,12 +354,14 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
       const raw = localStorage.getItem("scapex_proposal_prefill");
       if (raw) {
         const data = JSON.parse(raw);
-        if (data.clientName) setClientName(data.clientName);
+        if (data.clientName)    setClientName(data.clientName);
         if (data.clientContact) setClientContact(data.clientContact);
-        if (data.clientEmail) setClientEmail(data.clientEmail);
-        if (data.projectName) setProjectName(data.projectName);
+        if (data.clientEmail)   setClientEmail(data.clientEmail);
+        if (data.projectName)   setProjectName(data.projectName);
         localStorage.removeItem("scapex_proposal_prefill");
-        if (data.clientName) setStep(2);
+        // إذا جاءت البيانات كاملة (من Pipeline) نقفز مباشرة لخطوة 3
+        if (data.clientName && data.projectName) setStep(3);
+        else if (data.clientName) setStep(2);
       }
     } catch {}
   }, []);

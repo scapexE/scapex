@@ -2,7 +2,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMDashboard } from "@/components/crm/CRMDashboard";
-import { PipelineBoard } from "@/components/crm/PipelineBoard";
+import { PipelineBoard, type ProposalPrefill } from "@/components/crm/PipelineBoard";
 import { CustomersList } from "@/components/crm/CustomersList";
 import { Button } from "@/components/ui/button";
 import { Plus, FileText } from "lucide-react";
@@ -46,9 +46,14 @@ export default function CRMModule() {
 
           <div className="flex-1 mt-4 overflow-hidden relative">
             <TabsContent value="pipeline" className="h-full m-0 data-[state=active]:flex flex-col">
-              <PipelineBoard onCreateProposal={(clientName, contact) => {
+              <PipelineBoard onCreateProposal={(data: ProposalPrefill) => {
                 try {
-                  localStorage.setItem("scapex_proposal_prefill", JSON.stringify({ clientName, clientContact: contact }));
+                  localStorage.setItem("scapex_proposal_prefill", JSON.stringify({
+                    clientName:    data.clientName,
+                    clientEmail:   data.clientEmail,
+                    clientContact: data.clientContact,
+                    projectName:   data.projectName,
+                  }));
                 } catch {}
                 navigate("/smart-proposal");
               }} />
