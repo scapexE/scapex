@@ -29,6 +29,7 @@ import {
   UserCog,
   UserCheck,
   Zap,
+  HelpCircle,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ const menuCategories = [
       { id: "client_portal", icon: Globe, path: "/client-portal" },
       { id: "users", icon: UserCog, path: "/users" },
       { id: "system_admin", icon: Settings, path: "/system-admin" },
+      { id: "about", icon: HelpCircle, path: "/about" },
     ],
   },
 ];
@@ -132,6 +134,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     items: cat.items.filter((item) => {
       if (!currentUser) return false;
       // system_admin is only for admin role
+      if (item.id === "about") return true;
       if (item.id === "system_admin") return currentUser.role === "admin";
       if (currentUser.role === "admin") return true;
       // Users with approve_registrations can also access the users page

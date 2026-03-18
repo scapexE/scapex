@@ -141,6 +141,7 @@ service_categories, services
 - **Client Portal** (`/client-portal`) — Client self-service
 - **Users** (`/users`) — User management
 - **System Admin** (`/system-admin`) — Platform configuration
+- **About** (`/about`) — Company info, contact details, social links, support ticket form, technical system info. Visible to all users.
 
 ## Smart Proposal Generator Features
 - **6 service type templates**: Engineering Consulting, Environmental, Safety Consulting, Safety Services, Contracting, Metal Recycling

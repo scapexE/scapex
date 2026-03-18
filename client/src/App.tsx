@@ -33,6 +33,7 @@ import ServiceCatalogModule from "@/pages/modules/service-catalog/index";
 import CompaniesModule from "@/pages/modules/companies/index";
 import ApprovalsModule from "@/pages/modules/approvals/index";
 import MobileAppModule from "@/pages/modules/mobile-app/index";
+import AboutModule from "@/pages/modules/about/index";
 
 function Router() {
   return (
@@ -76,6 +77,7 @@ function Router() {
       {/* System & Portals */}
       <Route path="/dms" component={DMSModule} />
       <Route path="/client-portal" component={ClientPortalModule} />
+      <Route path="/about" component={AboutModule} />
 
       <Route component={NotFound} />
     </Switch>
