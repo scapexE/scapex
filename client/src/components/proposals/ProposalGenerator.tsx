@@ -30,6 +30,7 @@ import {
   printProposal, printContract,
 } from "@/lib/proposals";
 import { getActiveCompany } from "@/lib/company-services";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw,
@@ -485,7 +486,13 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs font-semibold flex items-center gap-1"><Phone className="w-3 h-3" />{isRtl ? "رقم التواصل" : "Contact No."}</Label>
-                    <Input className="mt-1.5 bg-secondary/30" placeholder="+966 5x xxx xxxx" dir="ltr" value={clientContact} onChange={(e) => setClientContact(e.target.value)} />
+                    <PhoneInput
+                      className="mt-1.5"
+                      inputClassName="bg-secondary/30"
+                      value={clientContact}
+                      onChange={setClientContact}
+                      isRtl={isRtl}
+                    />
                   </div>
                   <div>
                     <Label className="text-xs font-semibold flex items-center gap-1"><Mail className="w-3 h-3" />{isRtl ? "البريد الإلكتروني" : "Email"}</Label>
@@ -799,7 +806,14 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{isRtl ? "رقم التواصل" : "Contact"}</Label>
-                <Input value={proposal.clientContact || ""} onChange={(e) => upd("clientContact", e.target.value)} className="mt-1 h-8 text-sm bg-secondary/20" placeholder="+966 5x xxx xxxx" dir="ltr" />
+                <PhoneInput
+                  className="mt-1"
+                  inputClassName="bg-secondary/20 text-sm"
+                  size="sm"
+                  value={proposal.clientContact || ""}
+                  onChange={(v) => upd("clientContact", v)}
+                  isRtl={isRtl}
+                />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" />{isRtl ? "البريد الإلكتروني" : "Email"}</Label>
