@@ -218,7 +218,7 @@ export function CustomersList({ onCreateProposal }: {
                       </Badge>
                     </TableCell>
                     <TableCell className={isRtl ? 'text-left' : 'text-right'}>
-                      <div className={cn("flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity", isRtl ? "justify-start" : "justify-end")}>
+                      <div className={cn("flex items-center gap-1", isRtl ? "justify-start" : "justify-end")}>
                         <WhatsAppAction customerName={customer.contact} phoneNumber={customer.phone}
                           trigger={<Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"><MessageSquare className="h-4 w-4" /></Button>}
                         />
