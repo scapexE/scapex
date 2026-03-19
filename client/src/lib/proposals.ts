@@ -1,4 +1,4 @@
-import { getAboutData } from "@/lib/companySettings";
+import { getAboutData, getSystemSettings } from "@/lib/companySettings";
 
 // ─── Proposal Data Layer ────────────────────────────────────────────────────
 
@@ -801,16 +801,18 @@ ${(() => {
 </div>
 ${(() => {
   const about = getAboutData();
+  const sysCfg = getSystemSettings();
   const addr = isRtl ? (about.address || "").split("\n").join(" — ") : (about.addressEn || "").split("\n").join(" — ");
   const email = about.email1 || "info@scapex.sa";
   const web = about.website || "www.scapex.sa";
   const phone = about.phone1 || "";
+  const customFooter = isRtl ? sysCfg.proposalFooterAr : sysCfg.proposalFooterEn;
   return `<div class="footer-info"><div class="footer-info-grid">
   ${addr ? `<div class="footer-info-item"><strong>📍</strong> ${addr}</div>` : ""}
   ${phone ? `<div class="footer-info-item"><strong>📞</strong> ${phone}</div>` : ""}
   <div class="footer-info-item"><strong>✉</strong> ${email}</div>
   <div class="footer-info-item"><strong>🌐</strong> ${web}</div>
-</div></div>`;
+</div>${customFooter ? `<div style="text-align:center;margin-top:8px;font-size:10px;color:#4a5568;font-style:italic;">${customFooter}</div>` : ""}</div>`;
 })()}
 <div class="footer">${isRtl ? `تم إنشاء هذا العرض من منصة Scapex الذكية لإدارة الأعمال` : `Generated from Scapex Smart Business Management Platform`}</div>
 </div>

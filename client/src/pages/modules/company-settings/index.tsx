@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,19 +10,38 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Building2, MapPin, Phone, Mail, Globe, Clock, Save, RotateCcw,
-  Plus, Pencil, Trash2, GitBranch, FileText, Shield, CheckCircle2,
-  Info, Users, Landmark, AlertCircle,
+  Plus, Pencil, Trash2, GitBranch, FileText, Shield,
+  Info, Landmark, AlertCircle, Settings2, Printer, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { type AboutSettings, type CompanyBranch, DEFAULT_ABOUT, getAboutData } from "@/lib/companySettings";
+import {
+  type AboutSettings, type CompanyBranch, DEFAULT_ABOUT, getAboutData,
+  type SystemSettings, DEFAULT_SYSTEM_SETTINGS, getSystemSettings, saveSystemSettings,
+} from "@/lib/companySettings";
 import { logAction } from "@/lib/auditLog";
 import type { SystemUser } from "@/lib/permissions";
 
 function generateId() {
   return `br-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function SettingsField({ label, value, onChange, textarea, dir: fieldDir, placeholder, disabled }: {
+  label: string; value: string; onChange: (val: string) => void; textarea?: boolean; dir?: string; placeholder?: string; disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-medium">{label}</Label>
+      {textarea ? (
+        <Textarea value={value} onChange={(e) => onChange(e.target.value)} rows={3} className="text-sm" dir={fieldDir} placeholder={placeholder} disabled={disabled} />
+      ) : (
+        <Input value={value} onChange={(e) => onChange(e.target.value)} className="text-sm" dir={fieldDir} placeholder={placeholder} disabled={disabled} />
+      )}
+    </div>
+  );
 }
 
 export default function CompanySettingsModule() {
@@ -33,18 +52,25 @@ export default function CompanySettingsModule() {
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
 
-  const [form, setForm] = useState<AboutSettings>(getAboutData());
+  const [form, setForm] = useState<AboutSettings>(getAboutData);
+  const [sysForm, setSysForm] = useState<SystemSettings>(getSystemSettings);
   const [hasChanges, setHasChanges] = useState(false);
+  const [hasSysChanges, setHasSysChanges] = useState(false);
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<CompanyBranch | null>(null);
   const [branchForm, setBranchForm] = useState<CompanyBranch>({
     id: "", nameAr: "", nameEn: "", city: "", address: "", phone: "", manager: "", isActive: true,
   });
 
-  const update = (key: keyof AboutSettings, val: string) => {
-    setForm({ ...form, [key]: val });
+  const updateField = useCallback((key: keyof AboutSettings, val: string) => {
+    setForm(prev => ({ ...prev, [key]: val }));
     setHasChanges(true);
-  };
+  }, []);
+
+  const updateSysField = useCallback((key: keyof SystemSettings, val: string) => {
+    setSysForm(prev => ({ ...prev, [key]: val }));
+    setHasSysChanges(true);
+  }, []);
 
   const handleSave = () => {
     localStorage.setItem("scapex_about_settings", JSON.stringify(form));
@@ -63,6 +89,23 @@ export default function CompanySettingsModule() {
     setHasChanges(false);
     window.dispatchEvent(new CustomEvent("scapex_company_update"));
     toast({ title: t("تم الاستعادة", "Reset"), description: t("تمت استعادة القيم الافتراضية", "Default values restored") });
+  };
+
+  const handleSaveSys = () => {
+    saveSystemSettings(sysForm);
+    setHasSysChanges(false);
+    logAction("update", "system_settings", "Updated system settings", "تم تحديث إعدادات النظام");
+    toast({
+      title: t("تم الحفظ", "Saved"),
+      description: t("تم تحديث إعدادات النظام بنجاح", "System settings updated successfully"),
+    });
+  };
+
+  const handleResetSys = () => {
+    setSysForm({ ...DEFAULT_SYSTEM_SETTINGS });
+    localStorage.removeItem("scapex_system_settings");
+    setHasSysChanges(false);
+    toast({ title: t("تم الاستعادة", "Reset"), description: t("تمت استعادة الإعدادات الافتراضية", "Default settings restored") });
   };
 
   const openAddBranch = () => {
@@ -88,28 +131,15 @@ export default function CompanySettingsModule() {
     } else {
       newBranches = [...(form.branches || []), branchForm];
     }
-    setForm({ ...form, branches: newBranches });
+    setForm(prev => ({ ...prev, branches: newBranches }));
     setHasChanges(true);
     setBranchDialogOpen(false);
   };
 
   const deleteBranch = (id: string) => {
-    setForm({ ...form, branches: (form.branches || []).filter(b => b.id !== id) });
+    setForm(prev => ({ ...prev, branches: (prev.branches || []).filter(b => b.id !== id) }));
     setHasChanges(true);
   };
-
-  const Field = ({ label, value, field, textarea, dir: fieldDir, placeholder }: {
-    label: string; value: string; field: keyof AboutSettings; textarea?: boolean; dir?: string; placeholder?: string;
-  }) => (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium">{label}</Label>
-      {textarea ? (
-        <Textarea value={value} onChange={(e) => update(field, e.target.value)} rows={3} className="text-sm" dir={fieldDir} placeholder={placeholder} disabled={!isAdmin} />
-      ) : (
-        <Input value={value} onChange={(e) => update(field, e.target.value)} className="text-sm" dir={fieldDir} placeholder={placeholder} disabled={!isAdmin} />
-      )}
-    </div>
-  );
 
   const completeness = (() => {
     const fields = [form.companyNameAr, form.companyNameEn, form.address, form.addressEn, form.phone1, form.email1, form.website, form.crNumber, form.vatNumber];
@@ -142,13 +172,13 @@ export default function CompanySettingsModule() {
                 {t("إدارة الشركة", "Company Management")}
               </h1>
               <p className="text-sm text-muted-foreground">
-                {t("المصدر المركزي لجميع بيانات ومعلومات الشركة في النظام", "Central source for all company data across the system")}
+                {t("المصدر المركزي لجميع بيانات ومعلومات الشركة وإعدادات النظام", "Central source for all company data and system settings")}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {hasChanges && (
+            {(hasChanges || hasSysChanges) && (
               <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 gap-1">
                 <AlertCircle className="w-3 h-3" />
                 {t("تغييرات غير محفوظة", "Unsaved changes")}
@@ -161,14 +191,6 @@ export default function CompanySettingsModule() {
               </Badge>
             </div>
           </div>
-        </div>
-
-        <div className="p-3 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
-          <Info className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{t(
-            "البيانات المدخلة هنا ستنعكس تلقائياً على جميع أجزاء النظام: عروض الأسعار، التقارير، صفحة حول النظام، والتذييل في المستندات المطبوعة.",
-            "Data entered here will automatically reflect across the entire system: proposals, reports, About page, and document print footers."
-          )}</span>
         </div>
 
         <Tabs defaultValue="basic" className="w-full">
@@ -189,10 +211,17 @@ export default function CompanySettingsModule() {
               )}
             </TabsTrigger>
             <TabsTrigger value="social" className="gap-1.5 text-xs" data-testid="tab-social">
-              <Globe className="w-3.5 h-3.5" />{t("التواصل الاجتماعي", "Social Media")}
+              <Globe className="w-3.5 h-3.5" />{t("التواصل الاجتماعي", "Social")}
+            </TabsTrigger>
+            <TabsTrigger value="system" className="gap-1.5 text-xs" data-testid="tab-system">
+              <Settings2 className="w-3.5 h-3.5" />{t("إعدادات النظام", "System Settings")}
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="gap-1.5 text-xs" data-testid="tab-templates">
+              <Printer className="w-3.5 h-3.5" />{t("قوالب الطباعة", "Print Templates")}
             </TabsTrigger>
           </TabsList>
 
+          {/* ═══ Basic Info ═══ */}
           <TabsContent value="basic" className="mt-4 space-y-6">
             <Card className="border-border/50">
               <CardHeader className="pb-3">
@@ -203,11 +232,11 @@ export default function CompanySettingsModule() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t("اسم الشركة (عربي)", "Company Name (Arabic)")} value={form.companyNameAr} field="companyNameAr" placeholder={t("مثال: شركة سكابكس", "e.g. Scapex Co.")} />
-                  <Field label={t("اسم الشركة (إنجليزي)", "Company Name (English)")} value={form.companyNameEn} field="companyNameEn" placeholder="e.g. Scapex Company" dir="ltr" />
+                  <SettingsField label={t("اسم الشركة (عربي)", "Company Name (Arabic)")} value={form.companyNameAr} onChange={(v) => updateField("companyNameAr", v)} placeholder={t("مثال: شركة سكابكس", "e.g. Scapex Co.")} disabled={!isAdmin} />
+                  <SettingsField label={t("اسم الشركة (إنجليزي)", "Company Name (English)")} value={form.companyNameEn} onChange={(v) => updateField("companyNameEn", v)} placeholder="e.g. Scapex Company" dir="ltr" disabled={!isAdmin} />
                 </div>
-                <Field label={t("نبذة عن الشركة (عربي)", "Company Description (Arabic)")} value={form.descriptionAr} field="descriptionAr" textarea />
-                <Field label={t("نبذة عن الشركة (إنجليزي)", "Company Description (English)")} value={form.descriptionEn} field="descriptionEn" textarea dir="ltr" />
+                <SettingsField label={t("نبذة عن الشركة (عربي)", "Company Description (Arabic)")} value={form.descriptionAr} onChange={(v) => updateField("descriptionAr", v)} textarea disabled={!isAdmin} />
+                <SettingsField label={t("نبذة عن الشركة (إنجليزي)", "Company Description (English)")} value={form.descriptionEn} onChange={(v) => updateField("descriptionEn", v)} textarea dir="ltr" disabled={!isAdmin} />
               </CardContent>
             </Card>
 
@@ -220,8 +249,8 @@ export default function CompanySettingsModule() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t("العنوان (عربي)", "Address (Arabic)")} value={form.address} field="address" textarea />
-                  <Field label={t("العنوان (إنجليزي)", "Address (English)")} value={form.addressEn} field="addressEn" textarea dir="ltr" />
+                  <SettingsField label={t("العنوان (عربي)", "Address (Arabic)")} value={form.address} onChange={(v) => updateField("address", v)} textarea disabled={!isAdmin} />
+                  <SettingsField label={t("العنوان (إنجليزي)", "Address (English)")} value={form.addressEn} onChange={(v) => updateField("addressEn", v)} textarea dir="ltr" disabled={!isAdmin} />
                 </div>
               </CardContent>
             </Card>
@@ -235,89 +264,89 @@ export default function CompanySettingsModule() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t("ساعات العمل (عربي)", "Working Hours (Arabic)")} value={form.workingHoursAr} field="workingHoursAr" />
-                  <Field label={t("ساعات العمل (إنجليزي)", "Working Hours (English)")} value={form.workingHoursEn} field="workingHoursEn" dir="ltr" />
+                  <SettingsField label={t("ساعات العمل (عربي)", "Working Hours (Arabic)")} value={form.workingHoursAr} onChange={(v) => updateField("workingHoursAr", v)} disabled={!isAdmin} />
+                  <SettingsField label={t("ساعات العمل (إنجليزي)", "Working Hours (English)")} value={form.workingHoursEn} onChange={(v) => updateField("workingHoursEn", v)} dir="ltr" disabled={!isAdmin} />
                 </div>
               </CardContent>
             </Card>
+
+            <div className="flex items-center gap-3 justify-end">
+              <Button variant="outline" onClick={handleReset} className="gap-1.5" data-testid="button-reset-company">
+                <RotateCcw className="w-3.5 h-3.5" />{t("استعادة الافتراضي", "Reset to Default")}
+              </Button>
+              <Button onClick={handleSave} className="gap-1.5 min-w-[140px]" disabled={!hasChanges} data-testid="button-save-company">
+                <Save className="w-3.5 h-3.5" />{t("حفظ التغييرات", "Save Changes")}
+              </Button>
+            </div>
           </TabsContent>
 
+          {/* ═══ Contact ═══ */}
           <TabsContent value="contact" className="mt-4 space-y-6">
             <Card className="border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-primary" />
-                  {t("أرقام الهاتف", "Phone Numbers")}
-                </CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Phone className="w-4 h-4 text-primary" />{t("أرقام الهاتف", "Phone Numbers")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t("الهاتف الرئيسي", "Primary Phone")} value={form.phone1} field="phone1" dir="ltr" placeholder="+966 XX XXX XXXX" />
-                  <Field label={t("هاتف إضافي", "Secondary Phone")} value={form.phone2} field="phone2" dir="ltr" placeholder="+966 XX XXX XXXX" />
+                  <SettingsField label={t("الهاتف الرئيسي", "Primary Phone")} value={form.phone1} onChange={(v) => updateField("phone1", v)} dir="ltr" placeholder="+966 XX XXX XXXX" disabled={!isAdmin} />
+                  <SettingsField label={t("هاتف إضافي", "Secondary Phone")} value={form.phone2} onChange={(v) => updateField("phone2", v)} dir="ltr" placeholder="+966 XX XXX XXXX" disabled={!isAdmin} />
                 </div>
               </CardContent>
             </Card>
-
             <Card className="border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-primary" />
-                  {t("البريد الإلكتروني", "Email Addresses")}
-                </CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Mail className="w-4 h-4 text-primary" />{t("البريد الإلكتروني", "Email Addresses")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t("البريد الرئيسي", "Primary Email")} value={form.email1} field="email1" dir="ltr" placeholder="info@company.sa" />
-                  <Field label={t("بريد الدعم الفني", "Support Email")} value={form.email2} field="email2" dir="ltr" placeholder="support@company.sa" />
+                  <SettingsField label={t("البريد الرئيسي", "Primary Email")} value={form.email1} onChange={(v) => updateField("email1", v)} dir="ltr" placeholder="info@company.sa" disabled={!isAdmin} />
+                  <SettingsField label={t("بريد الدعم الفني", "Support Email")} value={form.email2} onChange={(v) => updateField("email2", v)} dir="ltr" placeholder="support@company.sa" disabled={!isAdmin} />
                 </div>
               </CardContent>
             </Card>
-
             <Card className="border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-primary" />
-                  {t("الموقع الإلكتروني", "Website")}
-                </CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-primary" />{t("الموقع الإلكتروني", "Website")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <Field label={t("رابط الموقع", "Website URL")} value={form.website || ""} field="website" dir="ltr" placeholder="www.company.sa" />
+                <SettingsField label={t("رابط الموقع", "Website URL")} value={form.website || ""} onChange={(v) => updateField("website", v)} dir="ltr" placeholder="www.company.sa" disabled={!isAdmin} />
               </CardContent>
             </Card>
+            <div className="flex items-center gap-3 justify-end">
+              <Button variant="outline" onClick={handleReset} className="gap-1.5"><RotateCcw className="w-3.5 h-3.5" />{t("استعادة الافتراضي", "Reset")}</Button>
+              <Button onClick={handleSave} className="gap-1.5 min-w-[140px]" disabled={!hasChanges}><Save className="w-3.5 h-3.5" />{t("حفظ التغييرات", "Save")}</Button>
+            </div>
           </TabsContent>
 
+          {/* ═══ Legal ═══ */}
           <TabsContent value="legal" className="mt-4 space-y-6">
             <Card className="border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Landmark className="w-4 h-4 text-primary" />
-                  {t("البيانات القانونية والتسجيل", "Legal & Registration Data")}
-                </CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Landmark className="w-4 h-4 text-primary" />{t("البيانات القانونية والتسجيل", "Legal & Registration Data")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t("رقم السجل التجاري", "Commercial Registration No.")} value={form.crNumber || ""} field="crNumber" dir="ltr" placeholder="1010XXXXXX" />
-                  <Field label={t("الرقم الضريبي (VAT)", "VAT Number")} value={form.vatNumber || ""} field="vatNumber" dir="ltr" placeholder="3XXXXXXXXXXXXXXX" />
+                  <SettingsField label={t("رقم السجل التجاري", "Commercial Registration No.")} value={form.crNumber || ""} onChange={(v) => updateField("crNumber", v)} dir="ltr" placeholder="1010XXXXXX" disabled={!isAdmin} />
+                  <SettingsField label={t("الرقم الضريبي (VAT)", "VAT Number")} value={form.vatNumber || ""} onChange={(v) => updateField("vatNumber", v)} dir="ltr" placeholder="3XXXXXXXXXXXXXXX" disabled={!isAdmin} />
                 </div>
                 <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{t(
-                    "الرقم الضريبي سيظهر تلقائياً في عروض الأسعار والعقود والفواتير المطبوعة.",
-                    "The VAT number will automatically appear on printed proposals, contracts, and invoices."
-                  )}</span>
+                  <span>{t("الرقم الضريبي سيظهر تلقائياً في عروض الأسعار والعقود والفواتير المطبوعة.", "The VAT number will automatically appear on printed proposals, contracts, and invoices.")}</span>
                 </div>
               </CardContent>
             </Card>
+            <div className="flex items-center gap-3 justify-end">
+              <Button variant="outline" onClick={handleReset} className="gap-1.5"><RotateCcw className="w-3.5 h-3.5" />{t("استعادة الافتراضي", "Reset")}</Button>
+              <Button onClick={handleSave} className="gap-1.5 min-w-[140px]" disabled={!hasChanges}><Save className="w-3.5 h-3.5" />{t("حفظ التغييرات", "Save")}</Button>
+            </div>
           </TabsContent>
 
+          {/* ═══ Branches ═══ */}
           <TabsContent value="branches" className="mt-4 space-y-6">
             <Card className="border-border/50">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-primary" />
-                    {t("فروع الشركة", "Company Branches")}
-                  </CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2"><GitBranch className="w-4 h-4 text-primary" />{t("فروع الشركة", "Company Branches")}</CardTitle>
                   <Button size="sm" className="gap-1.5 h-8" onClick={openAddBranch} data-testid="button-add-branch">
                     <Plus className="w-3.5 h-3.5" />{t("إضافة فرع", "Add Branch")}
                   </Button>
@@ -364,36 +393,153 @@ export default function CompanySettingsModule() {
                 )}
               </CardContent>
             </Card>
+            <div className="flex items-center gap-3 justify-end">
+              <Button onClick={handleSave} className="gap-1.5 min-w-[140px]" disabled={!hasChanges}><Save className="w-3.5 h-3.5" />{t("حفظ التغييرات", "Save")}</Button>
+            </div>
           </TabsContent>
 
+          {/* ═══ Social ═══ */}
           <TabsContent value="social" className="mt-4 space-y-6">
             <Card className="border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-primary" />
-                  {t("حسابات التواصل الاجتماعي", "Social Media Accounts")}
-                </CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-primary" />{t("حسابات التواصل الاجتماعي", "Social Media Accounts")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Field label="Twitter / X" value={form.twitterHandle} field="twitterHandle" dir="ltr" placeholder="@company" />
-                  <Field label="LinkedIn URL" value={form.linkedinUrl} field="linkedinUrl" dir="ltr" placeholder="https://linkedin.com/company/..." />
-                  <Field label="WhatsApp" value={form.whatsapp} field="whatsapp" dir="ltr" placeholder="+966XXXXXXXXX" />
+                  <SettingsField label="Twitter / X" value={form.twitterHandle} onChange={(v) => updateField("twitterHandle", v)} dir="ltr" placeholder="@company" disabled={!isAdmin} />
+                  <SettingsField label="LinkedIn URL" value={form.linkedinUrl} onChange={(v) => updateField("linkedinUrl", v)} dir="ltr" placeholder="https://linkedin.com/company/..." disabled={!isAdmin} />
+                  <SettingsField label="WhatsApp" value={form.whatsapp} onChange={(v) => updateField("whatsapp", v)} dir="ltr" placeholder="+966XXXXXXXXX" disabled={!isAdmin} />
                 </div>
               </CardContent>
             </Card>
+            <div className="flex items-center gap-3 justify-end">
+              <Button variant="outline" onClick={handleReset} className="gap-1.5"><RotateCcw className="w-3.5 h-3.5" />{t("استعادة الافتراضي", "Reset")}</Button>
+              <Button onClick={handleSave} className="gap-1.5 min-w-[140px]" disabled={!hasChanges}><Save className="w-3.5 h-3.5" />{t("حفظ التغييرات", "Save")}</Button>
+            </div>
+          </TabsContent>
+
+          {/* ═══ System Settings ═══ */}
+          <TabsContent value="system" className="mt-4 space-y-6">
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><Clock className="w-4 h-4 text-primary" />{t("نظام الوقت", "Time Format")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium">{t("صيغة الوقت", "Time Format")}</Label>
+                  <Select value={sysForm.timeFormat} onValueChange={(v) => { setSysForm(prev => ({ ...prev, timeFormat: v as "24h" | "12h" })); setHasSysChanges(true); }}>
+                    <SelectTrigger data-testid="select-time-format" className="w-full sm:w-[280px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="12h">{t("12 ساعة (صباحاً/مساءً)", "12 Hour (AM/PM)")}</SelectItem>
+                      <SelectItem value="24h">{t("24 ساعة", "24 Hour")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="p-3 rounded-lg bg-secondary/30 border border-border/30 text-xs">
+                    <p className="text-muted-foreground">{t("مثال:", "Example:")} <span className="font-mono font-medium text-foreground">{sysForm.timeFormat === "24h" ? "14:30" : "2:30 PM"}</span></p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" />{t("نظام التاريخ", "Date Format")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium">{t("نوع التقويم", "Calendar Type")}</Label>
+                  <Select value={sysForm.dateFormat} onValueChange={(v) => { setSysForm(prev => ({ ...prev, dateFormat: v as "gregorian" | "hijri" | "both" })); setHasSysChanges(true); }}>
+                    <SelectTrigger data-testid="select-date-format" className="w-full sm:w-[280px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gregorian">{t("ميلادي فقط", "Gregorian Only")}</SelectItem>
+                      <SelectItem value="hijri">{t("هجري فقط", "Hijri Only")}</SelectItem>
+                      <SelectItem value="both">{t("ميلادي وهجري معاً", "Both (Gregorian & Hijri)")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="p-3 rounded-lg bg-secondary/30 border border-border/30 text-xs space-y-1">
+                    {(sysForm.dateFormat === "gregorian" || sysForm.dateFormat === "both") && (
+                      <p className="text-muted-foreground">{t("ميلادي:", "Gregorian:")} <span className="font-mono font-medium text-foreground">{new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</span></p>
+                    )}
+                    {(sysForm.dateFormat === "hijri" || sysForm.dateFormat === "both") && (
+                      <p className="text-muted-foreground">{t("هجري:", "Hijri:")} <span className="font-mono font-medium text-foreground">{new Date().toLocaleDateString("ar-SA-u-ca-islamic", { year: "numeric", month: "long", day: "numeric" })}</span></p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-3 justify-end">
+              <Button variant="outline" onClick={handleResetSys} className="gap-1.5"><RotateCcw className="w-3.5 h-3.5" />{t("استعادة الافتراضي", "Reset")}</Button>
+              <Button onClick={handleSaveSys} className="gap-1.5 min-w-[140px]" disabled={!hasSysChanges} data-testid="button-save-system">
+                <Save className="w-3.5 h-3.5" />{t("حفظ الإعدادات", "Save Settings")}
+              </Button>
+            </div>
+          </TabsContent>
+
+          {/* ═══ Print Templates ═══ */}
+          <TabsContent value="templates" className="mt-4 space-y-6">
+            <div className="p-3 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{t(
+                "خصص النصوص التي تظهر في تذييل عروض الأسعار والفواتير والخطابات الرسمية عند الطباعة. هذه النصوص ستظهر في جميع المستندات المطبوعة.",
+                "Customize the text shown in the footer of proposals, invoices, and official letters when printed. These texts will appear in all printed documents."
+              )}</span>
+            </div>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />{t("قالب عرض السعر", "Proposal Template")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SettingsField label={t("تذييل عرض السعر (عربي)", "Proposal Footer (Arabic)")} value={sysForm.proposalFooterAr} onChange={(v) => updateSysField("proposalFooterAr", v)} textarea disabled={!isAdmin} />
+                  <SettingsField label={t("تذييل عرض السعر (إنجليزي)", "Proposal Footer (English)")} value={sysForm.proposalFooterEn} onChange={(v) => updateSysField("proposalFooterEn", v)} textarea dir="ltr" disabled={!isAdmin} />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-green-600" />{t("قالب الفاتورة", "Invoice Template")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SettingsField label={t("تذييل الفاتورة (عربي)", "Invoice Footer (Arabic)")} value={sysForm.invoiceFooterAr} onChange={(v) => updateSysField("invoiceFooterAr", v)} textarea disabled={!isAdmin} />
+                  <SettingsField label={t("تذييل الفاتورة (إنجليزي)", "Invoice Footer (English)")} value={sysForm.invoiceFooterEn} onChange={(v) => updateSysField("invoiceFooterEn", v)} textarea dir="ltr" disabled={!isAdmin} />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-violet-600" />{t("قالب الخطابات الرسمية", "Official Letter Template")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SettingsField label={t("ترويسة الخطاب (عربي)", "Letter Header (Arabic)")} value={sysForm.letterHeaderAr} onChange={(v) => updateSysField("letterHeaderAr", v)} textarea disabled={!isAdmin} placeholder={t("نص الترويسة الرسمية...", "Official header text...")} />
+                  <SettingsField label={t("ترويسة الخطاب (إنجليزي)", "Letter Header (English)")} value={sysForm.letterHeaderEn} onChange={(v) => updateSysField("letterHeaderEn", v)} textarea dir="ltr" disabled={!isAdmin} placeholder="Official header text..." />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SettingsField label={t("تذييل الخطاب (عربي)", "Letter Footer (Arabic)")} value={sysForm.letterFooterAr} onChange={(v) => updateSysField("letterFooterAr", v)} textarea disabled={!isAdmin} placeholder={t("نص التذييل الرسمي...", "Official footer text...")} />
+                  <SettingsField label={t("تذييل الخطاب (إنجليزي)", "Letter Footer (English)")} value={sysForm.letterFooterEn} onChange={(v) => updateSysField("letterFooterEn", v)} textarea dir="ltr" disabled={!isAdmin} placeholder="Official footer text..." />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-3 justify-end">
+              <Button variant="outline" onClick={handleResetSys} className="gap-1.5"><RotateCcw className="w-3.5 h-3.5" />{t("استعادة الافتراضي", "Reset")}</Button>
+              <Button onClick={handleSaveSys} className="gap-1.5 min-w-[140px]" disabled={!hasSysChanges} data-testid="button-save-templates">
+                <Save className="w-3.5 h-3.5" />{t("حفظ القوالب", "Save Templates")}
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
 
-        <div className="flex items-center gap-3 justify-end pt-2 pb-6 border-t border-border/30">
-          <Button variant="outline" onClick={handleReset} className="gap-1.5" data-testid="button-reset-company">
-            <RotateCcw className="w-3.5 h-3.5" />{t("استعادة الافتراضي", "Reset to Default")}
-          </Button>
-          <Button onClick={handleSave} className="gap-1.5 min-w-[140px]" disabled={!hasChanges} data-testid="button-save-company">
-            <Save className="w-3.5 h-3.5" />{t("حفظ جميع التغييرات", "Save All Changes")}
-          </Button>
-        </div>
-
+        {/* Branch Dialog */}
         <Dialog open={branchDialogOpen} onOpenChange={setBranchDialogOpen}>
           <DialogContent className="max-w-lg" dir={dir} onClick={(e) => e.stopPropagation()}>
             <DialogHeader>

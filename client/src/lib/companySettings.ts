@@ -1,3 +1,47 @@
+export type TimeFormat = "24h" | "12h";
+export type DateFormat = "gregorian" | "hijri" | "both";
+
+export interface SystemSettings {
+  timeFormat: TimeFormat;
+  dateFormat: DateFormat;
+  proposalFooterAr: string;
+  proposalFooterEn: string;
+  invoiceFooterAr: string;
+  invoiceFooterEn: string;
+  letterHeaderAr: string;
+  letterHeaderEn: string;
+  letterFooterAr: string;
+  letterFooterEn: string;
+}
+
+export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
+  timeFormat: "12h",
+  dateFormat: "both",
+  proposalFooterAr: "نشكركم على ثقتكم بنا ونتطلع للعمل معكم",
+  proposalFooterEn: "Thank you for your trust. We look forward to working with you.",
+  invoiceFooterAr: "يرجى السداد خلال 30 يوماً من تاريخ الفاتورة",
+  invoiceFooterEn: "Payment is due within 30 days from the invoice date.",
+  letterHeaderAr: "",
+  letterHeaderEn: "",
+  letterFooterAr: "",
+  letterFooterEn: "",
+};
+
+export const SYSTEM_SETTINGS_KEY = "scapex_system_settings";
+
+export function getSystemSettings(): SystemSettings {
+  try {
+    const stored = localStorage.getItem(SYSTEM_SETTINGS_KEY);
+    if (stored) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(stored) };
+  } catch {}
+  return DEFAULT_SYSTEM_SETTINGS;
+}
+
+export function saveSystemSettings(data: SystemSettings): void {
+  localStorage.setItem(SYSTEM_SETTINGS_KEY, JSON.stringify(data));
+  window.dispatchEvent(new CustomEvent("scapex_system_settings_update"));
+}
+
 export interface CompanyBranch {
   id: string;
   nameAr: string;
