@@ -650,18 +650,32 @@ const BASE_CSS = `
   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .page { padding:20px; } }
 `;
 
+export type PrintLanguage = "ar" | "en" | "both";
+
 export interface PrintProposalOptions {
   showValidity?: boolean;
+  language?: PrintLanguage;
 }
 
 export function printProposal(proposal: Proposal, isRtl: boolean, options?: PrintProposalOptions): void {
   const showValidity = options?.showValidity !== false;
-  const dir = isRtl ? "rtl" : "ltr";
+  const lang = options?.language || (isRtl ? "ar" : "en");
+  const ar = lang === "ar" || lang === "both";
+  const en = lang === "en" || lang === "both";
+  const mainDir = ar && !en ? "rtl" : en && !ar ? "ltr" : "rtl";
+  const bi = (arText: string, enText: string) => {
+    if (lang === "both") return `${arText} / ${enText}`;
+    return ar ? arText : enText;
+  };
   const svc = SERVICE_META[proposal.serviceType];
   const fmt = (n: number) => n.toLocaleString();
-  const date = new Date(proposal.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
-  const validUntil = new Date(new Date(proposal.createdAt).getTime() + proposal.validity * 86400000)
-    .toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
+  const dateAr = new Date(proposal.createdAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" });
+  const dateEn = new Date(proposal.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const date = bi(dateAr, dateEn);
+  const validUntilAr = new Date(new Date(proposal.createdAt).getTime() + proposal.validity * 86400000)
+    .toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" });
+  const validUntilEn = new Date(new Date(proposal.createdAt).getTime() + proposal.validity * 86400000)
+    .toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   // ── Company data: getAboutData() is the single source of truth ──
   const aboutData = getAboutData();
@@ -690,17 +704,21 @@ export function printProposal(proposal: Proposal, isRtl: boolean, options?: Prin
     ? `<img src="${coLogoUrl}" style="width:64px;height:64px;object-fit:contain;border-radius:10px;display:block;" />`
     : `<div style="background:${coLogoColor};color:white;width:64px;height:64px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.15);">${coLogoChar}</div>`;
 
+  const itemDesc = (item: ProposalItem) => {
+    if (lang === "both" && item.descAr && item.descEn) return `${item.descAr}<br/><span style="font-size:10px;color:#64748b;">${item.descEn}</span>`;
+    return ar ? item.descAr : item.descEn;
+  };
   const rows = proposal.items.map((item, i) => `
     <tr>
       <td class="tc bd">${i + 1}</td>
-      <td class="bd" style="padding:8px 6px;">${isRtl ? item.descAr : item.descEn}</td>
+      <td class="bd" style="padding:8px 6px;">${itemDesc(item)}</td>
       <td class="tc bd">${item.qty}</td>
       <td class="tc bd" style="font-size:11px;">${item.unit}</td>
       <td class="tr bd mono">${fmt(item.unitPrice)}</td>
       <td class="tr bd mono fw">${fmt(item.total)}</td>
     </tr>`).join("");
 
-  const html = `<!DOCTYPE html><html lang="${isRtl ? "ar" : "en"}" dir="${dir}"><head><meta charset="UTF-8"/>
+  const html = `<!DOCTYPE html><html lang="${ar ? "ar" : "en"}" dir="${mainDir}"><head><meta charset="UTF-8"/>
 <title>${proposal.proposalNumber}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
@@ -716,7 +734,7 @@ ${FONT_IMPORT}${BASE_CSS}
 .doc-num { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; }
 .doc-date { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; margin-top:2px; }
 .doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; margin-bottom:8px; }
-.intro-box { background:#f0f7ff; ${isRtl ? "border-right:4px solid #1e40af; border-radius:0 6px 6px 0;" : "border-left:4px solid #1e40af; border-radius:6px 0 0 6px;"} padding:8px 14px; font-size:12px; line-height:1.7; color:#1e3a5f; margin-bottom:8px; }
+.intro-box { background:#f0f7ff; ${mainDir === "rtl" ? "border-right:4px solid #1e40af; border-radius:0 6px 6px 0;" : "border-left:4px solid #1e40af; border-radius:6px 0 0 6px;"} padding:8px 14px; font-size:12px; line-height:1.7; color:#1e3a5f; margin-bottom:8px; }
 .sec-title { font-size:11px; font-weight:700; color:#1e40af; margin-bottom:4px; padding-bottom:2px; border-bottom:1px solid #bfdbfe; letter-spacing:0.4px; }
 .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; }
 .info-item label { font-size:9px; color:#64748b; display:block; }
@@ -728,7 +746,7 @@ tbody tr:nth-child(even) { background:#f8fafc; }
 tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 .total-row td { background:#1e40af !important; color:white !important; font-size:14px; font-weight:700; }
 .bd { border:1px solid #e2e8f0; padding:6px 5px; }
-.tc { text-align:center; } .tr { text-align:${isRtl ? "left" : "right"}; } .mono { font-family:monospace; } .fw { font-weight:bold; }
+.tc { text-align:center; } .tr { text-align:${mainDir === "rtl" ? "left" : "right"}; } .mono { font-family:monospace; } .fw { font-weight:bold; }
 .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
 .valid-box { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:5px; padding:9px; font-size:11px; color:#065f46; }
 .notes-box { background:#fffbeb; border:1px solid #fde68a; border-radius:5px; padding:9px; font-size:11px; color:#92400e; }
@@ -736,46 +754,38 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 .footer-info-grid { display:flex; justify-content:center; gap:28px; flex-wrap:wrap; }
 .footer-info-item { display:flex; align-items:center; gap:5px; font-size:10px; color:#374151; }
 .footer-info-item strong { font-weight:600; }
-.footer { margin-top:8px; text-align:center; font-size:9px; color:#94a3b8; }
 </style></head><body>
 <div class="page">
-<!-- الهيدر: dir=ltr دائماً لضمان الشعار في اليسار الفيزيائي -->
 <div class="header" dir="ltr">
   <div class="header-logo">
     ${logoHtml}
   </div>
-  <div class="header-name" dir="${dir}">
-    ${isRtl ? `
-      <div class="co-name-ar">${coNameAr}</div>
-      <div class="co-name-en">${coNameEn}</div>
-    ` : `
-      <div class="co-name-en">${coNameEn}</div>
-      <div class="co-name-ar">${coNameAr}</div>
-    `}
-    <div class="co-vat">${isRtl ? `الرقم الضريبي: ${coVat}` : `VAT No: ${coVat}`}</div>
+  <div class="header-name" dir="rtl">
+    <div class="co-name-ar">${coNameAr}</div>
+    <div class="co-name-en">${coNameEn}</div>
+    <div class="co-vat">${bi(`الرقم الضريبي: ${coVat}`, `VAT No: ${coVat}`)}</div>
   </div>
 </div>
 <hr class="divider"/>
-<!-- رقم العرض والتاريخ: dir=ltr لضمان أنه في اليسار الفيزيائي دائماً -->
 <div class="doc-num-block" dir="ltr">
   <div class="doc-num">${proposal.proposalNumber}</div>
-  <div class="doc-date">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
+  <div class="doc-date">${bi("التاريخ:", "Date:")} ${date}</div>
 </div>
-<div class="doc-title" dir="${dir}">${isRtl ? `عرض سعر ${svc.labelAr}` : `QUOTATION ${svc.labelEn}`}</div>
-<div class="sec-title">${isRtl ? "معلومات العميل والمشروع" : "CLIENT & PROJECT INFORMATION"}</div>
+<div class="doc-title" dir="${mainDir}">${bi(`عرض سعر ${svc.labelAr}`, `QUOTATION ${svc.labelEn}`)}</div>
+<div class="sec-title">${bi("معلومات العميل والمشروع", "CLIENT & PROJECT INFORMATION")}</div>
 
 <div class="info-grid">
-  <div class="info-item"><label>${isRtl ? "اسم العميل / الجهة" : "Client / Entity"}</label><span>${proposal.clientName}</span></div>
-  <div class="info-item"><label>${isRtl ? "اسم المشروع" : "Project Name"}</label><span>${proposal.projectName}</span></div>
-  ${proposal.clientContact ? `<div class="info-item"><label>${isRtl ? "التواصل" : "Contact"}</label><span dir="ltr">${proposal.clientContact}</span></div>` : ""}
-  ${proposal.clientEmail ? `<div class="info-item"><label>${isRtl ? "البريد الإلكتروني" : "Email"}</label><span dir="ltr">${proposal.clientEmail}</span></div>` : ""}
+  <div class="info-item"><label>${bi("اسم العميل / الجهة", "Client / Entity")}</label><span>${proposal.clientName}</span></div>
+  <div class="info-item"><label>${bi("اسم المشروع", "Project Name")}</label><span>${proposal.projectName}</span></div>
+  ${proposal.clientContact ? `<div class="info-item"><label>${bi("التواصل", "Contact")}</label><span dir="ltr">${proposal.clientContact}</span></div>` : ""}
+  ${proposal.clientEmail ? `<div class="info-item"><label>${bi("البريد الإلكتروني", "Email")}</label><span dir="ltr">${proposal.clientEmail}</span></div>` : ""}
 </div>
 ${(() => {
   const introText = (proposal.introduction || "").trim();
   const scopeText = (proposal.projectDesc || "").trim();
   if (introText && scopeText) {
     return `<div class="intro-box">${introText}</div>
-<div class="sec-title">${isRtl ? "نطاق العمل" : "SCOPE OF WORK"}</div>
+<div class="sec-title">${bi("نطاق العمل", "SCOPE OF WORK")}</div>
 <div class="scope-box">${scopeText}</div>`;
   } else if (introText) {
     return `<div class="intro-box">${introText}</div>`;
@@ -784,29 +794,29 @@ ${(() => {
   }
   return "";
 })()}
-<div class="sec-title">${isRtl ? "جدول الكميات والأسعار" : "BILL OF QUANTITIES & PRICES"}</div>
+<div class="sec-title">${bi("جدول الكميات والأسعار", "BILL OF QUANTITIES & PRICES")}</div>
 <table>
 <thead><tr>
-  <th style="width:36px;">${isRtl ? "م" : "#"}</th>
-  <th>${isRtl ? "وصف البند" : "Item Description"}</th>
-  <th style="width:54px;">${isRtl ? "الكمية" : "Qty"}</th>
-  <th style="width:80px;">${isRtl ? "الوحدة" : "Unit"}</th>
-  <th style="width:100px;">${isRtl ? "سعر الوحدة" : "Unit Price"}</th>
-  <th style="width:110px;">${isRtl ? "الإجمالي (ر.س)" : "Total (SAR)"}</th>
+  <th style="width:36px;">${bi("م", "#")}</th>
+  <th>${bi("وصف البند", "Item Description")}</th>
+  <th style="width:54px;">${bi("الكمية", "Qty")}</th>
+  <th style="width:80px;">${bi("الوحدة", "Unit")}</th>
+  <th style="width:100px;">${bi("سعر الوحدة", "Unit Price")}</th>
+  <th style="width:110px;">${bi("الإجمالي (ر.س)", "Total (SAR)")}</th>
 </tr></thead>
 <tbody>${rows}</tbody>
 <tfoot>
-  <tr><td colspan="5" style="text-align:${isRtl ? "end" : "end"};padding:8px;border:1px solid #e2e8f0;">${isRtl ? "المجموع قبل الضريبة:" : "Subtotal:"}</td><td class="tr bd mono">${fmt(proposal.subtotal)}</td></tr>
-  <tr><td colspan="5" style="text-align:end;padding:6px;border:1px solid #e2e8f0;font-size:11px;color:#64748b;">${isRtl ? `ضريبة القيمة المضافة (${proposal.vatRate}%):` : `VAT (${proposal.vatRate}%):`}</td><td class="tr bd mono" style="font-size:11px;color:#64748b;">${fmt(proposal.vatAmount)}</td></tr>
-  <tr class="total-row"><td colspan="5" style="text-align:end;padding:10px;border:1px solid #1e40af;">${isRtl ? "الإجمالي الكلي شامل الضريبة:" : "Grand Total incl. VAT:"}</td><td style="text-align:end;padding:10px;font-family:monospace;border:1px solid #1e40af;">${fmt(proposal.total)} ${proposal.currency}</td></tr>
+  <tr><td colspan="5" style="text-align:end;padding:8px;border:1px solid #e2e8f0;">${bi("المجموع قبل الضريبة:", "Subtotal:")}</td><td class="tr bd mono">${fmt(proposal.subtotal)}</td></tr>
+  <tr><td colspan="5" style="text-align:end;padding:6px;border:1px solid #e2e8f0;font-size:11px;color:#64748b;">${bi(`ضريبة القيمة المضافة (${proposal.vatRate}%):`, `VAT (${proposal.vatRate}%):`)}</td><td class="tr bd mono" style="font-size:11px;color:#64748b;">${fmt(proposal.vatAmount)}</td></tr>
+  <tr class="total-row"><td colspan="5" style="text-align:end;padding:10px;border:1px solid #1e40af;">${bi("الإجمالي الكلي شامل الضريبة:", "Grand Total incl. VAT:")}</td><td style="text-align:end;padding:10px;font-family:monospace;border:1px solid #1e40af;">${fmt(proposal.total)} ${proposal.currency}</td></tr>
 </tfoot>
 </table>
 <div class="bottom-grid">
-  ${showValidity ? `<div class="valid-box"><strong>${isRtl ? "صلاحية العرض:" : "Validity:"}</strong> ${isRtl ? `${proposal.validity} يوماً (حتى ${validUntil})` : `${proposal.validity} days (until ${validUntil})`}</div>` : "<div></div>"}
-  ${proposal.notes ? `<div class="notes-box"><strong>${isRtl ? "ملاحظات:" : "Notes:"}</strong><br/>${proposal.notes}</div>` : "<div></div>"}
+  ${showValidity ? `<div class="valid-box"><strong>${bi("صلاحية العرض:", "Validity:")}</strong> ${bi(`${proposal.validity} يوماً (حتى ${validUntilAr})`, `${proposal.validity} days (until ${validUntilEn})`)}</div>` : "<div></div>"}
+  ${proposal.notes ? `<div class="notes-box"><strong>${bi("ملاحظات:", "Notes:")}</strong><br/>${proposal.notes}</div>` : "<div></div>"}
 </div>
 <div style="text-align:center;margin:20px 0 10px;font-size:13px;font-weight:600;color:#1e40af;">
-  ${isRtl ? "نشكركم على ثقتكم بنا ونتطلع للعمل معكم" : "Thank you for your trust, we look forward to working with you"}
+  ${bi("نشكركم على ثقتكم بنا ونتطلع للعمل معكم", "Thank you for your trust, we look forward to working with you")}
 </div>
 ${(() => {
   const sigs = getDocumentSignatures(proposal.id);
@@ -817,21 +827,23 @@ ${(() => {
         ${sig ? `<img src="${sig.signatureDataUrl}" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ""}
       </div>
       <div style="font-weight:700;font-size:12px;">${label}</div>
-      ${sig ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">${sig.signerName} — ${sig.signerRole}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year:"numeric",month:"short",day:"numeric" })}</div>` : `<div style="font-size:10px;color:#94a3b8;margin-top:4px;">${isRtl ? "التوقيع والختم" : "Signature & Stamp"}</div>`}
+      ${sig ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">${sig.signerName} — ${sig.signerRole}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(ar ? "ar-SA" : "en-US", { year:"numeric",month:"short",day:"numeric" })}</div>` : `<div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bi("التوقيع والختم", "Signature & Stamp")}</div>`}
     </div>`;
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:30px;padding-top:16px;border-top:1px solid #e2e8f0;">
-    ${sigBox(isRtl ? "الطرف الأول — مقدم الخدمة" : "First Party — Service Provider", sigs.first)}
-    ${sigBox(isRtl ? `الطرف الثاني — ${proposal.clientName}` : `Second Party — ${proposal.clientName}`, sigs.second)}
+    ${sigBox(bi("الطرف الأول — مقدم الخدمة", "First Party — Service Provider"), sigs.first)}
+    ${sigBox(bi(`الطرف الثاني — ${proposal.clientName}`, `Second Party — ${proposal.clientName}`), sigs.second)}
   </div>`;
 })()}
 ${(() => {
   const about = getAboutData();
   const sysCfg = getSystemSettings();
-  const addr = isRtl ? (about.address || "").split("\n").join(" — ") : (about.addressEn || "").split("\n").join(" — ");
+  const addrAr = (about.address || "").split("\n").join(" — ");
+  const addrEn = (about.addressEn || "").split("\n").join(" — ");
+  const addr = lang === "both" && addrAr && addrEn ? `${addrAr} / ${addrEn}` : ar ? addrAr : addrEn;
   const email = about.email1 || "info@scapex.sa";
   const web = about.website || "www.scapex.sa";
   const phone = about.phone1 || "";
-  const customFooter = isRtl ? sysCfg.proposalFooterAr : sysCfg.proposalFooterEn;
+  const customFooter = lang === "both" ? [sysCfg.proposalFooterAr, sysCfg.proposalFooterEn].filter(Boolean).join(" / ") : ar ? sysCfg.proposalFooterAr : sysCfg.proposalFooterEn;
   return `<div class="footer-info"><div class="footer-info-grid">
   ${addr ? `<div class="footer-info-item"><strong>📍</strong> ${addr}</div>` : ""}
   ${phone ? `<div class="footer-info-item"><strong>📞</strong> ${phone}</div>` : ""}
@@ -839,7 +851,6 @@ ${(() => {
   <div class="footer-info-item"><strong>🌐</strong> ${web}</div>
 </div>${customFooter ? `<div style="text-align:center;margin-top:8px;font-size:10px;color:#4a5568;font-style:italic;">${customFooter}</div>` : ""}</div>`;
 })()}
-<div class="footer">${isRtl ? `تم إنشاء هذا العرض من منصة Scapex الذكية لإدارة الأعمال` : `Generated from Scapex Smart Business Management Platform`}</div>
 </div>
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
@@ -847,13 +858,21 @@ ${(() => {
   if (w) { w.document.write(html); w.document.close(); }
 }
 
-export function printContract(contract: Contract, isRtl: boolean): void {
-  const dir = isRtl ? "rtl" : "ltr";
+export function printContract(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage }): void {
+  const lang = options?.language || (isRtl ? "ar" : "en");
+  const ar = lang === "ar" || lang === "both";
+  const en = lang === "en" || lang === "both";
+  const mainDir = ar && !en ? "rtl" : en && !ar ? "ltr" : "rtl";
+  const bi = (arText: string, enText: string) => {
+    if (lang === "both") return `${arText} / ${enText}`;
+    return ar ? arText : enText;
+  };
   const svc = SERVICE_META[contract.serviceType];
   const fmt = (n: number) => n.toLocaleString();
-  const date = new Date(contract.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
+  const dateAr = new Date(contract.createdAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" });
+  const dateEn = new Date(contract.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const date = bi(dateAr, dateEn);
 
-  // ── Read active company data ──────────────────────────────────────────────
   let cNameAr = "شركة سكيب للاستشارات والخدمات الهندسية";
   let cNameEn = "Scapex Consulting & Engineering Services";
   let cVat    = "300123456700003";
@@ -871,85 +890,90 @@ export function printContract(contract: Contract, isRtl: boolean): void {
     ? `<img src="${cLogoUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:8px;" />`
     : `<div style="background:${cLogoColor};color:white;width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:bold;">${cLogoChar}</div>`;
 
+  const clauseContent = (c: Contract["clauses"][0]) => {
+    if (lang === "both") return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${c.titleAr}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;margin-bottom:8px;">${c.bodyAr}</div><div style="font-weight:600;color:#1e40af;margin-bottom:4px;font-size:12px;">${c.titleEn}</div><div style="font-size:11px;line-height:1.8;color:#64748b;white-space:pre-line;">${c.bodyEn}</div>`;
+    return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${ar ? c.titleAr : c.titleEn}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${ar ? c.bodyAr : c.bodyEn}</div>`;
+  };
   const clausesHtml = contract.clauses.map((c) => `
-    <div style="margin-bottom:16px;padding:14px;background:#f8fafc;border-radius:8px;border-${isRtl ? "right" : "left"}:4px solid #1e40af;">
-      <div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${isRtl ? c.titleAr : c.titleEn}</div>
-      <div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${isRtl ? c.bodyAr : c.bodyEn}</div>
+    <div style="margin-bottom:16px;padding:14px;background:#f8fafc;border-radius:8px;border-${mainDir === "rtl" ? "right" : "left"}:4px solid #1e40af;">
+      ${clauseContent(c)}
     </div>`).join("");
 
+  const milestoneText = (m: Contract["paymentSchedule"][0]) => {
+    if (lang === "both" && m.milestoneAr && m.milestoneEn) return `${m.milestoneAr} / ${m.milestoneEn}`;
+    return ar ? m.milestoneAr : m.milestoneEn;
+  };
   const payRows = contract.paymentSchedule.map((m, i) => `
     <tr>
       <td style="text-align:center;padding:8px 6px;border:1px solid #e2e8f0;">${i + 1}</td>
-      <td style="padding:8px 6px;border:1px solid #e2e8f0;">${isRtl ? m.milestoneAr : m.milestoneEn}</td>
+      <td style="padding:8px 6px;border:1px solid #e2e8f0;">${milestoneText(m)}</td>
       <td style="text-align:center;padding:8px 6px;border:1px solid #e2e8f0;">${m.percentage}%</td>
-      <td style="text-align:${isRtl ? "left" : "right"};padding:8px 6px;border:1px solid #e2e8f0;font-family:monospace;font-weight:bold;">${fmt(m.amount)} ${contract.currency}</td>
+      <td style="text-align:${mainDir === "rtl" ? "left" : "right"};padding:8px 6px;border:1px solid #e2e8f0;font-family:monospace;font-weight:bold;">${fmt(m.amount)} ${contract.currency}</td>
     </tr>`).join("");
 
-  const html = `<!DOCTYPE html><html lang="${isRtl ? "ar" : "en"}" dir="${dir}"><head><meta charset="UTF-8"/>
+  const html = `<!DOCTYPE html><html lang="${ar ? "ar" : "en"}" dir="${mainDir}"><head><meta charset="UTF-8"/>
 <title>${contract.contractNumber}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
 .header { text-align:center; margin-bottom:28px; padding-bottom:18px; border-bottom:3px solid #1e40af; }
 .logo-row { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:10px; }
-.logo { background:#1e40af; color:white; width:44px; height:44px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:bold; }
 .parties { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
 .party { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; }
 .party-lbl { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; font-weight:600; }
 .party-name { font-size:14px; font-weight:700; }
-.sec-title { font-size:13px; font-weight:700; color:#1e40af; margin-bottom:12px; padding:7px 12px; background:#eff6ff; border-radius:6px; border-${isRtl ? "right" : "left"}:4px solid #1e40af; }
+.sec-title { font-size:13px; font-weight:700; color:#1e40af; margin-bottom:12px; padding:7px 12px; background:#eff6ff; border-radius:6px; border-${mainDir === "rtl" ? "right" : "left"}:4px solid #1e40af; }
 table { width:100%; border-collapse:collapse; margin-bottom:16px; }
 thead th { background:#1e40af; color:white; padding:9px 6px; font-size:11px; font-weight:600; }
 tbody tr:nth-child(even) { background:#f8fafc; }
 .sig-grid { display:grid; grid-template-columns:1fr 1fr; gap:60px; margin-top:44px; }
 .sig-box { text-align:center; }
 .sig-line { border-bottom:2px solid #374151; height:60px; margin-bottom:10px; }
-.footer { margin-top:24px; padding-top:10px; border-top:1px solid #e2e8f0; text-align:center; font-size:10px; color:#94a3b8; }
 </style></head><body>
 <div class="page">
 <div class="header">
   <div class="logo-row">
     ${cLogoHtml}
-    <div style="text-align:${isRtl ? "right" : "left"}">
-      <div style="font-size:16px;font-weight:700;color:#1a202c;">${isRtl ? cNameAr : cNameEn}</div>
-      <div style="font-size:11px;color:#4a5568;">${isRtl ? cNameEn : cNameAr}</div>
-      <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${isRtl ? `الرقم الضريبي: ${cVat}` : `VAT No: ${cVat}`}</div>
+    <div style="text-align:${mainDir === "rtl" ? "right" : "left"}">
+      <div style="font-size:16px;font-weight:700;color:#1a202c;">${ar ? cNameAr : cNameEn}</div>
+      <div style="font-size:11px;color:#4a5568;">${ar ? cNameEn : cNameAr}</div>
+      <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${bi(`الرقم الضريبي: ${cVat}`, `VAT No: ${cVat}`)}</div>
     </div>
   </div>
-  <div style="font-size:20px;font-weight:700;color:#1e40af;margin-bottom:4px;">${isRtl ? "عقد تقديم خدمات" : "SERVICE CONTRACT"}</div>
-  <div style="font-size:13px;color:#374151;">${isRtl ? svc.labelAr : svc.labelEn}</div>
-  <div style="font-size:14px;font-weight:600;color:#374151;margin-top:6px;">${isRtl ? "رقم العقد:" : "Contract No:"} ${contract.contractNumber}</div>
-  <div style="font-size:12px;font-weight:700;color:#1e40af;font-family:monospace;margin-top:3px;">${isRtl ? "التاريخ:" : "Date:"} ${date}</div>
+  <div style="font-size:20px;font-weight:700;color:#1e40af;margin-bottom:4px;">${bi("عقد تقديم خدمات", "SERVICE CONTRACT")}</div>
+  <div style="font-size:13px;color:#374151;">${bi(svc.labelAr, svc.labelEn)}</div>
+  <div style="font-size:14px;font-weight:600;color:#374151;margin-top:6px;">${bi("رقم العقد:", "Contract No:")} ${contract.contractNumber}</div>
+  <div style="font-size:12px;font-weight:700;color:#1e40af;font-family:monospace;margin-top:3px;">${bi("التاريخ:", "Date:")} ${date}</div>
 </div>
-<div class="sec-title">${isRtl ? "أطراف العقد" : "CONTRACT PARTIES"}</div>
+<div class="sec-title">${bi("أطراف العقد", "CONTRACT PARTIES")}</div>
 <div class="parties">
   <div class="party">
-    <div class="party-lbl">${isRtl ? "الطرف الأول — مقدم الخدمة" : "First Party — Service Provider"}</div>
+    <div class="party-lbl">${bi("الطرف الأول — مقدم الخدمة", "First Party — Service Provider")}</div>
     <div class="party-name">Scapex</div>
-    <div style="font-size:12px;color:#374151;margin-top:4px;">${isRtl ? "شركة سكابكس للاستشارات والخدمات الهندسية" : "Scapex Consulting & Engineering Services"}</div>
-    <div style="font-size:11px;color:#64748b;margin-top:2px;">${isRtl ? "الرقم الضريبي: 300123456700003" : "VAT: 300123456700003"}</div>
+    <div style="font-size:12px;color:#374151;margin-top:4px;">${bi("شركة سكابكس للاستشارات والخدمات الهندسية", "Scapex Consulting & Engineering Services")}</div>
+    <div style="font-size:11px;color:#64748b;margin-top:2px;">${bi("الرقم الضريبي: 300123456700003", "VAT: 300123456700003")}</div>
   </div>
   <div class="party">
-    <div class="party-lbl">${isRtl ? "الطرف الثاني — العميل" : "Second Party — Client"}</div>
+    <div class="party-lbl">${bi("الطرف الثاني — العميل", "Second Party — Client")}</div>
     <div class="party-name">${contract.clientName}</div>
     ${contract.clientContact ? `<div style="font-size:12px;color:#374151;margin-top:4px;">${contract.clientContact}</div>` : ""}
     ${contract.clientEmail ? `<div style="font-size:11px;color:#64748b;margin-top:2px;" dir="ltr">${contract.clientEmail}</div>` : ""}
   </div>
 </div>
 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:20px;font-size:13px;line-height:2;">
-  <strong>${isRtl ? "موضوع العقد:" : "Subject:"}</strong> ${contract.projectName}<br/>
-  <strong>${isRtl ? "القيمة الإجمالية:" : "Total Value:"}</strong> ${fmt(contract.total)} ${contract.currency} ${isRtl ? "(شاملاً ضريبة القيمة المضافة 15%)" : "(incl. 15% VAT)"}<br/>
-  <strong>${isRtl ? "تاريخ البدء:" : "Start Date:"}</strong> ${contract.startDate} &nbsp;|&nbsp; <strong>${isRtl ? "تاريخ الانتهاء:" : "End Date:"}</strong> ${contract.endDate}<br/>
-  <strong>${isRtl ? "مرجع عرض السعر:" : "Proposal Ref:"}</strong> ${contract.proposalNumber}
+  <strong>${bi("موضوع العقد:", "Subject:")}</strong> ${contract.projectName}<br/>
+  <strong>${bi("القيمة الإجمالية:", "Total Value:")}</strong> ${fmt(contract.total)} ${contract.currency} ${bi("(شاملاً ضريبة القيمة المضافة 15%)", "(incl. 15% VAT)")}<br/>
+  <strong>${bi("تاريخ البدء:", "Start Date:")}</strong> ${contract.startDate} &nbsp;|&nbsp; <strong>${bi("تاريخ الانتهاء:", "End Date:")}</strong> ${contract.endDate}<br/>
+  <strong>${bi("مرجع عرض السعر:", "Proposal Ref:")}</strong> ${contract.proposalNumber}
 </div>
-<div class="sec-title">${isRtl ? "بنود العقد" : "CONTRACT ARTICLES"}</div>
+<div class="sec-title">${bi("بنود العقد", "CONTRACT ARTICLES")}</div>
 ${clausesHtml}
-<div class="sec-title" style="margin-top:20px;">${isRtl ? "جدول الدفعات" : "PAYMENT SCHEDULE"}</div>
+<div class="sec-title" style="margin-top:20px;">${bi("جدول الدفعات", "PAYMENT SCHEDULE")}</div>
 <table>
 <thead><tr>
-  <th style="width:40px;">${isRtl ? "م" : "#"}</th>
-  <th>${isRtl ? "المرحلة / الاستحقاق" : "Milestone / Due"}</th>
-  <th style="width:80px;">${isRtl ? "النسبة" : "Percentage"}</th>
-  <th style="width:140px;">${isRtl ? "المبلغ" : "Amount"}</th>
+  <th style="width:40px;">${bi("م", "#")}</th>
+  <th>${bi("المرحلة / الاستحقاق", "Milestone / Due")}</th>
+  <th style="width:80px;">${bi("النسبة", "Percentage")}</th>
+  <th style="width:140px;">${bi("المبلغ", "Amount")}</th>
 </tr></thead>
 <tbody>${payRows}</tbody>
 </table>
@@ -959,14 +983,13 @@ ${(() => {
     ? `<img src="${sig.signatureDataUrl}" style="max-height:55px;max-width:180px;object-fit:contain;" />`
     : "";
   const sigMeta = (sig: typeof sigs.first) => sig
-    ? `<div style="font-size:10px;color:#64748b;margin-top:4px;">${sig.signerName} — ${sig.signerRole}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year:"numeric", month:"short", day:"numeric" })}</div>`
-    : `<div style="font-size:10px;color:#64748b;margin-top:4px;">${isRtl ? "التوقيع والختم والتاريخ" : "Signature, Stamp & Date"}</div>`;
+    ? `<div style="font-size:10px;color:#64748b;margin-top:4px;">${sig.signerName} — ${sig.signerRole}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(ar ? "ar-SA" : "en-US", { year:"numeric", month:"short", day:"numeric" })}</div>`
+    : `<div style="font-size:10px;color:#64748b;margin-top:4px;">${bi("التوقيع والختم والتاريخ", "Signature, Stamp & Date")}</div>`;
   return `<div class="sig-grid">
-  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.first)}</div><div style="font-weight:700;font-size:13px;">${isRtl ? "الطرف الأول — Scapex" : "First Party — Scapex"}</div>${sigMeta(sigs.first)}</div>
-  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.second)}</div><div style="font-weight:700;font-size:13px;">${isRtl ? "الطرف الثاني —" : "Second Party —"} ${contract.clientName}</div>${sigMeta(sigs.second)}</div>
+  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.first)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الأول — Scapex", "First Party — Scapex")}</div>${sigMeta(sigs.first)}</div>
+  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.second)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الثاني —", "Second Party —")} ${contract.clientName}</div>${sigMeta(sigs.second)}</div>
 </div>`;
 })()}
-<div class="footer">${isRtl ? `هذا العقد مرتبط بعرض السعر ${contract.proposalNumber} | أُنشئ من منصة سكابكس الذكية` : `Contract linked to Proposal ${contract.proposalNumber} | Generated by Scapex Smart Platform`}</div>
 </div>
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;

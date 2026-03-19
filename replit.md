@@ -106,7 +106,7 @@ service_categories, services
 - `scapex_notifications` — in-app notifications
 - `scapex_notifications_seeded` — demo notification seed flag
 - `scapex_about_settings` — central company settings (name, address, contacts, VAT, CR, branches, social media) — single source of truth for all system company data
-- `scapex_system_settings` — system settings (time format 12h/24h, date format gregorian/hijri/both, print template footers/headers)
+- `scapex_system_settings` — system settings (time format 12h/24h, date format gregorian/hijri/both, font family, font size, print template footers/headers)
 - `scapex_signatures` — electronic signature records per document (proposal/contract) per party
 - `scapex_default_signature` — saved default signature image for quick reuse
 

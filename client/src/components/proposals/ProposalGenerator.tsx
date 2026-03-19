@@ -830,6 +830,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
   const [sigRefresh, setSigRefresh] = useState(0);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [printShowValidity, setPrintShowValidity] = useState(true);
+  const [printLang, setPrintLang] = useState<"ar" | "en" | "both">("ar");
   const svc = SERVICE_META[proposal.serviceType];
 
   // Map serviceType index to company activity services
@@ -970,7 +971,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
             {(() => { const s = getDocumentSignatures(proposal.id); const c = (s.first ? 1 : 0) + (s.second ? 1 : 0); return c > 0 ? <Badge variant="secondary" className="text-[9px] px-1 py-0 ms-0.5">{c}/2</Badge> : null; })()}
           </Button>
           {/* Print — opens pre-print dialog */}
-          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => { setPrintShowValidity(true); setShowPrintDialog(true); }} data-testid="button-open-print-dialog">
+          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => { setPrintShowValidity(true); setPrintLang(isRtl ? "ar" : "en"); setShowPrintDialog(true); }} data-testid="button-open-print-dialog">
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة PDF" : "Print PDF"}
           </Button>
           {/* Price analysis toggle */}
@@ -1327,6 +1328,16 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">{isRtl ? "لغة المستند" : "Document Language"}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([["ar", "عربي", "Arabic"], ["en", "English", "English"], ["both", "عربي + English", "Arabic + English"]] as const).map(([val, labelAr, labelEn]) => (
+                  <button key={val} type="button" className={cn("py-2.5 px-3 rounded-xl border-2 text-center text-xs font-medium transition-all", printLang === val ? "border-primary bg-primary/5 text-primary" : "border-border/50 hover:border-primary/30")} onClick={() => setPrintLang(val)} data-testid={`button-print-lang-${val}`}>
+                    {isRtl ? labelAr : labelEn}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/50 bg-secondary/20">
               <div className="space-y-0.5">
                 <p className="text-sm font-medium">{isRtl ? "صلاحية العرض" : "Proposal Validity"}</p>
@@ -1341,7 +1352,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
               setShowPrintDialog(false);
               const saved = { ...proposal, updatedAt: new Date().toISOString() };
               onSave(saved);
-              printProposal(saved, isRtl, { showValidity: printShowValidity });
+              printProposal(saved, isRtl, { showValidity: printShowValidity, language: printLang });
             }} data-testid="button-confirm-print">
               <Printer className="w-4 h-4" />{isRtl ? "طباعة" : "Print"}
             </Button>
@@ -1360,6 +1371,8 @@ function ContractView({ contract: init, isRtl, onBack }: {
   const [expandedClauses, setExpandedClauses] = useState<Set<string>>(new Set(["1", "2", "3"]));
   const [showSignature, setShowSignature] = useState(false);
   const [sigRefresh, setSigRefresh] = useState(0);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [printLang, setPrintLang] = useState<"ar" | "en" | "both">("ar");
   const { toast } = useToast();
 
   const toggleClause = (id: string) => {
@@ -1399,7 +1412,7 @@ function ContractView({ contract: init, isRtl, onBack }: {
             <PenLine className="w-3.5 h-3.5" />{isRtl ? "توقيع" : "Sign"}
             {(() => { const s = getDocumentSignatures(contract.id); const c = (s.first ? 1 : 0) + (s.second ? 1 : 0); return c > 0 ? <Badge variant="secondary" className="text-[9px] px-1 py-0 ms-0.5">{c}/2</Badge> : null; })()}
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => printContract(contract, isRtl)}>
+          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => { setPrintLang(isRtl ? "ar" : "en"); setShowPrintDialog(true); }} data-testid="button-open-contract-print">
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة العقد PDF" : "Print Contract PDF"}
           </Button>
           <Button size="sm" className="gap-1.5 h-8" onClick={handleSave}>
@@ -1583,6 +1596,35 @@ function ContractView({ contract: init, isRtl, onBack }: {
         isRtl={isRtl}
         onSignaturesChange={() => setSigRefresh(k => k + 1)}
       />
+
+      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <DialogContent className="max-w-sm" dir={isRtl ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5 text-primary" />
+              {isRtl ? "خيارات طباعة العقد" : "Contract Print Options"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">{isRtl ? "لغة المستند" : "Document Language"}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([["ar", "عربي", "Arabic"], ["en", "English", "English"], ["both", "عربي + English", "Arabic + English"]] as const).map(([val, labelAr, labelEn]) => (
+                  <button key={val} type="button" className={cn("py-2.5 px-3 rounded-xl border-2 text-center text-xs font-medium transition-all", printLang === val ? "border-primary bg-primary/5 text-primary" : "border-border/50 hover:border-primary/30")} onClick={() => setPrintLang(val)} data-testid={`button-contract-lang-${val}`}>
+                    {isRtl ? labelAr : labelEn}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPrintDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button className="gap-1.5" onClick={() => { setShowPrintDialog(false); printContract(contract, isRtl, { language: printLang }); }} data-testid="button-confirm-contract-print">
+              <Printer className="w-4 h-4" />{isRtl ? "طباعة" : "Print"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
