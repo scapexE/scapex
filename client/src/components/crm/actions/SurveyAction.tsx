@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
@@ -13,11 +14,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ClipboardCheck, Mail, MessageSquare, Send, Star } from "lucide-react";
+import { ClipboardCheck, Mail, MessageSquare, Send, Star, Pencil, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { addSurvey, simulateResponse, type Survey } from "@/lib/surveys";
 import { logAction } from "@/lib/auditLog";
+
+interface SurveyQuestion {
+  id: string;
+  labelAr: string;
+  labelEn: string;
+}
+
+const SURVEY_QUESTIONS: SurveyQuestion[] = [
+  { id: "overall", labelAr: "التقييم العام للخدمة (1-5 نجوم)", labelEn: "Overall Service Rating (1-5 stars)" },
+  { id: "serviceQuality", labelAr: "جودة الخدمة المقدمة", labelEn: "Service Quality" },
+  { id: "communication", labelAr: "مستوى التواصل والاستجابة", labelEn: "Communication & Responsiveness" },
+  { id: "timeliness", labelAr: "الالتزام بالمواعيد والجدول الزمني", labelEn: "Timeliness & Schedule Adherence" },
+  { id: "valueForMoney", labelAr: "القيمة مقابل السعر", labelEn: "Value for Money" },
+  { id: "recommendation", labelAr: "هل توصي بالتعامل معنا؟", labelEn: "Would you recommend us?" },
+  { id: "feedback", labelAr: "ملاحظات وتعليقات إضافية (نص حر)", labelEn: "Additional Comments & Feedback (free text)" },
+];
 
 interface SurveyActionProps {
   customerId?: string;
@@ -41,15 +58,46 @@ export function SurveyAction({
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [channel, setChannel] = useState<"email" | "whatsapp">("email");
-  const [customMessage, setCustomMessage] = useState("");
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>(SURVEY_QUESTIONS.map(q => q.id));
+  const [message, setMessage] = useState("");
+  const [editingMessage, setEditingMessage] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const defaultMessageAr = "عزيزي العميل،\n\nنقدر تعاملكم معنا ونود الاستماع لرأيكم حول جودة خدماتنا.\n\nيرجى تقييم تجربتكم معنا من خلال الرابط التالي:\n\n🔗 [رابط الاستطلاع]\n\nشكراً لوقتكم،\nفريق سكابكس";
-  const defaultMessageEn = "Dear Customer,\n\nWe value your partnership and would like to hear your feedback about our services.\n\nPlease rate your experience through the following link:\n\n🔗 [Survey Link]\n\nThank you for your time,\nScapex Team";
+  const getDefaultMessage = () => {
+    if (isRtl) {
+      return "عزيزي العميل،\n\nنقدر تعاملكم معنا ونود الاستماع لرأيكم حول جودة خدماتنا.\n\nيرجى تقييم تجربتكم معنا من خلال الرابط التالي.\n\nشكراً لوقتكم،\nفريق سكابكس";
+    }
+    return "Dear Customer,\n\nWe value your partnership and would like to hear your feedback about our services.\n\nPlease rate your experience through the following link.\n\nThank you for your time,\nScapex Team";
+  };
+
+  const getPostProjectMessage = () => {
+    if (isRtl) {
+      return "عزيزي العميل،\n\nبعد إتمام المشروع، نود معرفة رأيكم في أدائنا وجودة العمل المقدم.\n\nتقييمكم يساعدنا على التطوير والتحسين المستمر.\n\nشكراً لثقتكم،\nفريق سكابكس";
+    }
+    return "Dear Customer,\n\nAfter completing the project, we would like to know your opinion about our performance and work quality.\n\nYour feedback helps us continuously improve.\n\nThank you for your trust,\nScapex Team";
+  };
+
+  useEffect(() => {
+    if (open) {
+      setMessage(getDefaultMessage());
+      setSelectedQuestions(SURVEY_QUESTIONS.map(q => q.id));
+      setEditingMessage(false);
+    }
+  }, [open, isRtl]);
+
+  const toggleQuestion = (id: string) => {
+    setSelectedQuestions(prev =>
+      prev.includes(id) ? prev.filter(q => q !== id) : [...prev, id]
+    );
+  };
+
+  const selectAll = () => setSelectedQuestions(SURVEY_QUESTIONS.map(q => q.id));
+  const deselectAll = () => setSelectedQuestions([]);
 
   const handleSend = () => {
     if (isBulk && (!selectedCustomers || selectedCustomers.length === 0)) return;
     if (!isBulk && (!customerId || !customerName)) return;
+    if (selectedQuestions.length === 0) return;
     setSending(true);
 
     setTimeout(() => {
@@ -84,20 +132,19 @@ export function SurveyAction({
       logAction(
         "create",
         "crm",
-        isBulk ? `Bulk survey to ${selectedCount} customers via ${channel}` : `Survey to ${customerName} via ${channel}`,
-        isBulk ? `إرسال استطلاع جماعي إلى ${selectedCount} عميل عبر ${channel === "email" ? "البريد" : "واتساب"}` : `إرسال استطلاع إلى ${customerName} عبر ${channel === "email" ? "البريد" : "واتساب"}`
+        isBulk ? `Bulk survey to ${selectedCount} customers via ${channel} (${selectedQuestions.length} questions)` : `Survey to ${customerName} via ${channel} (${selectedQuestions.length} questions)`,
+        isBulk ? `إرسال استطلاع جماعي إلى ${selectedCount} عميل عبر ${channel === "email" ? "البريد" : "واتساب"} (${selectedQuestions.length} أسئلة)` : `إرسال استطلاع إلى ${customerName} عبر ${channel === "email" ? "البريد" : "واتساب"} (${selectedQuestions.length} أسئلة)`
       );
 
       toast({
         title: isRtl ? "تم إرسال الاستطلاع" : "Survey Sent",
         description: isRtl
-          ? (isBulk ? `تم إرسال استطلاع رضا العملاء إلى ${selectedCount} عميل عبر ${channel === "email" ? "البريد الإلكتروني" : "واتساب"}` : `تم إرسال استطلاع رضا العملاء إلى ${customerName} عبر ${channel === "email" ? "البريد الإلكتروني" : "واتساب"}`)
-          : (isBulk ? `Satisfaction survey sent to ${selectedCount} customers via ${channel}` : `Satisfaction survey sent to ${customerName} via ${channel}`),
+          ? (isBulk ? `تم إرسال استطلاع (${selectedQuestions.length} أسئلة) إلى ${selectedCount} عميل عبر ${channel === "email" ? "البريد الإلكتروني" : "واتساب"}` : `تم إرسال استطلاع (${selectedQuestions.length} أسئلة) إلى ${customerName} عبر ${channel === "email" ? "البريد الإلكتروني" : "واتساب"}`)
+          : (isBulk ? `Survey (${selectedQuestions.length} questions) sent to ${selectedCount} customers via ${channel}` : `Survey (${selectedQuestions.length} questions) sent to ${customerName} via ${channel}`),
       });
 
       setSending(false);
       setOpen(false);
-      setCustomMessage("");
     }, 800);
   };
 
@@ -111,7 +158,7 @@ export function SurveyAction({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[525px]">
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className={cn("flex items-center gap-2", isRtl ? "text-right" : "text-left")}>
             <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
@@ -173,62 +220,97 @@ export function SurveyAction({
             </RadioGroup>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">{isRtl ? "محتوى الاستطلاع:" : "Survey Content:"}</Label>
-            <div className="bg-secondary/50 border border-border/50 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold flex items-center gap-2">
                 <Star className="w-4 h-4 text-amber-500" />
-                {isRtl ? "أسئلة التقييم:" : "Rating Questions:"}
+                {isRtl ? "أسئلة الاستطلاع:" : "Survey Questions:"}
+              </Label>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-muted-foreground hover:text-primary" onClick={selectAll} data-testid="button-select-all-questions">
+                  {isRtl ? "تحديد الكل" : "Select All"}
+                </Button>
+                <span className="text-muted-foreground/40 text-xs">|</span>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-muted-foreground hover:text-primary" onClick={deselectAll} data-testid="button-deselect-all-questions">
+                  {isRtl ? "إلغاء الكل" : "Deselect All"}
+                </Button>
               </div>
-              <ul className="text-xs text-muted-foreground space-y-1.5 list-none">
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  {isRtl ? "التقييم العام للخدمة (1-5 نجوم)" : "Overall Service Rating (1-5 stars)"}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  {isRtl ? "جودة الخدمة المقدمة" : "Service Quality"}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  {isRtl ? "مستوى التواصل" : "Communication Level"}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  {isRtl ? "الالتزام بالمواعيد" : "Timeliness"}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  {isRtl ? "القيمة مقابل السعر" : "Value for Money"}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  {isRtl ? "هل توصي بالتعامل معنا؟" : "Would you recommend us?"}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  {isRtl ? "ملاحظات وتعليقات إضافية" : "Additional Comments & Feedback"}
-                </li>
-              </ul>
             </div>
+            <div className="bg-secondary/50 border border-border/50 rounded-xl p-3 space-y-1">
+              {SURVEY_QUESTIONS.map((q) => {
+                const checked = selectedQuestions.includes(q.id);
+                return (
+                  <label
+                    key={q.id}
+                    className={cn(
+                      "flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all",
+                      checked
+                        ? "bg-orange-50 dark:bg-orange-950/20 border border-orange-200/60 dark:border-orange-800/40"
+                        : "hover:bg-muted/50 border border-transparent"
+                    )}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleQuestion(q.id)}
+                      className={cn(
+                        "shrink-0",
+                        checked ? "border-orange-500 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500" : ""
+                      )}
+                      data-testid={`checkbox-question-${q.id}`}
+                    />
+                    <span className={cn("text-sm", checked ? "text-foreground font-medium" : "text-muted-foreground")}>
+                      {isRtl ? q.labelAr : q.labelEn}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isRtl
+                ? `تم اختيار ${selectedQuestions.length} من ${SURVEY_QUESTIONS.length} أسئلة`
+                : `${selectedQuestions.length} of ${SURVEY_QUESTIONS.length} questions selected`}
+            </p>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-semibold">{isRtl ? "رسالة مخصصة (اختياري):" : "Custom Message (optional):"}</Label>
-            <Textarea
-              placeholder={isRtl ? defaultMessageAr : defaultMessageEn}
-              value={customMessage}
-              onChange={(e) => setCustomMessage(e.target.value)}
-              className="min-h-[100px] resize-none text-sm"
-            />
-            <div className="flex flex-wrap gap-2 mt-1">
-              <Button variant="secondary" size="sm" className="text-xs h-7" onClick={() => setCustomMessage(isRtl ? defaultMessageAr : defaultMessageEn)}>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">{isRtl ? "نص الرسالة:" : "Message Text:"}</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-7 gap-1.5 text-xs", editingMessage ? "text-emerald-600" : "text-muted-foreground")}
+                onClick={() => setEditingMessage(!editingMessage)}
+                data-testid="button-toggle-edit-message"
+              >
+                {editingMessage ? (
+                  <><Check className="w-3.5 h-3.5" />{isRtl ? "تم التعديل" : "Done"}</>
+                ) : (
+                  <><Pencil className="w-3.5 h-3.5" />{isRtl ? "تعديل الرسالة" : "Edit Message"}</>
+                )}
+              </Button>
+            </div>
+
+            {editingMessage ? (
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="min-h-[120px] resize-none text-sm"
+                data-testid="textarea-survey-message"
+              />
+            ) : (
+              <div
+                className="bg-secondary/50 border border-border/50 rounded-xl p-4 text-sm whitespace-pre-line text-muted-foreground min-h-[80px] cursor-pointer hover:border-primary/30 transition-colors"
+                onClick={() => setEditingMessage(true)}
+              >
+                {message}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" className="text-xs h-7" onClick={() => setMessage(getDefaultMessage())} data-testid="button-template-default">
                 {isRtl ? "نموذج افتراضي" : "Default Template"}
               </Button>
-              <Button variant="secondary" size="sm" className="text-xs h-7" onClick={() => setCustomMessage(isRtl
-                ? "عزيزي العميل،\n\nبعد إتمام المشروع، نود معرفة رأيكم في أدائنا وجودة العمل المقدم.\n\nتقييمكم يساعدنا على التطوير والتحسين المستمر.\n\nشكراً لثقتكم،\nفريق سكابكس"
-                : "Dear Customer,\n\nAfter completing the project, we would like to know your opinion about our performance and work quality.\n\nYour feedback helps us continuously improve.\n\nThank you for your trust,\nScapex Team"
-              )}>
+              <Button variant="secondary" size="sm" className="text-xs h-7" onClick={() => setMessage(getPostProjectMessage())} data-testid="button-template-post-project">
                 {isRtl ? "نموذج ما بعد المشروع" : "Post-Project Template"}
               </Button>
             </div>
@@ -241,7 +323,7 @@ export function SurveyAction({
           </Button>
           <Button
             onClick={handleSend}
-            disabled={sending}
+            disabled={sending || selectedQuestions.length === 0 || !message.trim()}
             className="bg-orange-600 hover:bg-orange-700 text-white"
             data-testid="button-send-survey"
           >
@@ -253,7 +335,7 @@ export function SurveyAction({
             ) : (
               <>
                 <Send className={cn("w-4 h-4", isRtl ? "ml-2" : "mr-2")} />
-                {isRtl ? "إرسال الاستطلاع" : "Send Survey"}
+                {isRtl ? `إرسال الاستطلاع (${selectedQuestions.length})` : `Send Survey (${selectedQuestions.length})`}
               </>
             )}
           </Button>
