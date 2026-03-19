@@ -650,7 +650,12 @@ const BASE_CSS = `
   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .page { padding:20px; } }
 `;
 
-export function printProposal(proposal: Proposal, isRtl: boolean): void {
+export interface PrintProposalOptions {
+  showValidity?: boolean;
+}
+
+export function printProposal(proposal: Proposal, isRtl: boolean, options?: PrintProposalOptions): void {
+  const showValidity = options?.showValidity !== false;
   const dir = isRtl ? "rtl" : "ltr";
   const svc = SERVICE_META[proposal.serviceType];
   const fmt = (n: number) => n.toLocaleString();
@@ -797,8 +802,11 @@ ${(() => {
 </tfoot>
 </table>
 <div class="bottom-grid">
-  <div class="valid-box"><strong>${isRtl ? "صلاحية العرض:" : "Validity:"}</strong><br/>${isRtl ? `${proposal.validity} يوماً (حتى ${validUntil})` : `${proposal.validity} days (until ${validUntil})`}</div>
+  ${showValidity ? `<div class="valid-box"><strong>${isRtl ? "صلاحية العرض:" : "Validity:"}</strong> ${isRtl ? `${proposal.validity} يوماً (حتى ${validUntil})` : `${proposal.validity} days (until ${validUntil})`}</div>` : "<div></div>"}
   ${proposal.notes ? `<div class="notes-box"><strong>${isRtl ? "ملاحظات:" : "Notes:"}</strong><br/>${proposal.notes}</div>` : "<div></div>"}
+</div>
+<div style="text-align:center;margin:20px 0 10px;font-size:13px;font-weight:600;color:#1e40af;">
+  ${isRtl ? "نشكركم على ثقتكم بنا ونتطلع للعمل معكم" : "Thank you for your trust, we look forward to working with you"}
 </div>
 ${(() => {
   const sigs = getDocumentSignatures(proposal.id);

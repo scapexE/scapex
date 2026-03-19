@@ -40,6 +40,8 @@ import {
 import { SignatureDialog } from "@/components/proposals/SignatureDialog";
 import { getDocumentSignatures } from "@/lib/signatures";
 import { PenLine } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw,
@@ -826,6 +828,8 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [showSignature, setShowSignature] = useState(false);
   const [sigRefresh, setSigRefresh] = useState(0);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [printShowValidity, setPrintShowValidity] = useState(true);
   const svc = SERVICE_META[proposal.serviceType];
 
   // Map serviceType index to company activity services
@@ -965,12 +969,8 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
             <PenLine className="w-3.5 h-3.5" />{isRtl ? "توقيع" : "Sign"}
             {(() => { const s = getDocumentSignatures(proposal.id); const c = (s.first ? 1 : 0) + (s.second ? 1 : 0); return c > 0 ? <Badge variant="secondary" className="text-[9px] px-1 py-0 ms-0.5">{c}/2</Badge> : null; })()}
           </Button>
-          {/* Print — saves first to ensure latest data */}
-          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => {
-            const saved = { ...proposal, updatedAt: new Date().toISOString() };
-            onSave(saved);
-            printProposal(saved, isRtl);
-          }}>
+          {/* Print — opens pre-print dialog */}
+          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => { setPrintShowValidity(true); setShowPrintDialog(true); }} data-testid="button-open-print-dialog">
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة PDF" : "Print PDF"}
           </Button>
           {/* Price analysis toggle */}
@@ -1317,6 +1317,37 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
         isRtl={isRtl}
         onSignaturesChange={() => setSigRefresh(k => k + 1)}
       />
+
+      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <DialogContent className="max-w-sm" dir={isRtl ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5 text-primary" />
+              {isRtl ? "خيارات الطباعة" : "Print Options"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/50 bg-secondary/20">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">{isRtl ? "صلاحية العرض" : "Proposal Validity"}</p>
+                <p className="text-xs text-muted-foreground">{isRtl ? "إظهار مدة صلاحية العرض في المستند" : "Show validity period in the document"}</p>
+              </div>
+              <Switch checked={printShowValidity} onCheckedChange={setPrintShowValidity} data-testid="switch-print-validity" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPrintDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button className="gap-1.5" onClick={() => {
+              setShowPrintDialog(false);
+              const saved = { ...proposal, updatedAt: new Date().toISOString() };
+              onSave(saved);
+              printProposal(saved, isRtl, { showValidity: printShowValidity });
+            }} data-testid="button-confirm-print">
+              <Printer className="w-4 h-4" />{isRtl ? "طباعة" : "Print"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
