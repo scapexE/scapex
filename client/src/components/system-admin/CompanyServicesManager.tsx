@@ -69,7 +69,7 @@ export function CompanyServicesManager() {
       services: [],
     };
     setCompany({ ...company, activities: [...company.activities, newActivity] });
-    setExpandedActivities((prev) => new Set([...prev, newActivity.id]));
+    setExpandedActivities((prev) => new Set(Array.from(prev).concat(newActivity.id)));
   };
 
   const addService = (activityId: string) => {
@@ -83,7 +83,7 @@ export function CompanyServicesManager() {
       a.id === activityId ? { ...a, services: [...a.services, newService] } : a
     );
     setCompany({ ...company, activities });
-    setExpandedServices((prev) => new Set([...prev, newService.id]));
+    setExpandedServices((prev) => new Set(Array.from(prev).concat(newService.id)));
   };
 
   const addSpecialization = (activityId: string, serviceId: string) => {

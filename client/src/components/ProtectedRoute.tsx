@@ -1,7 +1,7 @@
 import { Route, Redirect } from "wouter";
 import { hasAccess } from "@/lib/permissions";
 
-export default function ProtectedRoute({ component: Component, path, page }) {
+export default function ProtectedRoute({ component: Component, path, page }: { component: React.ComponentType<any>; path: string; page: string }) {
   return (
     <Route path={path}>
       {(params) => {

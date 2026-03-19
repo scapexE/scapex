@@ -1,6 +1,6 @@
 // ─── Projects Storage Layer ──────────────────────────────────────────────────
 
-export type ProjectStatus = "planning" | "active" | "on_hold" | "completed" | "cancelled";
+export type ProjectStatus = "planning" | "active" | "on_hold" | "completed" | "cancelled" | "delayed";
 export type ProjectPhase = "Approval" | "Planning" | "Design" | "Procurement" | "Construction" | "Testing" | "Handover" | "Closed";
 
 export interface ProjectTask {

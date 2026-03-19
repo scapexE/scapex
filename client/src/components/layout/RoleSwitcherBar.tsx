@@ -145,7 +145,7 @@ export function RoleSwitcherBar() {
               <ChevronDown className="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" dir={dir} className="w-48">
+          <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="text-xs text-muted-foreground">
               {isRtl ? "اختر الوضع النشط" : "Choose active role"}
             </DropdownMenuLabel>
