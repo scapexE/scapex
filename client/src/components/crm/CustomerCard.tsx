@@ -11,10 +11,12 @@ import { cn } from "@/lib/utils";
 import {
   Building, Mail, Phone, MapPin, Star, FileText, Briefcase,
   Receipt, CheckCircle2, Clock, AlertTriangle, ExternalLink,
-  Plus, TrendingUp, Calendar, ArrowRight, Shield, FileCheck,
+  Plus, TrendingUp, Calendar, ArrowRight, Shield, FileCheck, ClipboardCheck,
 } from "lucide-react";
 import { getProposals, getContracts, STATUS_META, SERVICE_META, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
+import { getSurveysByCustomer } from "@/lib/surveys";
+import { SurveyResults } from "./SurveyResults";
 import { useLocation } from "wouter";
 
 export interface Customer {
@@ -43,6 +45,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [surveyCount, setSurveyCount] = useState(0);
 
   useEffect(() => {
     if (!customer || !open) return;
@@ -54,6 +57,14 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
     setProposals(allProposals.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
     setContracts(allContracts.filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
     setProjects(allProjects.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
+    setSurveyCount(getSurveysByCustomer(customer.id).length);
+  }, [customer, open]);
+
+  useEffect(() => {
+    if (!customer || !open) return;
+    const handler = () => setSurveyCount(getSurveysByCustomer(customer.id).length);
+    window.addEventListener("scapex_surveys_update", handler);
+    return () => window.removeEventListener("scapex_surveys_update", handler);
   }, [customer, open]);
 
   if (!customer) return null;
@@ -152,6 +163,10 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
             <TabsTrigger value="projects" className="text-xs data-[state=active]:bg-background">
               {isRtl ? "المشاريع" : "Projects"}
               {projects.length > 0 && <Badge variant="secondary" className="ms-1.5 text-[10px] h-4 px-1">{projects.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="surveys" className="text-xs data-[state=active]:bg-background">
+              {isRtl ? "الاستطلاعات" : "Surveys"}
+              {surveyCount > 0 && <Badge variant="secondary" className="ms-1.5 text-[10px] h-4 px-1">{surveyCount}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="finance" className="text-xs data-[state=active]:bg-background">
               {isRtl ? "المالية" : "Finance"}
@@ -342,6 +357,16 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                 </div>
               )}
             </ScrollArea>
+          </TabsContent>
+
+          {/* ── Surveys ── */}
+          <TabsContent value="surveys" className="flex-1 min-h-0 m-0 mt-3">
+            <SurveyResults
+              customerId={customer.id}
+              customerName={customer.name}
+              email={customer.email}
+              phone={customer.phone}
+            />
           </TabsContent>
 
           {/* ── Finance ── */}

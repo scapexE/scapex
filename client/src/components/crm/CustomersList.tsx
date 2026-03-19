@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Search, Filter, Mail, Phone, MapPin,
-  MoreVertical, Building, Star, MessageSquare, Download, Copy, FileText
+  MoreVertical, Building, Star, MessageSquare, Download, Copy, FileText, ClipboardCheck
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -14,8 +14,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { WhatsAppAction } from "./actions/WhatsAppAction";
 import { EmailAction } from "./actions/EmailAction";
+import { SurveyAction } from "./actions/SurveyAction";
 import { CustomerCard, type Customer } from "./CustomerCard";
 import { useToast } from "@/hooks/use-toast";
+import { seedDemoSurveys } from "@/lib/surveys";
 
 const CUSTOMERS: Customer[] = [
   { id: '1', name: 'Saudi Binladin Group', industry: 'Construction', contact: 'Ahmed Al-Rashid', email: 'ahmed@sbg.com.sa', phone: '+966 50 123 4567', status: 'active', rating: 5 },
@@ -38,6 +40,8 @@ export function CustomersList({ onCreateProposal }: {
   const [search, setSearch] = useState("");
   const [cardCustomer, setCardCustomer] = useState<Customer | null>(null);
   const [cardOpen, setCardOpen] = useState(false);
+
+  useEffect(() => { seedDemoSurveys(); }, []);
 
   const filtered = search.trim()
     ? CUSTOMERS.filter(c =>
@@ -129,6 +133,10 @@ export function CustomersList({ onCreateProposal }: {
               <EmailAction selectedCount={selectedIds.length} isBulk
                 trigger={<Button size="sm" variant="outline" className="h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950"><Mail className="w-3 h-3" /><span className="hidden sm:inline">{t('crm.cust.bulk_email')}</span></Button>}
               />
+              <SurveyAction selectedCount={selectedIds.length} isBulk
+                selectedCustomers={selectedCustomers.map(c => ({ id: c.id, name: c.name, email: c.email, phone: c.phone }))}
+                trigger={<Button size="sm" variant="outline" className="h-8 gap-1 border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950" data-testid="button-bulk-survey"><ClipboardCheck className="w-3 h-3" /><span className="hidden sm:inline">{isRtl ? "استطلاع رضا" : "Survey"}</span></Button>}
+              />
               <div className="w-px h-4 bg-border mx-1" />
               <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={handleCopyData}><Copy className="w-3 h-3" /><span className="hidden sm:inline">{t('crm.cust.copy')}</span></Button>
               <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={handleExportCSV}><Download className="w-3 h-3" /><span className="hidden sm:inline">{t('crm.cust.export')}</span></Button>
@@ -216,6 +224,11 @@ export function CustomersList({ onCreateProposal }: {
                         />
                         <EmailAction customerName={customer.contact} email={customer.email}
                           trigger={<Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"><Mail className="h-4 w-4" /></Button>}
+                        />
+                        <SurveyAction
+                          customerId={customer.id} customerName={customer.name}
+                          email={customer.email} phone={customer.phone}
+                          trigger={<Button variant="ghost" size="icon" className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-100" title={isRtl ? "استطلاع رضا" : "Survey"} data-testid={`button-survey-${customer.id}`}><ClipboardCheck className="h-4 w-4" /></Button>}
                         />
                         {onCreateProposal && (
                           <Button variant="ghost" size="icon"
