@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "b_GTHIsNQhrxHm6fbYm63"
+uri = "file://DEPLOYMENT_GUIDE.md"
+type = "text"
+title = "دليل رفع Scapex على السيرفر"
