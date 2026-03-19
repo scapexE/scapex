@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import Login from "@/pages/Login";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Users from "@/pages/Users";
 import SystemAdmin from "@/pages/SystemAdmin";
 import { Switch, Route } from "wouter";
+import { getSystemSettings, FONT_OPTIONS, FONT_SIZE_OPTIONS } from "@/lib/companySettings";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -88,7 +90,22 @@ function Router() {
   );
 }
 
+function applyFontSettings() {
+  const settings = getSystemSettings();
+  const fontOpt = FONT_OPTIONS.find(f => f.value === settings.fontFamily) || FONT_OPTIONS[0];
+  const sizeOpt = FONT_SIZE_OPTIONS.find(s => s.value === settings.fontSize) || FONT_SIZE_OPTIONS[1];
+  document.documentElement.style.fontFamily = fontOpt.family;
+  document.documentElement.style.fontSize = sizeOpt.css;
+}
+
 function App() {
+  useEffect(() => {
+    applyFontSettings();
+    const handler = () => applyFontSettings();
+    window.addEventListener("scapex_system_settings_update", handler);
+    return () => window.removeEventListener("scapex_system_settings_update", handler);
+  }, []);
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <LanguageProvider>

@@ -1,9 +1,14 @@
 export type TimeFormat = "24h" | "12h";
 export type DateFormat = "gregorian" | "hijri" | "both";
 
+export type FontFamily = "cairo" | "tajawal" | "ibm-plex" | "noto-kufi" | "rubik" | "inter" | "system";
+export type FontSize = "small" | "medium" | "large";
+
 export interface SystemSettings {
   timeFormat: TimeFormat;
   dateFormat: DateFormat;
+  fontFamily: FontFamily;
+  fontSize: FontSize;
   proposalFooterAr: string;
   proposalFooterEn: string;
   invoiceFooterAr: string;
@@ -14,9 +19,27 @@ export interface SystemSettings {
   letterFooterEn: string;
 }
 
+export const FONT_OPTIONS: { value: FontFamily; label: string; labelAr: string; family: string }[] = [
+  { value: "cairo", label: "Cairo", labelAr: "Cairo — كايرو", family: "'Cairo', sans-serif" },
+  { value: "tajawal", label: "Tajawal", labelAr: "Tajawal — تجول", family: "'Tajawal', sans-serif" },
+  { value: "ibm-plex", label: "IBM Plex Sans Arabic", labelAr: "IBM Plex Arabic", family: "'IBM Plex Sans Arabic', sans-serif" },
+  { value: "noto-kufi", label: "Noto Kufi Arabic", labelAr: "Noto Kufi — نوتو كوفي", family: "'Noto Kufi Arabic', sans-serif" },
+  { value: "rubik", label: "Rubik", labelAr: "Rubik — روبيك", family: "'Rubik', sans-serif" },
+  { value: "inter", label: "Inter", labelAr: "Inter — إنتر", family: "'Inter', sans-serif" },
+  { value: "system", label: "System Default", labelAr: "خط النظام الافتراضي", family: "system-ui, -apple-system, sans-serif" },
+];
+
+export const FONT_SIZE_OPTIONS: { value: FontSize; label: string; labelAr: string; css: string }[] = [
+  { value: "small", label: "Small", labelAr: "صغير", css: "14px" },
+  { value: "medium", label: "Medium", labelAr: "متوسط", css: "16px" },
+  { value: "large", label: "Large", labelAr: "كبير", css: "18px" },
+];
+
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   timeFormat: "12h",
   dateFormat: "both",
+  fontFamily: "cairo",
+  fontSize: "medium",
   proposalFooterAr: "نشكركم على ثقتكم بنا ونتطلع للعمل معكم",
   proposalFooterEn: "Thank you for your trust. We look forward to working with you.",
   invoiceFooterAr: "يرجى السداد خلال 30 يوماً من تاريخ الفاتورة",

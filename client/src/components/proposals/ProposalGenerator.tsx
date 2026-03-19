@@ -1563,8 +1563,16 @@ export function ProposalGenerator() {
   const { toast } = useToast();
 
   // If CRM/Sales dropped a prefill in localStorage → open create form immediately
+  // If URL has ?view=<id> → open that proposal detail
   const [view, setView] = useState<View>(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const viewId = params.get("view");
+      if (viewId) {
+        const all = getProposals();
+        const found = all.find(p => p.id === viewId);
+        if (found) return "detail";
+      }
       const raw = localStorage.getItem("scapex_proposal_prefill");
       if (raw) { const d = JSON.parse(raw); if (d?.clientName) return "create"; }
     } catch {}
@@ -1572,7 +1580,17 @@ export function ProposalGenerator() {
   });
 
   const [proposals, setProposals] = useState<Proposal[]>(() => getProposals());
-  const [selected, setSelected] = useState<Proposal | null>(null);
+  const [selected, setSelected] = useState<Proposal | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const viewId = params.get("view");
+      if (viewId) {
+        const all = getProposals();
+        return all.find(p => p.id === viewId) || null;
+      }
+    } catch {}
+    return null;
+  });
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
 
   const reload = () => setProposals(getProposals());

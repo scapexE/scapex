@@ -20,7 +20,9 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
   type AboutSettings, type CompanyBranch, DEFAULT_ABOUT, getAboutData,
-  type SystemSettings, DEFAULT_SYSTEM_SETTINGS, getSystemSettings, saveSystemSettings,
+  type SystemSettings, type FontFamily, type FontSize,
+  DEFAULT_SYSTEM_SETTINGS, getSystemSettings, saveSystemSettings,
+  FONT_OPTIONS, FONT_SIZE_OPTIONS,
 } from "@/lib/companySettings";
 import { logAction } from "@/lib/auditLog";
 import type { SystemUser } from "@/lib/permissions";
@@ -105,6 +107,7 @@ export default function CompanySettingsModule() {
     setSysForm({ ...DEFAULT_SYSTEM_SETTINGS });
     localStorage.removeItem("scapex_system_settings");
     setHasSysChanges(false);
+    window.dispatchEvent(new CustomEvent("scapex_system_settings_update"));
     toast({ title: t("تم الاستعادة", "Reset"), description: t("تمت استعادة الإعدادات الافتراضية", "Default settings restored") });
   };
 
@@ -467,6 +470,63 @@ export default function CompanySettingsModule() {
                     {(sysForm.dateFormat === "hijri" || sysForm.dateFormat === "both") && (
                       <p className="text-muted-foreground">{t("هجري:", "Hijri:")} <span className="font-mono font-medium text-foreground">{new Date().toLocaleDateString("ar-SA-u-ca-islamic", { year: "numeric", month: "long", day: "numeric" })}</span></p>
                     )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />{t("نوع الخط", "Font Family")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium">{t("اختر الخط المستخدم في النظام", "Choose the system font")}</Label>
+                  <Select value={sysForm.fontFamily} onValueChange={(v) => { setSysForm(prev => ({ ...prev, fontFamily: v as FontFamily })); setHasSysChanges(true); }}>
+                    <SelectTrigger data-testid="select-font-family" className="w-full sm:w-[320px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FONT_OPTIONS.map(f => (
+                        <SelectItem key={f.value} value={f.value}>
+                          <span style={{ fontFamily: f.family }}>{isRtl ? f.labelAr : f.label}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="p-4 rounded-lg bg-secondary/30 border border-border/30" style={{ fontFamily: FONT_OPTIONS.find(f => f.value === sysForm.fontFamily)?.family }}>
+                    <p className="text-sm mb-1 font-semibold">{t("معاينة الخط", "Font Preview")}</p>
+                    <p className="text-xs text-muted-foreground">{t("هذا نص تجريبي لمعاينة شكل الخط المختار في النظام — 0123456789", "This is a sample text to preview the selected font — 0123456789")}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><Settings2 className="w-4 h-4 text-primary" />{t("حجم الخط", "Font Size")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium">{t("حجم الخط الأساسي للنظام", "Base font size for the system")}</Label>
+                  <div className="flex gap-2">
+                    {FONT_SIZE_OPTIONS.map(s => (
+                      <button
+                        key={s.value}
+                        type="button"
+                        className={cn(
+                          "flex-1 py-3 px-4 rounded-xl border-2 text-center transition-all",
+                          sysForm.fontSize === s.value
+                            ? "border-primary bg-primary/5 text-primary font-semibold"
+                            : "border-border/50 hover:border-primary/30"
+                        )}
+                        onClick={() => { setSysForm(prev => ({ ...prev, fontSize: s.value as FontSize })); setHasSysChanges(true); }}
+                        data-testid={`button-font-size-${s.value}`}
+                      >
+                        <span style={{ fontSize: s.css }}>{isRtl ? s.labelAr : s.label}</span>
+                        <span className="block text-[10px] text-muted-foreground mt-1">{s.css}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </CardContent>

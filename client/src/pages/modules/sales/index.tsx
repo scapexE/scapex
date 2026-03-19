@@ -10,9 +10,10 @@ import { getProposals, STATUS_META, SERVICE_META, type Proposal } from "@/lib/pr
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-function ProposalQuotationsList({ isRtl, onNewProposal }: {
+function ProposalQuotationsList({ isRtl, onNewProposal, onViewProposal }: {
   isRtl: boolean;
   onNewProposal: () => void;
+  onViewProposal: (id: string) => void;
 }) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
 
@@ -82,7 +83,9 @@ function ProposalQuotationsList({ isRtl, onNewProposal }: {
           const st = STATUS_META[p.status];
           return (
             <div key={p.id}
-              className="flex items-center gap-3 p-3.5 rounded-xl border border-border/50 bg-card hover:border-primary/30 hover:shadow-sm transition-all">
+              className="flex items-center gap-3 p-3.5 rounded-xl border border-border/50 bg-card hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer"
+              onClick={() => onViewProposal(p.id)}
+              data-testid={`proposal-row-${p.id}`}>
               <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0", `bg-${svc.color}-500`)}>
                 <FileText className="w-4 h-4" />
               </div>
@@ -147,7 +150,7 @@ export default function SalesModule() {
 
           <div className="flex-1 mt-4 overflow-hidden relative">
             <TabsContent value="quotations" className="h-full m-0 data-[state=active]:flex flex-col">
-              <ProposalQuotationsList isRtl={isRtl} onNewProposal={handleNewProposal} />
+              <ProposalQuotationsList isRtl={isRtl} onNewProposal={handleNewProposal} onViewProposal={(id) => navigate(`/smart-proposal?view=${id}`)} />
             </TabsContent>
 
             <TabsContent value="orders" className="h-full m-0 data-[state=active]:flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-xl bg-card/50">
