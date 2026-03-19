@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -14,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ClipboardCheck, Mail, MessageSquare, Send, Star, Pencil, Check } from "lucide-react";
+import { ClipboardCheck, Mail, MessageSquare, Send, Star, Pencil, Check, Plus, Trash2, X, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { addSurvey, simulateResponse, type Survey } from "@/lib/surveys";
@@ -24,9 +25,10 @@ interface SurveyQuestion {
   id: string;
   labelAr: string;
   labelEn: string;
+  isCustom?: boolean;
 }
 
-const SURVEY_QUESTIONS: SurveyQuestion[] = [
+const DEFAULT_QUESTIONS: SurveyQuestion[] = [
   { id: "overall", labelAr: "التقييم العام للخدمة (1-5 نجوم)", labelEn: "Overall Service Rating (1-5 stars)" },
   { id: "serviceQuality", labelAr: "جودة الخدمة المقدمة", labelEn: "Service Quality" },
   { id: "communication", labelAr: "مستوى التواصل والاستجابة", labelEn: "Communication & Responsiveness" },
@@ -35,6 +37,20 @@ const SURVEY_QUESTIONS: SurveyQuestion[] = [
   { id: "recommendation", labelAr: "هل توصي بالتعامل معنا؟", labelEn: "Would you recommend us?" },
   { id: "feedback", labelAr: "ملاحظات وتعليقات إضافية (نص حر)", labelEn: "Additional Comments & Feedback (free text)" },
 ];
+
+const QUESTIONS_STORAGE_KEY = "scapex_survey_questions";
+
+function loadQuestions(): SurveyQuestion[] {
+  try {
+    const saved = localStorage.getItem(QUESTIONS_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return DEFAULT_QUESTIONS;
+}
+
+function saveQuestions(questions: SurveyQuestion[]): void {
+  localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(questions));
+}
 
 interface SurveyActionProps {
   customerId?: string;
@@ -58,10 +74,19 @@ export function SurveyAction({
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [channel, setChannel] = useState<"email" | "whatsapp">("email");
-  const [selectedQuestions, setSelectedQuestions] = useState<string[]>(SURVEY_QUESTIONS.map(q => q.id));
+  const [questions, setQuestions] = useState<SurveyQuestion[]>(loadQuestions());
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [editingMessage, setEditingMessage] = useState(false);
   const [sending, setSending] = useState(false);
+
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editAr, setEditAr] = useState("");
+  const [editEn, setEditEn] = useState("");
+
+  const [addingNew, setAddingNew] = useState(false);
+  const [newAr, setNewAr] = useState("");
+  const [newEn, setNewEn] = useState("");
 
   const getDefaultMessage = () => {
     if (isRtl) {
@@ -79,11 +104,20 @@ export function SurveyAction({
 
   useEffect(() => {
     if (open) {
+      const loaded = loadQuestions();
+      setQuestions(loaded);
+      setSelectedQuestions(loaded.map(q => q.id));
       setMessage(getDefaultMessage());
-      setSelectedQuestions(SURVEY_QUESTIONS.map(q => q.id));
       setEditingMessage(false);
+      setEditingQuestionId(null);
+      setAddingNew(false);
     }
   }, [open, isRtl]);
+
+  const updateAndSave = (updated: SurveyQuestion[]) => {
+    setQuestions(updated);
+    saveQuestions(updated);
+  };
 
   const toggleQuestion = (id: string) => {
     setSelectedQuestions(prev =>
@@ -91,8 +125,67 @@ export function SurveyAction({
     );
   };
 
-  const selectAll = () => setSelectedQuestions(SURVEY_QUESTIONS.map(q => q.id));
+  const selectAll = () => setSelectedQuestions(questions.map(q => q.id));
   const deselectAll = () => setSelectedQuestions([]);
+
+  const startEditing = (q: SurveyQuestion) => {
+    setEditingQuestionId(q.id);
+    setEditAr(q.labelAr);
+    setEditEn(q.labelEn);
+    setAddingNew(false);
+  };
+
+  const saveEdit = () => {
+    if (!editingQuestionId || (!editAr.trim() && !editEn.trim())) return;
+    const updated = questions.map(q =>
+      q.id === editingQuestionId ? { ...q, labelAr: editAr.trim() || q.labelAr, labelEn: editEn.trim() || q.labelEn } : q
+    );
+    updateAndSave(updated);
+    setEditingQuestionId(null);
+    toast({ title: isRtl ? "تم تعديل السؤال" : "Question Updated" });
+  };
+
+  const cancelEdit = () => {
+    setEditingQuestionId(null);
+  };
+
+  const deleteQuestion = (id: string) => {
+    const updated = questions.filter(q => q.id !== id);
+    updateAndSave(updated);
+    setSelectedQuestions(prev => prev.filter(q => q !== id));
+    toast({ title: isRtl ? "تم حذف السؤال" : "Question Deleted" });
+  };
+
+  const startAdding = () => {
+    setAddingNew(true);
+    setNewAr("");
+    setNewEn("");
+    setEditingQuestionId(null);
+  };
+
+  const saveNewQuestion = () => {
+    if (!newAr.trim() && !newEn.trim()) return;
+    const newId = `custom_${Date.now()}`;
+    const newQ: SurveyQuestion = {
+      id: newId,
+      labelAr: newAr.trim() || newEn.trim(),
+      labelEn: newEn.trim() || newAr.trim(),
+      isCustom: true,
+    };
+    const updated = [...questions, newQ];
+    updateAndSave(updated);
+    setSelectedQuestions(prev => [...prev, newId]);
+    setAddingNew(false);
+    setNewAr("");
+    setNewEn("");
+    toast({ title: isRtl ? "تم إضافة السؤال" : "Question Added" });
+  };
+
+  const resetToDefaults = () => {
+    updateAndSave(DEFAULT_QUESTIONS);
+    setSelectedQuestions(DEFAULT_QUESTIONS.map(q => q.id));
+    toast({ title: isRtl ? "تم إعادة الأسئلة الافتراضية" : "Questions Reset to Defaults" });
+  };
 
   const handleSend = () => {
     if (isBulk && (!selectedCustomers || selectedCustomers.length === 0)) return;
@@ -158,7 +251,7 @@ export function SurveyAction({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <DialogContent className="sm:max-w-[580px] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle className={cn("flex items-center gap-2", isRtl ? "text-right" : "text-left")}>
             <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
@@ -180,6 +273,7 @@ export function SurveyAction({
         </DialogHeader>
 
         <div className="grid gap-5 py-4" dir={dir}>
+          {/* Channel Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-semibold">{isRtl ? "طريقة الإرسال:" : "Send Via:"}</Label>
             <RadioGroup
@@ -220,6 +314,7 @@ export function SurveyAction({
             </RadioGroup>
           </div>
 
+          {/* Questions with Edit/Add/Delete */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold flex items-center gap-2">
@@ -234,16 +329,66 @@ export function SurveyAction({
                 <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-muted-foreground hover:text-primary" onClick={deselectAll} data-testid="button-deselect-all-questions">
                   {isRtl ? "إلغاء الكل" : "Deselect All"}
                 </Button>
+                <span className="text-muted-foreground/40 text-xs">|</span>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-muted-foreground hover:text-orange-600" onClick={resetToDefaults} data-testid="button-reset-questions">
+                  {isRtl ? "افتراضي" : "Reset"}
+                </Button>
               </div>
             </div>
-            <div className="bg-secondary/50 border border-border/50 rounded-xl p-3 space-y-1">
-              {SURVEY_QUESTIONS.map((q) => {
+
+            <div className="bg-secondary/50 border border-border/50 rounded-xl p-2 space-y-1">
+              {questions.map((q) => {
                 const checked = selectedQuestions.includes(q.id);
+                const isEditing = editingQuestionId === q.id;
+
+                if (isEditing) {
+                  return (
+                    <div key={q.id} className="p-3 rounded-lg border-2 border-orange-400 bg-orange-50/50 dark:bg-orange-950/20 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-orange-700 dark:text-orange-400">
+                        <Pencil className="w-3 h-3" />
+                        {isRtl ? "تعديل السؤال" : "Edit Question"}
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground mb-1 block">{isRtl ? "النص العربي:" : "Arabic Text:"}</Label>
+                          <Input
+                            value={editAr}
+                            onChange={(e) => setEditAr(e.target.value)}
+                            className="h-8 text-sm"
+                            dir="rtl"
+                            data-testid={`input-edit-ar-${q.id}`}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground mb-1 block">{isRtl ? "النص الإنجليزي:" : "English Text:"}</Label>
+                          <Input
+                            value={editEn}
+                            onChange={(e) => setEditEn(e.target.value)}
+                            className="h-8 text-sm"
+                            dir="ltr"
+                            data-testid={`input-edit-en-${q.id}`}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 justify-end">
+                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={cancelEdit}>
+                          <X className="w-3 h-3" />
+                          {isRtl ? "إلغاء" : "Cancel"}
+                        </Button>
+                        <Button size="sm" className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={saveEdit} disabled={!editAr.trim() && !editEn.trim()}>
+                          <Check className="w-3 h-3" />
+                          {isRtl ? "حفظ" : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
-                  <label
+                  <div
                     key={q.id}
                     className={cn(
-                      "flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all",
+                      "flex items-center gap-2 p-2.5 rounded-lg transition-all group/item",
                       checked
                         ? "bg-orange-50 dark:bg-orange-950/20 border border-orange-200/60 dark:border-orange-800/40"
                         : "hover:bg-muted/50 border border-transparent"
@@ -258,20 +403,94 @@ export function SurveyAction({
                       )}
                       data-testid={`checkbox-question-${q.id}`}
                     />
-                    <span className={cn("text-sm", checked ? "text-foreground font-medium" : "text-muted-foreground")}>
+                    <span className={cn("text-sm flex-1 min-w-0", checked ? "text-foreground font-medium" : "text-muted-foreground")}>
                       {isRtl ? q.labelAr : q.labelEn}
                     </span>
-                  </label>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity shrink-0">
+                      <Button
+                        variant="ghost" size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-950/30"
+                        onClick={(e) => { e.stopPropagation(); startEditing(q); }}
+                        data-testid={`button-edit-question-${q.id}`}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-950/30"
+                        onClick={(e) => { e.stopPropagation(); deleteQuestion(q.id); }}
+                        data-testid={`button-delete-question-${q.id}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
                 );
               })}
+
+              {/* Add New Question Form */}
+              {addingNew ? (
+                <div className="p-3 rounded-lg border-2 border-dashed border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-2 mt-1">
+                  <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    <Plus className="w-3 h-3" />
+                    {isRtl ? "إضافة سؤال جديد" : "Add New Question"}
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground mb-1 block">{isRtl ? "النص العربي:" : "Arabic Text:"}</Label>
+                      <Input
+                        value={newAr}
+                        onChange={(e) => setNewAr(e.target.value)}
+                        placeholder={isRtl ? "اكتب السؤال بالعربي..." : "Enter question in Arabic..."}
+                        className="h-8 text-sm"
+                        dir="rtl"
+                        data-testid="input-new-question-ar"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground mb-1 block">{isRtl ? "النص الإنجليزي:" : "English Text:"}</Label>
+                      <Input
+                        value={newEn}
+                        onChange={(e) => setNewEn(e.target.value)}
+                        placeholder={isRtl ? "اكتب السؤال بالإنجليزي..." : "Enter question in English..."}
+                        className="h-8 text-sm"
+                        dir="ltr"
+                        data-testid="input-new-question-en"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 justify-end">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setAddingNew(false)}>
+                      <X className="w-3 h-3" />
+                      {isRtl ? "إلغاء" : "Cancel"}
+                    </Button>
+                    <Button size="sm" className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveNewQuestion} disabled={!newAr.trim() && !newEn.trim()} data-testid="button-save-new-question">
+                      <Check className="w-3 h-3" />
+                      {isRtl ? "إضافة" : "Add"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  className="w-full h-9 mt-1 border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 text-muted-foreground hover:text-emerald-700 gap-2 text-sm transition-all"
+                  onClick={startAdding}
+                  data-testid="button-add-new-question"
+                >
+                  <Plus className="w-4 h-4" />
+                  {isRtl ? "إضافة سؤال جديد" : "Add New Question"}
+                </Button>
+              )}
             </div>
+
             <p className="text-xs text-muted-foreground">
               {isRtl
-                ? `تم اختيار ${selectedQuestions.length} من ${SURVEY_QUESTIONS.length} أسئلة`
-                : `${selectedQuestions.length} of ${SURVEY_QUESTIONS.length} questions selected`}
+                ? `تم اختيار ${selectedQuestions.length} من ${questions.length} أسئلة`
+                : `${selectedQuestions.length} of ${questions.length} questions selected`}
             </p>
           </div>
 
+          {/* Message Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold">{isRtl ? "نص الرسالة:" : "Message Text:"}</Label>
