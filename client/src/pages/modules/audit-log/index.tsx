@@ -360,8 +360,8 @@ function AuditLogContent() {
                   data-testid={`audit-entry-${entry.id}`}
                 >
                   <div className="shrink-0 mt-0.5">
-                    <Badge className={`text-xs ${ACTION_COLORS[entry.action]}`}>
-                      {isRtl ? ACTION_LABELS[entry.action].ar : ACTION_LABELS[entry.action].en}
+                    <Badge className={`text-xs ${ACTION_COLORS[entry.action] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"}`}>
+                      {isRtl ? (ACTION_LABELS[entry.action]?.ar ?? entry.action) : (ACTION_LABELS[entry.action]?.en ?? entry.action)}
                     </Badge>
                   </div>
                   <div className="flex-1 min-w-0">
