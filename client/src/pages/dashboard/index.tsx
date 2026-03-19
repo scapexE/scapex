@@ -301,8 +301,8 @@ function DashboardContent() {
               <div className="space-y-2">
                 {recentLogs.map((entry) => (
                   <div key={entry.id} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0">
-                    <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${ACTION_COLORS[entry.action]}`}>
-                      {isRtl ? ACTION_LABELS[entry.action].ar : ACTION_LABELS[entry.action].en}
+                    <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${ACTION_COLORS[entry.action] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"}`}>
+                      {isRtl ? (ACTION_LABELS[entry.action]?.ar ?? entry.action) : (ACTION_LABELS[entry.action]?.en ?? entry.action)}
                     </Badge>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs truncate">{isRtl ? entry.detailsAr : entry.details}</p>
