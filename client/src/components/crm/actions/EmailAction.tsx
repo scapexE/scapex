@@ -54,7 +54,7 @@ export function EmailAction({ customerName, email, selectedCount, isBulk, trigge
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[525px]">
+      <DialogContent className="sm:max-w-[525px]" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle className={cn("flex items-center gap-2", dir === 'rtl' ? "text-right" : "text-left")}>
             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">

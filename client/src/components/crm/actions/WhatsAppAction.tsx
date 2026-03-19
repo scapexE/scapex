@@ -51,7 +51,7 @@ export function WhatsAppAction({ customerName, phoneNumber, selectedCount, isBul
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle className={cn("flex items-center gap-2", dir === 'rtl' ? "text-right" : "text-left")}>
             <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
