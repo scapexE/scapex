@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { RoleSwitcherBar } from "./RoleSwitcherBar";
@@ -10,6 +10,7 @@ import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import type { SystemUser } from "@/lib/permissions";
+import { logAction } from "@/lib/auditLog";
 
 // Updates browser tab title based on active activity's company name or global settings
 function DocumentTitleUpdater() {
@@ -47,6 +48,16 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const { dir } = useLanguage();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const lastPath = useRef("");
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path !== lastPath.current) {
+      lastPath.current = path;
+      const pageName = path.replace("/", "") || "dashboard";
+      logAction("page_visit", pageName, `Visited ${pageName}`, `زيارة ${pageName}`);
+    }
+  }, []);
 
   return (
     <SettingsProvider>

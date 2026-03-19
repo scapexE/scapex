@@ -307,6 +307,23 @@ const translations: Record<string, Record<Language, string>> = {
   'sa.assign.search':     { en: 'Search by name or national ID to add...',    ar: 'ابحث باسم أو رقم هوية للإضافة...' },
   'sa.assign.no_match':   { en: 'No matching user',                           ar: 'لا يوجد مستخدم مطابق' },
   'sa.assign.refine':     { en: 'results — refine your search',               ar: 'نتيجة — دقّق البحث' },
+
+  'nav.audit_log': { en: 'Activity Log', ar: 'سجل الحركات' },
+  'nav.cat.reports': { en: 'Reports & Logs', ar: 'التقارير والسجلات' },
+
+  'notif.title': { en: 'Notifications', ar: 'الإشعارات' },
+  'notif.mark_all': { en: 'Mark all read', ar: 'تعليم الكل كمقروء' },
+  'notif.empty': { en: 'No notifications', ar: 'لا توجد إشعارات' },
+  'notif.clear': { en: 'Clear all', ar: 'مسح الكل' },
+
+  'dash.stat.total_users': { en: 'Total Users', ar: 'إجمالي المستخدمين' },
+  'dash.stat.modules': { en: 'Active Modules', ar: 'الوحدات المفعّلة' },
+  'dash.stat.actions_today': { en: 'Actions Today', ar: 'إجراءات اليوم' },
+  'dash.stat.system_health': { en: 'System Health', ar: 'صحة النظام' },
+  'dash.recent_logs': { en: 'Recent User Activity', ar: 'آخر حركات المستخدمين' },
+  'dash.view_all': { en: 'View All', ar: 'عرض الكل' },
+  'dash.quick_actions': { en: 'Quick Actions', ar: 'إجراءات سريعة' },
+  'dash.export_report': { en: 'Export Report', ar: 'تصدير تقرير' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);

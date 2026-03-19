@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getUsers, saveUsers, ROLE_DEFAULTS, validateNationalId, type SystemUser } from "@/lib/permissions";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { logAction } from "@/lib/auditLog";
 
 type Tab = "login" | "register";
 type ForgotStep = "idle" | "enter_email" | "enter_code" | "new_password" | "done";
@@ -151,6 +152,7 @@ export default function Login() {
       return;
     }
     localStorage.setItem("user", JSON.stringify(user));
+    logAction("login", "auth", `User ${user.name} logged in`, `المستخدم ${user.name} سجّل دخول`);
     window.location.href = user.role === "client" ? "/client-portal" : "/dashboard";
   };
 

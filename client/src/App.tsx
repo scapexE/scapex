@@ -34,6 +34,7 @@ import CompaniesModule from "@/pages/modules/companies/index";
 import ApprovalsModule from "@/pages/modules/approvals/index";
 import MobileAppModule from "@/pages/modules/mobile-app/index";
 import AboutModule from "@/pages/modules/about/index";
+import AuditLogModule from "@/pages/modules/audit-log/index";
 
 function Router() {
   return (
@@ -78,6 +79,7 @@ function Router() {
       <Route path="/dms" component={DMSModule} />
       <Route path="/client-portal" component={ClientPortalModule} />
       <Route path="/about" component={AboutModule} />
+      <ProtectedRoute path="/audit-log" component={AuditLogModule} page="audit_log" />
 
       <Route component={NotFound} />
     </Switch>

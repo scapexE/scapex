@@ -102,6 +102,9 @@ service_categories, services
 - `scapex_mobile_devices` — mobile app devices
 - `scapex_mobile_reports` — field site reports
 - `scapex_mobile_features` — app feature toggles
+- `scapex_audit_log` — user activity audit log (max 500 entries)
+- `scapex_notifications` — in-app notifications
+- `scapex_notifications_seeded` — demo notification seed flag
 
 ## Modules — All 22 Built & Functional
 
@@ -136,12 +139,21 @@ service_categories, services
 - **HSE** (`/hse`) — Incident reports, safety inspections, PPE tracking
 - **Engineers Mobile App** (`/mobile-app`) — Device management, site reports, live map, feature toggles
 
+### Reports & Logs
+- **Activity Log** (`/audit-log`) — Full user activity tracking: login/logout, page visits, CRUD actions. Filterable by action/module/user with search. Export to CSV and PDF. Clear log restricted to admin.
+
 ### System & Portals
 - **DMS** (`/dms`) — Document storage, versioning, access control (CRUD)
 - **Client Portal** (`/client-portal`) — Client self-service
 - **Users** (`/users`) — User management
 - **System Admin** (`/system-admin`) — Platform configuration
 - **About** (`/about`) — Company info, contact details, social links, support ticket form, technical system info. Visible to all users.
+
+## New Features
+- **Audit Log System** (`client/src/lib/auditLog.ts`) — Tracks login/logout, page visits, CRUD operations. Max 500 entries per browser.
+- **Notifications System** (`client/src/lib/notifications.ts`) — In-app notification bell with real-time badge count, mark as read, clear all. Demo notifications seeded once.
+- **PDF Export** (`client/src/lib/pdfExport.ts`) — Print-ready HTML reports with Scapex branding, bilingual support, HTML escaping.
+- **Enhanced Dashboard** — Shows total users, active modules, today's actions, system health. Includes recent activity log and action distribution chart.
 
 ## Smart Proposal Generator Features
 - **6 service type templates**: Engineering Consulting, Environmental, Safety Consulting, Safety Services, Contracting, Metal Recycling

@@ -30,10 +30,12 @@ import {
   UserCheck,
   Zap,
   HelpCircle,
+  Activity,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { type SystemUser, ROLE_LABELS, ROLE_DEFAULTS } from "@/lib/permissions";
+import { logAction } from "@/lib/auditLog";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ActivitySwitcher } from "./ActivitySwitcher";
@@ -86,6 +88,12 @@ const menuCategories = [
     ],
   },
   {
+    id: "reports",
+    items: [
+      { id: "audit_log", icon: Activity, path: "/audit-log" },
+    ],
+  },
+  {
     id: "system",
     items: [
       { id: "dms", icon: FileText, path: "/dms" },
@@ -112,6 +120,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const { activeActivity } = useBusinessActivity();
 
   const handleLogout = () => {
+    logAction("logout", "auth", `User ${currentUser?.name} logged out`, `المستخدم ${currentUser?.name} سجّل خروج`);
     localStorage.removeItem("user");
     sessionStorage.removeItem("activeRole");
     window.location.href = "/";
@@ -134,7 +143,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     items: cat.items.filter((item) => {
       if (!currentUser) return false;
       // system_admin is only for admin role
-      if (item.id === "about") return true;
+      if (item.id === "about" || item.id === "audit_log") return true;
       if (item.id === "system_admin") return currentUser.role === "admin";
       if (currentUser.role === "admin") return true;
       // Users with approve_registrations can also access the users page
