@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  getAuditLog, clearAuditLog, ACTION_LABELS, ACTION_COLORS,
+  getAuditLog, clearAuditLog, ACTION_LABELS, ACTION_COLORS, ACTION_CATEGORIES,
   type AuditEntry,
 } from "@/lib/auditLog";
+import { getUsers } from "@/lib/permissions";
 import {
-  FileText, Search, Trash2, Download, Filter,
-  Clock, User, Shield, Activity, Printer,
+  FileText, Search, Trash2, Download, Clock, User, Shield, Activity, Printer, X, ChevronDown,
 } from "lucide-react";
 import { exportAuditToPDF } from "@/lib/pdfExport";
 
@@ -22,11 +22,16 @@ function AuditLogContent() {
   const isAdmin = currentUser?.role === "admin";
   const [log, setLog] = useState<AuditEntry[]>([]);
   const [search, setSearch] = useState("");
-  const [actionFilter, setActionFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [moduleFilter, setModuleFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(true);
   const [page, setPage] = useState(1);
   const perPage = 20;
 
+  const allUsers = getUsers();
   const refresh = useCallback(() => setLog(getAuditLog()), []);
 
   useEffect(() => {
@@ -36,9 +41,23 @@ function AuditLogContent() {
     return () => window.removeEventListener("scapex_audit_update", handler);
   }, [refresh]);
 
+  const categoryActions = categoryFilter !== "all"
+    ? ACTION_CATEGORIES[categoryFilter]?.actions || []
+    : [];
+
   const filtered = log.filter((e) => {
-    if (actionFilter !== "all" && e.action !== actionFilter) return false;
+    if (userFilter !== "all" && e.userId !== userFilter) return false;
+    if (categoryFilter !== "all" && !categoryActions.includes(e.action)) return false;
     if (moduleFilter !== "all" && e.module !== moduleFilter) return false;
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      if (new Date(e.timestamp) < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(e.timestamp) > to) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -54,14 +73,34 @@ function AuditLogContent() {
   const totalPages = Math.ceil(filtered.length / perPage);
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);
 
-  const uniqueActions: AuditEntry["action"][] = Array.from(new Set(log.map((e) => e.action)));
+  const uniqueUsers: { id: string; name: string }[] = [];
+  const seenUsers = new Set<string>();
+  for (const e of log) {
+    if (!seenUsers.has(e.userId)) {
+      seenUsers.add(e.userId);
+      uniqueUsers.push({ id: e.userId, name: e.userName });
+    }
+  }
   const uniqueModules: string[] = Array.from(new Set(log.map((e) => e.module)));
 
+  const todayStr = new Date().toDateString();
   const stats = {
     total: log.length,
-    today: log.filter((e) => new Date(e.timestamp).toDateString() === new Date().toDateString()).length,
-    users: new Set(log.map((e) => e.userId)).size,
-    actions: uniqueActions.length,
+    today: log.filter((e) => new Date(e.timestamp).toDateString() === todayStr).length,
+    users: uniqueUsers.length,
+    logins: log.filter((e) => e.action === "login").length,
+  };
+
+  const hasActiveFilters = userFilter !== "all" || categoryFilter !== "all" || moduleFilter !== "all" || dateFrom || dateTo || search;
+
+  const clearFilters = () => {
+    setUserFilter("all");
+    setCategoryFilter("all");
+    setModuleFilter("all");
+    setDateFrom("");
+    setDateTo("");
+    setSearch("");
+    setPage(1);
   };
 
   const exportCSV = () => {
@@ -88,6 +127,8 @@ function AuditLogContent() {
     });
   };
 
+  const selectClass = "text-sm border rounded-lg px-3 py-2 bg-background w-full focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors";
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -97,10 +138,10 @@ function AuditLogContent() {
             {isRtl ? "سجل حركات المستخدمين" : "User Activity Log"}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            {isRtl ? "تتبع جميع العمليات والإجراءات في النظام" : "Track all operations and actions in the system"}
+            {isRtl ? "تتبع عمليات الدخول والخروج والتعديلات ورفع الملفات" : "Track logins, logouts, changes, uploads, and operations"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => exportAuditToPDF(filtered, isRtl)} data-testid="button-export-pdf">
             <Printer className="w-4 h-4 me-1" />
             {isRtl ? "تقرير PDF" : "PDF Report"}
@@ -122,8 +163,8 @@ function AuditLogContent() {
         {[
           { label: isRtl ? "إجمالي السجلات" : "Total Records", value: stats.total, icon: FileText, color: "text-blue-500" },
           { label: isRtl ? "سجلات اليوم" : "Today's Records", value: stats.today, icon: Clock, color: "text-green-500" },
-          { label: isRtl ? "المستخدمون النشطون" : "Active Users", value: stats.users, icon: User, color: "text-purple-500" },
-          { label: isRtl ? "أنواع الإجراءات" : "Action Types", value: stats.actions, icon: Shield, color: "text-amber-500" },
+          { label: isRtl ? "المستخدمون" : "Users", value: stats.users, icon: User, color: "text-purple-500" },
+          { label: isRtl ? "عمليات الدخول" : "Total Logins", value: stats.logins, icon: Shield, color: "text-amber-500" },
         ].map((s, i) => (
           <Card key={i} className="shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
@@ -141,48 +182,174 @@ function AuditLogContent() {
 
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
-            <div className="relative flex-1 w-full">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder={isRtl ? "البحث في السجل..." : "Search log..."}
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="ps-9"
-                data-testid="input-search-audit"
-              />
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <select
-                className="text-sm border rounded-md px-2 py-1.5 bg-background"
-                value={actionFilter}
-                onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
-                data-testid="select-action-filter"
+          <div className="flex items-center justify-between mb-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Search className="w-4 h-4" />
+              {isRtl ? "البحث والتصفية" : "Search & Filters"}
+            </CardTitle>
+            <div className="flex gap-2">
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive" onClick={clearFilters}>
+                  <X className="w-3 h-3 me-1" />
+                  {isRtl ? "مسح الفلاتر" : "Clear Filters"}
+                </Button>
+              )}
+              <Button
+                variant="ghost" size="sm" className="text-xs h-7"
+                onClick={() => setShowFilters(!showFilters)}
               >
-                <option value="all">{isRtl ? "جميع الإجراءات" : "All Actions"}</option>
-                {uniqueActions.map((a) => (
-                  <option key={a} value={a}>{isRtl ? ACTION_LABELS[a].ar : ACTION_LABELS[a].en}</option>
-                ))}
-              </select>
-              <select
-                className="text-sm border rounded-md px-2 py-1.5 bg-background"
-                value={moduleFilter}
-                onChange={(e) => { setModuleFilter(e.target.value); setPage(1); }}
-                data-testid="select-module-filter"
-              >
-                <option value="all">{isRtl ? "جميع الوحدات" : "All Modules"}</option>
-                {uniqueModules.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+                <ChevronDown className={`w-3 h-3 me-1 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+                {showFilters ? (isRtl ? "إخفاء" : "Hide") : (isRtl ? "عرض" : "Show")}
+              </Button>
             </div>
+          </div>
+
+          {showFilters && (
+            <div className="space-y-3">
+              <div className="relative w-full">
+                <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder={isRtl ? "البحث بالاسم أو التفاصيل أو الوحدة..." : "Search by name, details, or module..."}
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  className="ps-9"
+                  data-testid="input-search-audit"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    {isRtl ? "المستخدم" : "User"}
+                  </label>
+                  <select
+                    className={selectClass}
+                    value={userFilter}
+                    onChange={(e) => { setUserFilter(e.target.value); setPage(1); }}
+                    data-testid="select-user-filter"
+                  >
+                    <option value="all">{isRtl ? "جميع المستخدمين" : "All Users"}</option>
+                    {uniqueUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    {isRtl ? "نوع العملية" : "Operation Type"}
+                  </label>
+                  <select
+                    className={selectClass}
+                    value={categoryFilter}
+                    onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                    data-testid="select-category-filter"
+                  >
+                    <option value="all">{isRtl ? "جميع العمليات" : "All Operations"}</option>
+                    {Object.entries(ACTION_CATEGORIES).map(([key, cat]) => (
+                      <option key={key} value={key}>{isRtl ? cat.ar : cat.en}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    {isRtl ? "الوحدة" : "Module"}
+                  </label>
+                  <select
+                    className={selectClass}
+                    value={moduleFilter}
+                    onChange={(e) => { setModuleFilter(e.target.value); setPage(1); }}
+                    data-testid="select-module-filter"
+                  >
+                    <option value="all">{isRtl ? "جميع الوحدات" : "All Modules"}</option>
+                    {uniqueModules.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      {isRtl ? "من تاريخ" : "From"}
+                    </label>
+                    <input
+                      type="date"
+                      className={selectClass}
+                      value={dateFrom}
+                      onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                      data-testid="input-date-from"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      {isRtl ? "إلى تاريخ" : "To"}
+                    </label>
+                    <input
+                      type="date"
+                      className={selectClass}
+                      value={dateTo}
+                      onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                      data-testid="input-date-to"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {hasActiveFilters && (
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <span className="text-xs text-muted-foreground">{isRtl ? "الفلاتر النشطة:" : "Active filters:"}</span>
+                  {userFilter !== "all" && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <User className="w-3 h-3" />
+                      {uniqueUsers.find(u => u.id === userFilter)?.name}
+                      <X className="w-3 h-3 cursor-pointer" onClick={() => setUserFilter("all")} />
+                    </Badge>
+                  )}
+                  {categoryFilter !== "all" && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <Activity className="w-3 h-3" />
+                      {isRtl ? ACTION_CATEGORIES[categoryFilter]?.ar : ACTION_CATEGORIES[categoryFilter]?.en}
+                      <X className="w-3 h-3 cursor-pointer" onClick={() => setCategoryFilter("all")} />
+                    </Badge>
+                  )}
+                  {moduleFilter !== "all" && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <FileText className="w-3 h-3" />
+                      {moduleFilter}
+                      <X className="w-3 h-3 cursor-pointer" onClick={() => setModuleFilter("all")} />
+                    </Badge>
+                  )}
+                  {(dateFrom || dateTo) && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <Clock className="w-3 h-3" />
+                      {dateFrom || "..."} → {dateTo || "..."}
+                      <X className="w-3 h-3 cursor-pointer" onClick={() => { setDateFrom(""); setDateTo(""); }} />
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t mt-3">
+            <span className="text-xs text-muted-foreground">
+              {isRtl ? `${filtered.length} نتيجة` : `${filtered.length} results`}
+              {hasActiveFilters && (isRtl ? ` (من ${log.length} سجل)` : ` (of ${log.length} total)`)}
+            </span>
           </div>
         </CardHeader>
         <CardContent>
           {paginated.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Activity className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>{isRtl ? "لا توجد سجلات" : "No records found"}</p>
+              <p className="font-medium">{isRtl ? "لا توجد سجلات" : "No records found"}</p>
+              <p className="text-xs mt-1">
+                {hasActiveFilters
+                  ? (isRtl ? "جرب تعديل الفلاتر للحصول على نتائج" : "Try adjusting filters to get results")
+                  : (isRtl ? "سيتم تسجيل الحركات تلقائياً عند استخدام النظام" : "Actions will be logged automatically when using the system")}
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
