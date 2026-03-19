@@ -50,6 +50,7 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.approve_registrations': { en: 'Approve Registrations', ar: 'اعتماد التسجيلات' },
   'nav.system_admin': { en: 'System Admin Panel', ar: 'لوحة تحكم النظام' },
   'nav.users': { en: 'User Management', ar: 'إدارة المستخدمين' },
+  'nav.company_settings': { en: 'Company Management', ar: 'إدارة الشركة' },
   'nav.about': { en: 'About', ar: 'حول النظام' },
   
   // Header

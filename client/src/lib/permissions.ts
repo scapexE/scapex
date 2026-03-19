@@ -45,6 +45,7 @@ export const ALL_MODULES = [
   { id: "ai_control",           labelAr: "مركز الذكاء الاصطناعي",  labelEn: "AI Control",         category: "core" },
   { id: "bi",                   labelAr: "تحليلات الأعمال",         labelEn: "BI Analytics",       category: "core" },
   { id: "multi_tenant",         labelAr: "إدارة الشركات",           labelEn: "Companies",          category: "core" },
+  { id: "company_settings",     labelAr: "إدارة الشركة",            labelEn: "Company Management", category: "core" },
   { id: "crm",                  labelAr: "إدارة العملاء",           labelEn: "CRM",                category: "business" },
   { id: "sales",                labelAr: "المبيعات",                labelEn: "Sales",              category: "business" },
   { id: "purchases",            labelAr: "المشتريات",               labelEn: "Purchases",          category: "business" },

@@ -48,6 +48,7 @@ const menuCategories = [
       { id: "ai_control", icon: BrainCircuit, path: "/ai-control" },
       { id: "bi", icon: PieChart, path: "/bi" },
       { id: "multi_tenant", icon: Building2, path: "/companies" },
+      { id: "company_settings", icon: Building2, path: "/company-settings" },
     ],
   },
   {

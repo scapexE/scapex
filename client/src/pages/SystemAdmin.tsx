@@ -35,7 +35,7 @@ import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { CompanyServicesManager } from "@/components/system-admin/CompanyServicesManager";
-import { type AboutSettings, DEFAULT_ABOUT, getAboutData } from "@/pages/modules/about/index";
+import { type AboutSettings, DEFAULT_ABOUT, getAboutData } from "@/lib/companySettings";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MODULE_CATEGORIES: Record<string, { ar: string; en: string }> = {
@@ -694,6 +694,14 @@ function AboutSettingsPanel() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 text-xs">
+        <p className="font-semibold text-foreground mb-1">{t2("💡 صفحة إدارة الشركة المركزية", "💡 Central Company Management Page")}</p>
+        <p className="text-muted-foreground">{t2(
+          "للحصول على تجربة أكمل لإدارة بيانات الشركة مع الفروع والبيانات القانونية، اذهب إلى صفحة إدارة الشركة من القائمة الجانبية.",
+          "For a complete company data management experience with branches and legal info, go to Company Management from the sidebar."
+        )}</p>
+      </div>
 
       <div className="flex items-center gap-3 justify-end">
         <Button variant="outline" onClick={handleReset} data-testid="button-reset-about">

@@ -1,3 +1,5 @@
+import { getAboutData } from "@/lib/companySettings";
+
 // ─── Proposal Data Layer ────────────────────────────────────────────────────
 
 export type ServiceType =
@@ -655,26 +657,24 @@ export function printProposal(proposal: Proposal, isRtl: boolean): void {
   const validUntil = new Date(new Date(proposal.createdAt).getTime() + proposal.validity * 86400000)
     .toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
 
-  // ── Read active company data ──────────────────────────────────────────────
-  let coNameAr   = "شركة سكيب للاستشارات والخدمات الهندسية";
-  let coNameEn   = "Scapex Consulting & Engineering Services";
-  let coVat      = "300123456700003";
+  // ── Company data: getAboutData() is the single source of truth ──
+  const aboutData = getAboutData();
+  const coNameAr   = aboutData.companyNameAr || "شركة سكيب للاستشارات والخدمات الهندسية";
+  const coNameEn   = aboutData.companyNameEn || "Scapex Consulting & Engineering Services";
+  const coVat      = aboutData.vatNumber || "300123456700003";
   let coLogoUrl  = "";
   let coLogoColor = "#1e40af";
-  let coLogoChar  = "S";
+  let coLogoChar  = coNameEn?.charAt(0)?.toUpperCase() || "S";
   try {
     const raw = localStorage.getItem("scapex_companies");
     if (raw) {
-      const companies = JSON.parse(raw) as Array<{id:string;nameAr:string;nameEn:string;vatNumber?:string;logoUrl?:string;logoColor?:string}>;
+      const companies = JSON.parse(raw) as Array<{id:string;logoUrl?:string;logoColor?:string;nameEn?:string}>;
       const activeId = localStorage.getItem("scapex_active_company");
       const co = activeId ? companies.find((c) => c.id === activeId) : companies[0];
       if (co) {
-        coNameAr    = co.nameAr;
-        coNameEn    = co.nameEn;
-        coVat       = co.vatNumber || coVat;
         coLogoUrl   = co.logoUrl   || "";
         coLogoColor = co.logoColor || "#1e40af";
-        coLogoChar  = co.nameEn?.charAt(0)?.toUpperCase() || "S";
+        coLogoChar  = co.nameEn?.charAt(0)?.toUpperCase() || coLogoChar;
       }
     }
   } catch {}
@@ -726,11 +726,11 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
 .valid-box { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:5px; padding:9px; font-size:11px; color:#065f46; }
 .notes-box { background:#fffbeb; border:1px solid #fde68a; border-radius:5px; padding:9px; font-size:11px; color:#92400e; }
-.sig-grid { display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:24px; }
-.sig-box { text-align:center; }
-.sig-line { border-bottom:2px solid #374151; height:48px; margin-bottom:6px; }
-.sig-lbl { font-size:11px; font-weight:600; }
-.footer { margin-top:16px; padding-top:8px; border-top:1px solid #e2e8f0; text-align:center; font-size:9px; color:#94a3b8; }
+.footer-info { margin-top:20px; padding:12px 16px; border-top:2px solid #1e40af; background:#f8fafc; border-radius:0 0 6px 6px; }
+.footer-info-grid { display:flex; justify-content:center; gap:28px; flex-wrap:wrap; }
+.footer-info-item { display:flex; align-items:center; gap:5px; font-size:10px; color:#374151; }
+.footer-info-item strong { font-weight:600; }
+.footer { margin-top:8px; text-align:center; font-size:9px; color:#94a3b8; }
 </style></head><body>
 <div class="page">
 <!-- الهيدر: dir=ltr دائماً لضمان الشعار في اليسار الفيزيائي -->
@@ -799,10 +799,19 @@ ${(() => {
   <div class="valid-box"><strong>${isRtl ? "صلاحية العرض:" : "Validity:"}</strong><br/>${isRtl ? `${proposal.validity} يوماً (حتى ${validUntil})` : `${proposal.validity} days (until ${validUntil})`}</div>
   ${proposal.notes ? `<div class="notes-box"><strong>${isRtl ? "ملاحظات:" : "Notes:"}</strong><br/>${proposal.notes}</div>` : "<div></div>"}
 </div>
-<div class="sig-grid">
-  <div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">${isRtl ? coNameAr : coNameEn} — ${isRtl ? "التوقيع والختم" : "Signature & Stamp"}</div></div>
-  <div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">${proposal.clientName} — ${isRtl ? "التوقيع والختم" : "Signature & Stamp"}</div></div>
-</div>
+${(() => {
+  const about = getAboutData();
+  const addr = isRtl ? (about.address || "").split("\n").join(" — ") : (about.addressEn || "").split("\n").join(" — ");
+  const email = about.email1 || "info@scapex.sa";
+  const web = about.website || "www.scapex.sa";
+  const phone = about.phone1 || "";
+  return `<div class="footer-info"><div class="footer-info-grid">
+  ${addr ? `<div class="footer-info-item"><strong>📍</strong> ${addr}</div>` : ""}
+  ${phone ? `<div class="footer-info-item"><strong>📞</strong> ${phone}</div>` : ""}
+  <div class="footer-info-item"><strong>✉</strong> ${email}</div>
+  <div class="footer-info-item"><strong>🌐</strong> ${web}</div>
+</div></div>`;
+})()}
 <div class="footer">${isRtl ? `تم إنشاء هذا العرض من منصة Scapex الذكية لإدارة الأعمال` : `Generated from Scapex Smart Business Management Platform`}</div>
 </div>
 <script>window.onload=function(){window.print();}</script>

@@ -35,6 +35,7 @@ import ApprovalsModule from "@/pages/modules/approvals/index";
 import MobileAppModule from "@/pages/modules/mobile-app/index";
 import AboutModule from "@/pages/modules/about/index";
 import AuditLogModule from "@/pages/modules/audit-log/index";
+import CompanySettingsModule from "@/pages/modules/company-settings/index";
 
 function Router() {
   return (
@@ -78,6 +79,7 @@ function Router() {
       {/* System & Portals */}
       <Route path="/dms" component={DMSModule} />
       <Route path="/client-portal" component={ClientPortalModule} />
+      <Route path="/company-settings" component={CompanySettingsModule} />
       <Route path="/about" component={AboutModule} />
       <ProtectedRoute path="/audit-log" component={AuditLogModule} page="audit_log" />
 

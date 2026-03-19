@@ -105,6 +105,7 @@ service_categories, services
 - `scapex_audit_log` — user activity audit log (max 500 entries)
 - `scapex_notifications` — in-app notifications
 - `scapex_notifications_seeded` — demo notification seed flag
+- `scapex_about_settings` — central company settings (name, address, contacts, VAT, CR, branches, social media) — single source of truth for all system company data
 
 ## Modules — All 22 Built & Functional
 
@@ -113,6 +114,7 @@ service_categories, services
 - **BI Analytics** (`/bi`) — Revenue charts, service breakdown, top clients, KPI bars
 - **AI Control Center** (`/ai-control`) — AI insights, automation rules
 - **Company Management** (`/companies`) — Multi-tenant: companies, branches, org structure
+- **Company Settings** (`/company-settings`) — Central company data management (name, description, address, contacts, legal info, branches, social media). Single source of truth for all system data.
 
 ### Business & Finance
 - **CRM** (`/crm`) — Pipeline board + Customers list + Dashboard
@@ -163,10 +165,11 @@ service_categories, services
 - **3-step create wizard**: Service type → Client info → Project details
 - **Status workflow**: Draft → Sent → Approved → Contract/Invoice
 - **Contract generation**: Auto-generates 8-article bilingual legal contract with payment schedule
-- **PDF printing**: `printProposal()` and `printContract()` generate styled HTML + auto-print
+- **PDF printing**: `printProposal()` and `printContract()` generate styled HTML + auto-print. Proposal PDF uses company footer (address, email, phone, website) instead of signature/stamp.
 - **CRM/Sales integration**: `scapex_proposal_prefill` localStorage key for client prefill
 
 ## Module File Locations
 All modules: `client/src/pages/modules/<module-name>/index.tsx`
 Sub-services library: `client/src/lib/sub-services.ts`
 Company services: `client/src/lib/company-services.ts`
+Company settings data layer: `client/src/lib/companySettings.ts` — central types, defaults, getAboutData(), saveAboutData()

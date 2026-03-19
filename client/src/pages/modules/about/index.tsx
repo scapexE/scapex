@@ -34,49 +34,8 @@ const SYSTEM_STATS = [
   { icon: Shield, value: "RBAC", ar: "نظام صلاحيات", en: "Access Control" },
 ];
 
-export interface AboutSettings {
-  companyNameAr: string;
-  companyNameEn: string;
-  descriptionAr: string;
-  descriptionEn: string;
-  address: string;
-  addressEn: string;
-  phone1: string;
-  phone2: string;
-  email1: string;
-  email2: string;
-  workingHoursAr: string;
-  workingHoursEn: string;
-  twitterHandle: string;
-  linkedinUrl: string;
-  whatsapp: string;
-}
-
-export const DEFAULT_ABOUT: AboutSettings = {
-  companyNameAr: "شركة سكيبكس للحلول التقنية",
-  companyNameEn: "Scapex Technology Solutions",
-  descriptionAr: "سكيبكس هو نظام متكامل لإدارة موارد المؤسسات (ERP) مصمم خصيصاً للسوق السعودي. يوفر النظام 22 وحدة عمل تغطي جميع احتياجات الشركات من إدارة العملاء والمبيعات والمشتريات والمحاسبة والموارد البشرية والمشاريع الهندسية والسلامة المهنية وغيرها. يتميز بدعم كامل للغتين العربية والإنجليزية مع واجهة حديثة ونظام صلاحيات متقدم.",
-  descriptionEn: "Scapex is a comprehensive Enterprise Resource Planning (ERP) system designed specifically for the Saudi market. The platform provides 22 business modules covering all enterprise needs including CRM, Sales, Purchasing, Accounting, HR, Engineering Projects, HSE, and more. It features full Arabic/English bilingual support with a modern interface and advanced role-based access control.",
-  address: "المملكة العربية السعودية، الرياض\nطريق الملك فهد، برج المملكة\nالطابق 25، مكتب 2510",
-  addressEn: "Kingdom of Saudi Arabia, Riyadh\nKing Fahd Road, Kingdom Tower\nFloor 25, Office 2510",
-  phone1: "+966 11 234 5678",
-  phone2: "+966 50 123 4567",
-  email1: "info@scapex.sa",
-  email2: "support@scapex.sa",
-  workingHoursAr: "الأحد – الخميس: 8:00 ص – 5:00 م",
-  workingHoursEn: "Sun – Thu: 8:00 AM – 5:00 PM",
-  twitterHandle: "@scapex_sa",
-  linkedinUrl: "https://linkedin.com/company/scapex",
-  whatsapp: "+966501234567",
-};
-
-export function getAboutData(): AboutSettings {
-  try {
-    const stored = localStorage.getItem("scapex_about_settings");
-    if (stored) return { ...DEFAULT_ABOUT, ...JSON.parse(stored) };
-  } catch {}
-  return DEFAULT_ABOUT;
-}
+import { getAboutData } from "@/lib/companySettings";
+export { type CompanyBranch, type AboutSettings, DEFAULT_ABOUT, getAboutData } from "@/lib/companySettings";
 
 export default function AboutModule() {
   const { dir } = useLanguage();
@@ -360,6 +319,36 @@ export default function AboutModule() {
                       </p>
                     </div>
                   </div>
+
+                  {aboutData.website && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shrink-0">
+                        <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">{t("الموقع الإلكتروني", "Website")}</p>
+                        <a href={aboutData.website.startsWith("http") ? aboutData.website : `https://${aboutData.website}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline" dir="ltr" data-testid="text-website">{aboutData.website}</a>
+                      </div>
+                    </div>
+                  )}
+
+                  {(aboutData.crNumber || aboutData.vatNumber) && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center shrink-0">
+                        <Shield className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </div>
+                      <div>
+                        {aboutData.crNumber && (<>
+                          <p className="text-xs text-muted-foreground">{t("السجل التجاري", "CR No.")}</p>
+                          <p className="text-sm font-medium" dir="ltr" data-testid="text-cr-number">{aboutData.crNumber}</p>
+                        </>)}
+                        {aboutData.vatNumber && (<>
+                          <p className="text-xs text-muted-foreground mt-1">{t("الرقم الضريبي", "VAT No.")}</p>
+                          <p className="text-sm font-medium" dir="ltr" data-testid="text-vat-number">{aboutData.vatNumber}</p>
+                        </>)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
