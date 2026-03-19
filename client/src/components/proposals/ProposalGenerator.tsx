@@ -408,29 +408,36 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
       // Use sub-service template if selected, otherwise AI smart pricing
       let items: ProposalItem[] = [];
       let introduction = "";
+      let introductionAr: string | undefined;
+      let introductionEn: string | undefined;
       let scopeAr: string | undefined;
       let scopeEn: string | undefined;
 
       if (selectedSubService) {
         const desc = projectDesc.trim();
         items = selectedSubService.items.map(i => ({ ...i, id: generateId() }));
-        introduction = isRtl ? selectedSubService.introAr(desc) : selectedSubService.introEn(desc);
+        introductionAr = selectedSubService.introAr(desc);
+        introductionEn = selectedSubService.introEn(desc);
+        introduction = isRtl ? introductionAr : introductionEn;
         scopeAr = selectedSubService.scopeAr(desc);
         scopeEn = selectedSubService.scopeEn(desc);
       } else if (useAI) {
         const template = getSmartPricing(selectedService, region, projectSize);
         if (template) {
           items = template.items.map(i => ({ ...i, id: generateId() }));
-          introduction = isRtl ? template.introAr : template.introEn;
+          introductionAr = template.introAr;
+          introductionEn = template.introEn;
+          introduction = isRtl ? introductionAr : introductionEn;
           scopeAr = template.scopeAr;
           scopeEn = template.scopeEn;
         }
       }
 
       if (!introduction) {
-        introduction = isRtl
-          ? `يسعدنا تقديم عرض أسعارنا لمشروعكم الكريم (${projectDesc.trim()})، ونأمل أن يلبي تطلعاتكم ويرقى إلى مستوى ثقتكم بنا.`
-          : `We are pleased to submit our proposal for your esteemed project (${projectDesc.trim()}), and we hope it meets your expectations.`;
+        const desc = projectDesc.trim();
+        introductionAr = `يسعدنا تقديم عرض أسعارنا لمشروعكم الكريم (${desc})، ونأمل أن يلبي تطلعاتكم ويرقى إلى مستوى ثقتكم بنا.`;
+        introductionEn = `We are pleased to submit our proposal for your esteemed project (${desc}), and we hope it meets your expectations.`;
+        introduction = isRtl ? introductionAr : introductionEn;
       }
 
       const subtotal = items.reduce((s, i) => s + i.total, 0);
@@ -449,6 +456,8 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         ),
         projectDesc: projectDesc.trim(),
         introduction,
+        introductionAr,
+        introductionEn,
         scopeAr,
         scopeEn,
         serviceType: selectedService,
