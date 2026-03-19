@@ -37,6 +37,9 @@ import {
   type SubService,
   getSubServices, hasSubServices, getSubService,
 } from "@/lib/sub-services";
+import { SignatureDialog } from "@/components/proposals/SignatureDialog";
+import { getDocumentSignatures } from "@/lib/signatures";
+import { PenLine } from "lucide-react";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HardHat, Leaf, ShieldAlert, Flame, Building2, RefreshCcw,
@@ -821,6 +824,8 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
   const [priceTab, setPriceTab] = useState<"suggest"|"analyze">("suggest");
   const [showScope, setShowScope] = useState(true);
   const [showServicePicker, setShowServicePicker] = useState(false);
+  const [showSignature, setShowSignature] = useState(false);
+  const [sigRefresh, setSigRefresh] = useState(0);
   const svc = SERVICE_META[proposal.serviceType];
 
   // Map serviceType index to company activity services
@@ -955,6 +960,11 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
               <FileSignature className="w-3.5 h-3.5" />{isRtl ? "عرض العقد" : "View Contract"}
             </Button>
           )}
+          {/* Signature */}
+          <Button size="sm" variant="outline" className={cn("gap-1.5 h-8", (() => { const s = getDocumentSignatures(proposal.id); return s.first && s.second ? "text-green-600 border-green-300 bg-green-50 dark:bg-green-950/20" : "text-emerald-600 border-emerald-300"; })())} onClick={() => setShowSignature(true)} data-testid="button-proposal-signature">
+            <PenLine className="w-3.5 h-3.5" />{isRtl ? "توقيع" : "Sign"}
+            {(() => { const s = getDocumentSignatures(proposal.id); const c = (s.first ? 1 : 0) + (s.second ? 1 : 0); return c > 0 ? <Badge variant="secondary" className="text-[9px] px-1 py-0 ms-0.5">{c}/2</Badge> : null; })()}
+          </Button>
           {/* Print — saves first to ensure latest data */}
           <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => {
             const saved = { ...proposal, updatedAt: new Date().toISOString() };
@@ -1296,6 +1306,17 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
           </Card>
         </div>
       </div>
+
+      <SignatureDialog
+        open={showSignature}
+        onOpenChange={setShowSignature}
+        documentType="proposal"
+        documentId={proposal.id}
+        documentNumber={proposal.proposalNumber}
+        clientName={proposal.clientName}
+        isRtl={isRtl}
+        onSignaturesChange={() => setSigRefresh(k => k + 1)}
+      />
     </div>
   );
 }
@@ -1306,6 +1327,8 @@ function ContractView({ contract: init, isRtl, onBack }: {
 }) {
   const [contract, setContract] = useState<Contract>(init);
   const [expandedClauses, setExpandedClauses] = useState<Set<string>>(new Set(["1", "2", "3"]));
+  const [showSignature, setShowSignature] = useState(false);
+  const [sigRefresh, setSigRefresh] = useState(0);
   const { toast } = useToast();
 
   const toggleClause = (id: string) => {
@@ -1341,6 +1364,10 @@ function ContractView({ contract: init, isRtl, onBack }: {
           <Badge className="text-[10px] px-1.5 bg-violet-50 text-violet-700 border-violet-200">{isRtl ? "عقد" : "Contract"}</Badge>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className={cn("gap-1.5 h-8", (() => { const s = getDocumentSignatures(contract.id); return s.first && s.second ? "text-green-600 border-green-300 bg-green-50 dark:bg-green-950/20" : "text-emerald-600 border-emerald-300"; })())} onClick={() => setShowSignature(true)} data-testid="button-contract-signature">
+            <PenLine className="w-3.5 h-3.5" />{isRtl ? "توقيع" : "Sign"}
+            {(() => { const s = getDocumentSignatures(contract.id); const c = (s.first ? 1 : 0) + (s.second ? 1 : 0); return c > 0 ? <Badge variant="secondary" className="text-[9px] px-1 py-0 ms-0.5">{c}/2</Badge> : null; })()}
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => printContract(contract, isRtl)}>
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة العقد PDF" : "Print Contract PDF"}
           </Button>
@@ -1468,13 +1495,63 @@ function ContractView({ contract: init, isRtl, onBack }: {
             </CardContent>
           </Card>
 
+          {/* Signature status card */}
+          {(() => {
+            const sigs = getDocumentSignatures(contract.id);
+            const hasSigs = sigs.first || sigs.second;
+            if (!hasSigs) return null;
+            return (
+              <Card className="border-green-200/60 bg-green-50/30 dark:bg-green-950/10">
+                <CardContent className="p-4">
+                  <h4 className="text-sm font-bold flex items-center gap-2 mb-3">
+                    <PenLine className="w-4 h-4 text-green-600" />
+                    {isRtl ? "حالة التوقيع الإلكتروني" : "Electronic Signature Status"}
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { party: "first" as const, label: isRtl ? "الطرف الأول — Scapex" : "First Party — Scapex", sig: sigs.first },
+                      { party: "second" as const, label: isRtl ? `الطرف الثاني — ${contract.clientName}` : `Second Party — ${contract.clientName}`, sig: sigs.second },
+                    ].map(({ party, label, sig }) => (
+                      <div key={party} className={cn("p-3 rounded-lg border", sig ? "border-green-300 bg-white dark:bg-green-950/20" : "border-dashed border-gray-300")}>
+                        <p className="text-xs font-semibold mb-2">{label}</p>
+                        {sig ? (
+                          <div className="flex items-center gap-3">
+                            <img src={sig.signatureDataUrl} alt="sig" className="h-10 object-contain border rounded p-0.5 bg-white" />
+                            <div className="text-[10px] text-muted-foreground">
+                              <p className="font-medium text-foreground">{sig.signerName}</p>
+                              <p>{sig.signerRole}</p>
+                              <p dir="ltr">{new Date(sig.signedAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/50">{isRtl ? "لم يوقّع بعد" : "Not signed yet"}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Print reminder */}
           <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 text-xs text-muted-foreground">
             <p className="font-semibold text-foreground mb-1">{isRtl ? "لطباعة العقد:" : "To print the contract:"}</p>
-            <p>{isRtl ? "اضغط على زر \"طباعة العقد PDF\" أعلاه. سيُفتح ملف PDF جاهز للتوقيع والختم." : "Click the \"Print Contract PDF\" button above. A PDF ready for signatures will open."}</p>
+            <p>{isRtl ? "اضغط على زر \"طباعة العقد PDF\" أعلاه. سيُفتح ملف PDF جاهز بالتوقيعات الإلكترونية." : "Click the \"Print Contract PDF\" button above. A PDF with electronic signatures will open."}</p>
           </div>
         </div>
       </div>
+
+      <SignatureDialog
+        open={showSignature}
+        onOpenChange={setShowSignature}
+        documentType="contract"
+        documentId={contract.id}
+        documentNumber={contract.contractNumber}
+        clientName={contract.clientName}
+        isRtl={isRtl}
+        onSignaturesChange={() => setSigRefresh(k => k + 1)}
+      />
     </div>
   );
 }

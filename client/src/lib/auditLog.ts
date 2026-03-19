@@ -4,7 +4,7 @@ export interface AuditEntry {
   userId: string;
   userName: string;
   userRole: string;
-  action: "login" | "logout" | "create" | "update" | "delete" | "export" | "approve" | "reject" | "settings_change" | "upload";
+  action: "login" | "logout" | "create" | "update" | "delete" | "export" | "approve" | "reject" | "settings_change" | "upload" | "sign";
   module: string;
   details: string;
   detailsAr: string;
@@ -70,6 +70,7 @@ export const ACTION_LABELS: Record<AuditEntry["action"], { en: string; ar: strin
   approve: { en: "Approve", ar: "موافقة" },
   reject: { en: "Reject", ar: "رفض" },
   settings_change: { en: "Settings Change", ar: "تغيير إعدادات" },
+  sign: { en: "Sign", ar: "توقيع" },
 };
 
 export const ACTION_COLORS: Record<AuditEntry["action"], string> = {
@@ -83,6 +84,7 @@ export const ACTION_COLORS: Record<AuditEntry["action"], string> = {
   approve: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400",
   reject: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400",
   settings_change: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400",
+  sign: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
 };
 
 export const ACTION_CATEGORIES: Record<string, { en: string; ar: string; actions: AuditEntry["action"][] }> = {
@@ -90,4 +92,5 @@ export const ACTION_CATEGORIES: Record<string, { en: string; ar: string; actions
   changes: { en: "Changes & Modifications", ar: "التعديلات والتغييرات", actions: ["create", "update", "delete", "settings_change"] },
   files: { en: "File Uploads & Exports", ar: "رفع الملفات والتصدير", actions: ["upload", "export"] },
   approvals: { en: "Approvals & Rejections", ar: "الموافقات والرفض", actions: ["approve", "reject"] },
+  signatures: { en: "Electronic Signatures", ar: "التوقيعات الإلكترونية", actions: ["sign"] },
 };

@@ -106,6 +106,9 @@ service_categories, services
 - `scapex_notifications` — in-app notifications
 - `scapex_notifications_seeded` — demo notification seed flag
 - `scapex_about_settings` — central company settings (name, address, contacts, VAT, CR, branches, social media) — single source of truth for all system company data
+- `scapex_system_settings` — system settings (time format 12h/24h, date format gregorian/hijri/both, print template footers/headers)
+- `scapex_signatures` — electronic signature records per document (proposal/contract) per party
+- `scapex_default_signature` — saved default signature image for quick reuse
 
 ## Modules — All 22 Built & Functional
 
@@ -165,7 +168,8 @@ service_categories, services
 - **3-step create wizard**: Service type → Client info → Project details
 - **Status workflow**: Draft → Sent → Approved → Contract/Invoice
 - **Contract generation**: Auto-generates 8-article bilingual legal contract with payment schedule
-- **PDF printing**: `printProposal()` and `printContract()` generate styled HTML + auto-print. Proposal PDF uses company footer (address, email, phone, website) instead of signature/stamp.
+- **Electronic Signature**: Canvas-based signature pad for drawing signatures. Per-document storage with first/second party. Signatures embedded in printed PDFs for proposals and contracts. Default signature can be saved and reused.
+- **PDF printing**: `printProposal()` and `printContract()` generate styled HTML + auto-print. Proposal PDF uses company footer (address, email, phone, website) + custom template text from system settings. Signatures appear automatically when signed.
 - **CRM/Sales integration**: `scapex_proposal_prefill` localStorage key for client prefill
 
 ## Module File Locations
