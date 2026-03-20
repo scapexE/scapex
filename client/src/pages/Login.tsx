@@ -7,6 +7,8 @@ type Tab = "login" | "register";
 type ForgotStep = "idle" | "enter_email" | "enter_code" | "new_password" | "done";
 type RegStep = "form" | "verify_email" | "submitted";
 
+const isDevMode = () => new URLSearchParams(window.location.search).has("dev");
+
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "13px",
@@ -570,6 +572,7 @@ export default function Login() {
                   {isRtl ? "تسجيل الدخول" : "Sign In"}
                 </button>
 
+                {isDevMode() && (
                 <div style={{ padding: "12px", background: "#0f172a", borderRadius: "8px", border: "1px solid #1e3a5f", fontSize: "11px", color: "#64748b" }}>
                   <p style={{ margin: "0 0 6px", fontWeight: "600", color: "#94a3b8" }}>
                     {isRtl ? "بيانات الدخول الافتراضية:" : "Default credentials:"}
@@ -579,6 +582,7 @@ export default function Login() {
                   <p style={{ margin: "2px 0" }}>{isRtl ? "محاسب" : "Accountant"}: <span style={{ color: "#fbbf24" }}>accountant@scapex.sa / Account@123</span></p>
                   <p style={{ margin: "2px 0" }}>{isRtl ? "مهندس" : "Engineer"}: <span style={{ color: "#34d399" }}>engineer@scapex.sa / Engineer@123</span></p>
                 </div>
+                )}
               </div>
             )}
 
