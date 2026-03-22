@@ -58,7 +58,27 @@ app.use((req, res, next) => {
 
   next();
 });
+// ✅ Webhook GitHub Auto Deploy
+app.post("/hooks/deploy", (req, res) => {
+  console.log("🚀 Webhook وصل من GitHub");
 
+  const { exec } = require("child_process");
+
+  exec(
+    "cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npm run build && pm2 restart scapex",
+    (err, stdout, stderr) => {
+      if (err) {
+        console.error("❌ خطأ:", err);
+        return;
+      }
+
+      console.log("✅ تم التحديث:");
+      console.log(stdout);
+    },
+  );
+
+  return res.status(200).send("OK");
+});
 (async () => {
   await registerRoutes(httpServer, app);
 
