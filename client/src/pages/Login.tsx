@@ -127,35 +127,50 @@ export default function Login() {
     getUsers();
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setLoginError("");
     if (!email || !password) {
       setLoginError(isRtl ? "يرجى إدخال البريد الإلكتروني وكلمة المرور" : "Please enter your email and password");
       return;
     }
-    const users = getUsers();
-    const user = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    if (!user) {
-      setLoginError(isRtl ? "البريد الإلكتروني أو كلمة المرور غير صحيحة" : "Incorrect email or password");
-      return;
-    }
-    if (!user.active) {
-      if (user.pendingApproval) {
-        setLoginError(isRtl
-          ? "طلبك قيد المراجعة. سيتم تفعيل حسابك بعد موافقة المشرف."
-          : "Your request is under review. Your account will be activated after admin approval.");
-      } else {
-        setLoginError(isRtl
-          ? "هذا الحساب معطّل. تواصل مع مدير النظام."
-          : "This account is disabled. Contact the system admin.");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 403 && data.pendingApproval) {
+          setLoginError(isRtl
+            ? "طلبك قيد المراجعة. سيتم تفعيل حسابك بعد موافقة المشرف."
+            : "Your request is under review. Your account will be activated after admin approval.");
+        } else if (res.status === 401) {
+          setLoginError(isRtl ? "البريد الإلكتروني أو كلمة المرور غير صحيحة" : "Incorrect email or password");
+        } else {
+          setLoginError(isRtl ? "هذا الحساب معطّل. تواصل مع مدير النظام." : "This account is disabled. Contact the system admin.");
+        }
+        return;
       }
-      return;
+      const user = data.user;
+      const localUser = {
+        id: user.id,
+        nationalId: "",
+        name: user.name || "",
+        email: user.email || "",
+        password: "",
+        role: user.role || "viewer",
+        roles: [user.role || "viewer"],
+        permissions: user.permissions || [],
+        createdAt: user.createdAt || new Date().toISOString(),
+        active: user.isActive ?? true,
+      };
+      localStorage.setItem("user", JSON.stringify(localUser));
+      logAction("login", "auth", `User ${user.name} logged in`, `المستخدم ${user.name} سجّل دخول`);
+      window.location.href = user.role === "client" ? "/client-portal" : "/dashboard";
+    } catch (err) {
+      setLoginError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
     }
-    localStorage.setItem("user", JSON.stringify(user));
-    logAction("login", "auth", `User ${user.name} logged in`, `المستخدم ${user.name} سجّل دخول`);
-    window.location.href = user.role === "client" ? "/client-portal" : "/dashboard";
   };
 
   const handleLoginKey = (e: React.KeyboardEvent) => {
@@ -258,28 +273,35 @@ export default function Login() {
     setCountdown(120);
   };
 
-  const handleRegVerifyEmail = () => {
+  const handleRegVerifyEmail = async () => {
     setRegError("");
     if (regUserCode !== regCode) {
       setRegError(isRtl ? "رمز التحقق غير صحيح" : "Invalid verification code");
       return;
     }
-    const users = getUsers();
-    const newUser: SystemUser = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
-      nationalId: regNationalId,
-      name: regName,
-      email: regEmail,
-      password: regPassword,
-      role: "client",
-      permissions: ROLE_DEFAULTS.client,
-      createdAt: new Date().toISOString(),
-      active: false,
-      pendingApproval: true,
-      emailVerified: true,
-    };
-    saveUsers([...users, newUser]);
-    setRegStep("submitted");
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: regName,
+          email: regEmail,
+          password: regPassword,
+          phone: "",
+          nationalId: regNationalId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRegError(data.error === "Email already registered"
+          ? (isRtl ? "البريد الإلكتروني مسجل مسبقاً" : "Email already registered")
+          : (isRtl ? "حدث خطأ في التسجيل" : "Registration error"));
+        return;
+      }
+      setRegStep("submitted");
+    } catch {
+      setRegError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+    }
   };
 
   const handleResendCode = useCallback((type: "forgot" | "reg") => {

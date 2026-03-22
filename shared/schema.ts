@@ -1051,10 +1051,7 @@ export const services = pgTable("services", {
 // SCHEMAS & TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, lastLogin: true, createdAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
