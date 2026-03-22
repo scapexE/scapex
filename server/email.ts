@@ -1,42 +1,7 @@
-import { Resend } from 'resend';
+import { Resend } from "resend";
 
-let connectionSettings: any;
-
-async function getCredentials() {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? 'repl ' + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X-Replit-Token not found');
-  }
-
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X-Replit-Token': xReplitToken
-      }
-    }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  if (!connectionSettings || !connectionSettings.settings.api_key) {
-    throw new Error('Resend not connected');
-  }
-  return {
-    apiKey: connectionSettings.settings.api_key,
-    fromEmail: connectionSettings.settings.from_email
-  };
-}
-
-async function getResendClient() {
-  const { apiKey, fromEmail } = await getCredentials();
-  return { client: new Resend(apiKey), fromEmail };
-}
+const resend = new Resend(process.env.RESEND_API_KEY!);
+const FROM_EMAIL = "Scapex <noreply@resend.dev>";
 
 interface StoredCode {
   code: string;
@@ -73,17 +38,22 @@ export function storeVerificationCode(email: string, code: string) {
   sendCooldowns.set(key, Date.now());
 }
 
-export function verifyCode(email: string, code: string): { valid: boolean; error?: string } {
+export function verifyCode(
+  email: string,
+  code: string,
+): { valid: boolean; error?: string } {
   const key = email.toLowerCase();
   const stored = verificationCodes.get(key);
 
   if (!stored) {
     return { valid: false, error: "no_code" };
   }
+
   if (Date.now() > stored.expiresAt) {
     verificationCodes.delete(key);
     return { valid: false, error: "expired" };
   }
+
   if (stored.attempts >= MAX_ATTEMPTS) {
     verificationCodes.delete(key);
     return { valid: false, error: "max_attempts" };
@@ -103,11 +73,14 @@ export function verifyCode(email: string, code: string): { valid: boolean; error
 export function isEmailVerified(email: string): boolean {
   const key = email.toLowerCase();
   const expiresAt = verifiedEmails.get(key);
+
   if (!expiresAt) return false;
+
   if (Date.now() > expiresAt) {
     verifiedEmails.delete(key);
     return false;
   }
+
   return true;
 }
 
@@ -115,36 +88,43 @@ export function consumeEmailVerification(email: string) {
   verifiedEmails.delete(email.toLowerCase());
 }
 
-export async function sendVerificationEmail(toEmail: string, code: string): Promise<boolean> {
+export async function sendVerificationEmail(
+  toEmail: string,
+  code: string,
+): Promise<boolean> {
   try {
-    const { client, fromEmail } = await getResendClient();
-    await client.emails.send({
-      from: fromEmail || 'Scapex <noreply@resend.dev>',
+    await resend.emails.send({
+      from: FROM_EMAIL,
       to: toEmail,
-      subject: 'رمز التحقق — Scapex Verification Code',
+      subject: "رمز التحقق — Scapex Verification Code",
       html: `
         <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #f8fafc; border-radius: 12px;">
           <div style="text-align: center; margin-bottom: 24px;">
             <h2 style="color: #1e40af; margin: 0;">Scapex</h2>
             <p style="color: #64748b; font-size: 14px; margin: 4px 0 0;">منصة إدارة الأعمال الذكية</p>
           </div>
+
           <div style="background: white; border-radius: 8px; padding: 24px; border: 1px solid #e2e8f0;">
-            <p style="color: #334155; font-size: 15px; margin: 0 0 8px;">مرحباً،</p>
-            <p style="color: #334155; font-size: 15px; margin: 0 0 20px;">رمز التحقق الخاص بك لإنشاء حساب جديد:</p>
+            <p style="color: #334155; font-size: 15px;">رمز التحقق الخاص بك:</p>
+
             <div style="text-align: center; margin: 20px 0;">
-              <span style="display: inline-block; background: #1e40af; color: white; font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 16px 32px; border-radius: 10px;">${code}</span>
+              <span style="display: inline-block; background: #1e40af; color: white; font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 16px 32px; border-radius: 10px;">
+                ${code}
+              </span>
             </div>
-            <p style="color: #64748b; font-size: 13px; margin: 16px 0 0; text-align: center;">صلاحية الرمز: 10 دقائق</p>
-            <p style="color: #64748b; font-size: 13px; margin: 4px 0 0; text-align: center;">The code expires in 10 minutes</p>
+
+            <p style="color: #64748b; font-size: 13px; text-align: center;">
+              صلاحية الرمز: 10 دقائق
+            </p>
           </div>
-          <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 16px 0 0;">إذا لم تطلب هذا الرمز، يرجى تجاهل هذا البريد</p>
         </div>
       `,
     });
-    console.log(`Verification email sent to ${toEmail}`);
+
+    console.log(`✅ Verification email sent to ${toEmail}`);
     return true;
   } catch (err: any) {
-    console.error('Failed to send verification email:', err.message);
+    console.error("❌ Failed to send verification email:", err.message);
     return false;
   }
 }
