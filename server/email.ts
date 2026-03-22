@@ -1,7 +1,16 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
-const FROM_EMAIL = "Scapex <noreply@resend.dev>";
+function getResendClient(): Resend {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY is not set");
+  }
+  return new Resend(apiKey);
+}
+
+function getFromEmail(): string {
+  return process.env.FROM_EMAIL || "Scapex <noreply@resend.dev>";
+}
 
 interface StoredCode {
   code: string;
@@ -93,8 +102,9 @@ export async function sendVerificationEmail(
   code: string,
 ): Promise<boolean> {
   try {
+    const resend = getResendClient();
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: getFromEmail(),
       to: toEmail,
       subject: "رمز التحقق — Scapex Verification Code",
       html: `
