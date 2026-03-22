@@ -8,10 +8,11 @@
 - **DB Connection**: `server/db.ts` — pooled connection via `DATABASE_URL`
 - **Schema**: `shared/schema.ts` — comprehensive schema with multi-tenant support (`company_id` on all tables)
 - **Languages**: Full Arabic (RTL) + English (LTR) bilingual — toggled via `useLanguage()` hook
-- **Auth**: localStorage-based sessions with RBAC + multi-activity permissions + email verification
+- **Auth**: localStorage-based sessions with RBAC + multi-activity permissions + real email verification via Resend
 - **Dark Mode**: Full dark/light mode with clear card borders and distinct background/card contrast
 - **Client Portal**: 6 color themes (Default, Ocean, Forest, Royal, Sunset, Slate) + dark mode toggle
-- **Auth Features**: Forgot password (verification code), email verification on registration, admin approval flow
+- **Auth Features**: Forgot password (verification code), real email verification on registration (Resend integration), admin approval flow
+- **Email Verification**: `server/email.ts` — Resend connector sends 6-digit code on registration; server-side enforcement (register blocked without verified email); rate limiting (60s cooldown), max 5 attempts, 10-min expiry, 15-min verified window
 
 ## Credentials
 | Role | Email | Password |

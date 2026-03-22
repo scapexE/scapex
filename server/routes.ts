@@ -11,6 +11,15 @@ import {
   updateLastLogin,
   seedDefaultUsers,
 } from "./auth";
+import {
+  generateVerificationCode,
+  storeVerificationCode,
+  verifyCode,
+  sendVerificationEmail,
+  canSendCode,
+  isEmailVerified,
+  consumeEmailVerification,
+} from "./email";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -57,10 +66,16 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Name, email, and password are required" });
       }
 
+      if (!isEmailVerified(email)) {
+        return res.status(403).json({ error: "Email not verified" });
+      }
+
       const existing = await findUserByEmail(email);
       if (existing) {
         return res.status(409).json({ error: "Email already registered" });
       }
+
+      consumeEmailVerification(email);
 
       const user = await createUser({
         username: email.toLowerCase().split("@")[0],
@@ -77,6 +92,60 @@ export async function registerRoutes(
       res.status(201).json({ user: safeUser, pendingApproval: true });
     } catch (err: any) {
       console.error("Register error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/auth/send-code", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== "string" || !email.includes("@")) {
+        return res.status(400).json({ error: "Valid email is required" });
+      }
+
+      if (!canSendCode(email)) {
+        return res.status(429).json({ error: "Please wait before requesting another code" });
+      }
+
+      const existing = await findUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+
+      const code = generateVerificationCode();
+      const sent = await sendVerificationEmail(email, code);
+      if (!sent) {
+        return res.status(500).json({ error: "Failed to send email" });
+      }
+
+      storeVerificationCode(email, code);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Send code error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/auth/verify-code", async (req, res) => {
+    try {
+      const { email, code } = req.body;
+      if (!email || !code || typeof code !== "string" || !/^\d{6}$/.test(code)) {
+        return res.status(400).json({ error: "Email and 6-digit code are required" });
+      }
+
+      const result = verifyCode(email, code);
+      if (!result.valid) {
+        const msg = result.error === "max_attempts"
+          ? "Too many attempts. Please request a new code"
+          : result.error === "expired"
+          ? "Code expired. Please request a new code"
+          : "Invalid verification code";
+        return res.status(400).json({ error: msg });
+      }
+
+      res.json({ verified: true });
+    } catch (err: any) {
+      console.error("Verify code error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });

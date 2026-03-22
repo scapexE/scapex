@@ -235,7 +235,7 @@ export default function Login() {
     setCountdown(0);
   };
 
-  const handleRegValidateForm = () => {
+  const handleRegValidateForm = async () => {
     setRegError("");
     if (!regNationalId || !regName || !regEmail || !regPassword || !regConfirm) {
       setRegError(isRtl
@@ -262,24 +262,54 @@ export default function Login() {
       setRegError(isRtl ? "رقم الهوية مسجّل مسبقاً" : "This National ID is already registered");
       return;
     }
-    if (users.find((u) => u.email.toLowerCase() === regEmail.toLowerCase())) {
-      setRegError(isRtl ? "هذا البريد الإلكتروني مسجل مسبقاً" : "This email is already registered");
-      return;
+    try {
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: regEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 409) {
+          setRegError(isRtl ? "هذا البريد الإلكتروني مسجل مسبقاً" : "This email is already registered");
+        } else {
+          setRegError(isRtl ? "فشل إرسال رمز التحقق" : "Failed to send verification code");
+        }
+        return;
+      }
+      setRegUserCode("");
+      setRegStep("verify_email");
+      setCountdown(600);
+    } catch {
+      setRegError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
     }
-    const code = generateCode();
-    setRegCode(code);
-    setRegUserCode("");
-    setRegStep("verify_email");
-    setCountdown(120);
   };
 
   const handleRegVerifyEmail = async () => {
     setRegError("");
-    if (regUserCode !== regCode) {
-      setRegError(isRtl ? "رمز التحقق غير صحيح" : "Invalid verification code");
+    if (!regUserCode || regUserCode.length < 4) {
+      setRegError(isRtl ? "يرجى إدخال رمز التحقق" : "Please enter the verification code");
       return;
     }
     try {
+      const verifyRes = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: regEmail, code: regUserCode }),
+      });
+      if (!verifyRes.ok) {
+        const verifyData = await verifyRes.json();
+        const errMsg = verifyData.error || "";
+        if (errMsg.includes("Too many")) {
+          setRegError(isRtl ? "تم تجاوز عدد المحاولات المسموح. يرجى طلب رمز جديد" : errMsg);
+        } else if (errMsg.includes("expired")) {
+          setRegError(isRtl ? "انتهت صلاحية الرمز. يرجى طلب رمز جديد" : errMsg);
+        } else {
+          setRegError(isRtl ? "رمز التحقق غير صحيح" : "Invalid verification code");
+        }
+        return;
+      }
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -304,17 +334,26 @@ export default function Login() {
     }
   };
 
-  const handleResendCode = useCallback((type: "forgot" | "reg") => {
-    const code = generateCode();
-    if (type === "forgot") {
+  const handleResendCode = useCallback(async (type: "forgot" | "reg") => {
+    if (type === "reg") {
+      try {
+        const res = await fetch("/api/auth/send-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: regEmail }),
+        });
+        if (res.ok) {
+          setRegUserCode("");
+          setCountdown(600);
+        }
+      } catch {}
+    } else {
+      const code = generateCode();
       setForgotCode(code);
       setForgotUserCode("");
-    } else {
-      setRegCode(code);
-      setRegUserCode("");
+      setCountdown(120);
     }
-    setCountdown(120);
-  }, []);
+  }, [regEmail]);
 
   const handleRegisterKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -694,13 +733,17 @@ export default function Login() {
                       </h3>
                     </div>
 
-                    {renderCodeSimulation(regCode)}
-
-                    <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0, textAlign: "center", lineHeight: "1.6" }}>
-                      {isRtl
-                        ? <>تم إرسال رمز التحقق إلى<br /><span style={{ color: "#60a5fa", fontWeight: "600" }}>{regEmail}</span></>
-                        : <>Verification code sent to<br /><span style={{ color: "#60a5fa", fontWeight: "600" }}>{regEmail}</span></>}
-                    </p>
+                    <div style={{ textAlign: "center", padding: "12px", background: "rgba(34,197,94,0.1)", borderRadius: "8px", border: "1px solid rgba(34,197,94,0.3)" }}>
+                      <p style={{ color: "#22c55e", fontSize: "14px", margin: 0, fontWeight: "600" }}>
+                        {isRtl ? "✉️ تم إرسال رمز التحقق إلى بريدك" : "✉️ Verification code sent to your email"}
+                      </p>
+                      <p style={{ color: "#60a5fa", fontSize: "13px", margin: "4px 0 0", fontWeight: "600" }}>
+                        {regEmail}
+                      </p>
+                      <p style={{ color: "#9ca3af", fontSize: "11px", margin: "4px 0 0" }}>
+                        {isRtl ? "تحقق من صندوق الوارد أو البريد غير المرغوب" : "Check your inbox or spam folder"}
+                      </p>
+                    </div>
 
                     <div>
                       <label style={labelStyle}>{isRtl ? "رمز التحقق (6 أرقام)" : "Verification Code (6 digits)"}</label>
