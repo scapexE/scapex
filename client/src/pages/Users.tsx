@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -392,6 +392,38 @@ export default function Users() {
   const [form, setForm] = useState<Partial<SystemUser>>(emptyForm());
   const [showPass, setShowPass] = useState(false);
 
+  const fetchUsersFromApi = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users");
+      if (!res.ok) return;
+      const apiUsers: any[] = await res.json();
+      const mapped: SystemUser[] = apiUsers.map((u) => ({
+        id: u.id,
+        nationalId: u.nationalId || u.national_id || "",
+        name: u.name,
+        email: u.email,
+        phone: u.phone || "",
+        password: "",
+        role: (u.role || "client") as Role,
+        roles: u.roles || [u.role || "client"],
+        permissions: Array.isArray(u.permissions) ? u.permissions : [],
+        active: u.isActive ?? u.is_active ?? false,
+        pendingApproval: !(u.isActive ?? u.is_active ?? false),
+        createdAt: u.createdAt || u.created_at || new Date().toISOString(),
+      }));
+      const localUsers = getUsers();
+      const allIds = new Set(mapped.map((u) => u.id));
+      const localOnly = localUsers.filter((u) => !allIds.has(u.id));
+      const merged = [...mapped, ...localOnly];
+      setUsers(merged);
+      saveUsers(merged);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchUsersFromApi();
+  }, [fetchUsersFromApi]);
+
   if (!isAdmin && !canApprove) {
     return (
       <MainLayout>
@@ -409,8 +441,19 @@ export default function Users() {
   const persist = (updated: SystemUser[]) => { setUsers(updated); saveUsers(updated); };
 
   // ── Activation ────────────────────────────────────────────────────────────
-  const handleActivate = (user: SystemUser, roles: Role[], permissions: string[]) => {
+  const handleActivate = async (user: SystemUser, roles: Role[], permissions: string[]) => {
     const primary = getPrimaryRole(roles);
+    try {
+      await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: primary,
+          permissions,
+          isActive: true,
+        }),
+      });
+    } catch {}
     const updated = users.map((u) =>
       u.id === user.id
         ? { ...u, role: primary, roles, permissions, active: true, pendingApproval: false }
@@ -425,7 +468,10 @@ export default function Users() {
     });
   };
 
-  const handleReject = (user: SystemUser) => {
+  const handleReject = async (user: SystemUser) => {
+    try {
+      await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+    } catch {}
     persist(users.filter((u) => u.id !== user.id));
     toast({
       title: isRtl ? "تم الرفض" : "Rejected",
