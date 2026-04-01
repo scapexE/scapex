@@ -115,7 +115,18 @@ function ClientPortalLogin({ onLogin, portalTheme }: { onLogin: (user: SystemUse
             </Button>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-border/50">
+          <div className="mt-6 pt-4 border-t border-border/50 space-y-3">
+            <p className="text-center text-sm text-muted-foreground">
+              {dir === "rtl" ? "ليس لديك حساب؟" : "Don't have an account?"}
+            </p>
+            <Button
+              variant="outline"
+              className="w-full h-10"
+              onClick={() => { window.location.href = "/?register"; }}
+              data-testid="button-portal-register"
+            >
+              {dir === "rtl" ? "إنشاء حساب جديد" : "Create New Account"}
+            </Button>
             <p className="text-center text-xs text-muted-foreground">
               Scapex ERP Platform © 2026
             </p>
@@ -143,7 +154,7 @@ export default function ClientPortalModule() {
       const saved = dbGetItem("user");
       if (!saved) return null;
       const u = JSON.parse(saved);
-      if (u?.id && u?.permissions?.includes("client_portal")) return u;
+      if (u?.id && (u?.permissions?.includes("client_portal") || u?.role === "admin" || u?.role === "manager" || u?.roles)) return u;
       return null;
     } catch { return null; }
   };

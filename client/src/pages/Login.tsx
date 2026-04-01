@@ -66,7 +66,10 @@ function generateCode(): string {
 }
 
 export default function Login() {
-  const [tab, setTab] = useState<Tab>("login");
+  const [tab, setTab] = useState<Tab>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("register") ? "register" : "login";
+  });
   const [showAbout, setShowAbout] = useState(false);
   const { dir, language, toggleLanguage } = useLanguage();
   const isRtl = dir === "rtl";
