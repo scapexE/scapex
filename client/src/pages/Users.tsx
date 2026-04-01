@@ -426,12 +426,8 @@ export default function Users() {
           createdAt: u.createdAt || u.created_at || new Date().toISOString(),
         };
       });
-      const localUsers = getUsers();
-      const allIds = new Set(mapped.map((u) => u.id));
-      const localOnly = localUsers.filter((u) => !allIds.has(u.id));
-      const merged = [...mapped, ...localOnly];
-      setUsers(merged);
-      saveUsers(merged);
+      setUsers(mapped);
+      saveUsers(mapped);
     } catch (err) {
       console.error("Failed to fetch users from API:", err);
     }
@@ -487,9 +483,14 @@ export default function Users() {
 
   const handleReject = async (user: SystemUser) => {
     try {
-      await fetch(`/api/users/${user.id}`, { method: "DELETE" });
-    } catch {}
-    persist(users.filter((u) => u.id !== user.id));
+      const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+      if (!res.ok) console.error("Failed to delete user from DB:", await res.text());
+    } catch (err) {
+      console.error("Delete user error:", err);
+    }
+    const updated = users.filter((u) => u.id !== user.id);
+    setUsers(updated);
+    saveUsers(updated);
     toast({
       title: isRtl ? "تم الرفض" : "Rejected",
       description: isRtl ? `تم حذف طلب "${user.name}"` : `Request from "${user.name}" has been rejected`,
