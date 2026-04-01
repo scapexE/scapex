@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 // ─── Company / App Settings ────────────────────────────────────────────────────
 
 export interface CompanySettings {
@@ -20,7 +21,7 @@ const DEFAULT_SETTINGS: CompanySettings = {
 
 export function getCompanySettings(): CompanySettings {
   try {
-    const stored = localStorage.getItem(SETTINGS_KEY);
+    const stored = dbGetItem(SETTINGS_KEY);
     if (stored) return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
   } catch { /* ignore */ }
   return DEFAULT_SETTINGS;
@@ -28,7 +29,7 @@ export function getCompanySettings(): CompanySettings {
 
 export function saveCompanySettings(settings: Partial<CompanySettings>): void {
   const current = getCompanySettings();
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }));
+  dbSetItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }));
 }
 
 // Reads a File as a base64 data URL

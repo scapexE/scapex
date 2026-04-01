@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -32,8 +33,8 @@ const SEED_DRAWINGS: Drawing[] = [
 ];
 
 const STORAGE = "scapex_drawings";
-function load<T>(k: string, s: T): T { try { const d=localStorage.getItem(k); return d?JSON.parse(d):s; } catch { return s; } }
-function save(k: string, d: unknown) { localStorage.setItem(k,JSON.stringify(d)); }
+function load<T>(k: string, s: T): T { try { const d=dbGetItem(k); return d?JSON.parse(d):s; } catch { return s; } }
+function save(k: string, d: unknown) { dbSetItem(k,JSON.stringify(d)); }
 
 export default function EngineeringModule() {
   const { dir } = useLanguage(); const isRtl = dir==="rtl";

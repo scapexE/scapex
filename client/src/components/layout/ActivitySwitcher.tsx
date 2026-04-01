@@ -1,3 +1,4 @@
+import { dbGetItem } from "@/lib/dbStorage";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
@@ -14,7 +15,7 @@ export function ActivitySwitcher() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
 
   const colors = activeActivity

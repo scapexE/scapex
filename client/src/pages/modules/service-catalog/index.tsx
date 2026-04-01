@@ -1,3 +1,4 @@
+import { dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -150,7 +151,7 @@ export default function ServiceCatalogModule() {
 
   const handleCreateProposal = (sub: SubService) => {
     try {
-      localStorage.setItem("scapex_proposal_sub", JSON.stringify({
+      dbSetItem("scapex_proposal_sub", JSON.stringify({
         serviceType: sub.serviceType,
         subServiceId: sub.id,
         subServiceLabelAr: sub.labelAr,

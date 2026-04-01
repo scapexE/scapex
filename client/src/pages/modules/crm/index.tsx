@@ -1,3 +1,4 @@
+import { dbSetItem } from "@/lib/dbStorage";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,7 +49,7 @@ export default function CRMModule() {
             <TabsContent value="pipeline" className="h-full m-0 data-[state=active]:flex flex-col">
               <PipelineBoard onCreateProposal={(data: ProposalPrefill) => {
                 try {
-                  localStorage.setItem("scapex_proposal_prefill", JSON.stringify({
+                  dbSetItem("scapex_proposal_prefill", JSON.stringify({
                     clientName:    data.clientName,
                     clientEmail:   data.clientEmail,
                     clientContact: data.clientContact,
@@ -62,7 +63,7 @@ export default function CRMModule() {
             <TabsContent value="customers" className="h-full m-0 data-[state=active]:flex flex-col">
               <CustomersList onCreateProposal={(clientName, email, phone) => {
                 try {
-                  localStorage.setItem("scapex_proposal_prefill", JSON.stringify({ clientName, clientEmail: email, clientContact: phone }));
+                  dbSetItem("scapex_proposal_prefill", JSON.stringify({ clientName, clientEmail: email, clientContact: phone }));
                 } catch {}
                 navigate("/smart-proposal");
               }} />

@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 export interface AuditEntry {
   id: string;
   timestamp: string;
@@ -19,7 +20,7 @@ function generateId(): string {
 
 export function getAuditLog(): AuditEntry[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    return JSON.parse(dbGetItem(STORAGE_KEY) || "[]");
   } catch {
     return [];
   }
@@ -31,7 +32,7 @@ export function logAction(
   details: string,
   detailsAr: string,
 ): void {
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const user = JSON.parse(dbGetItem("user") || "null");
   if (!user) return;
 
   const entry: AuditEntry = {
@@ -49,13 +50,13 @@ export function logAction(
   const log = getAuditLog();
   log.unshift(entry);
   if (log.length > MAX_ENTRIES) log.length = MAX_ENTRIES;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+  dbSetItem(STORAGE_KEY, JSON.stringify(log));
 
   window.dispatchEvent(new CustomEvent("scapex_audit_update"));
 }
 
 export function clearAuditLog(): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+  dbSetItem(STORAGE_KEY, JSON.stringify([]));
   window.dispatchEvent(new CustomEvent("scapex_audit_update"));
 }
 

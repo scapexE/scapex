@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -64,9 +65,9 @@ const SEED_SLIPS: PaySlip[] = [
 const STORAGE_KEY = "scapex_payroll_batches";
 
 function loadBatches(): PayrollBatch[] {
-  try { const d = localStorage.getItem(STORAGE_KEY); return d ? JSON.parse(d) : SEED_BATCHES; } catch { return SEED_BATCHES; }
+  try { const d = dbGetItem(STORAGE_KEY); return d ? JSON.parse(d) : SEED_BATCHES; } catch { return SEED_BATCHES; }
 }
-function saveBatches(b: PayrollBatch[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(b)); }
+function saveBatches(b: PayrollBatch[]) { dbSetItem(STORAGE_KEY, JSON.stringify(b)); }
 
 export default function PayrollModule() {
   const { dir } = useLanguage();

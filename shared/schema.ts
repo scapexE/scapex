@@ -68,6 +68,12 @@ export const roles = pgTable("roles", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const appData = pgTable("app_data", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").references(() => companies.id),

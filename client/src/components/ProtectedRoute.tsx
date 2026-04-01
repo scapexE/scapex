@@ -1,3 +1,4 @@
+import { dbGetItem } from "@/lib/dbStorage";
 import { Route, Redirect } from "wouter";
 import { hasAccess } from "@/lib/permissions";
 
@@ -5,7 +6,7 @@ export default function ProtectedRoute({ component: Component, path, page }: { c
   return (
     <Route path={path}>
       {(params) => {
-        const user = JSON.parse(localStorage.getItem("user") || "null");
+        const user = JSON.parse(dbGetItem("user") || "null");
 
         if (!user) {
           return <Redirect to="/" />;

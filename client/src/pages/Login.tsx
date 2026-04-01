@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { useState, useEffect, useCallback } from "react";
 import { getUsers, saveUsers, ROLE_DEFAULTS, validateNationalId, type SystemUser } from "@/lib/permissions";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -115,13 +116,13 @@ export default function Login() {
   }, [countdown]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("user");
+    const saved = dbGetItem("user");
     if (saved) {
       try {
         const u = JSON.parse(saved);
-        if (!u.id || !u.permissions) localStorage.removeItem("user");
+        if (!u.id || !u.permissions) dbRemoveItem("user");
       } catch {
-        localStorage.removeItem("user");
+        dbRemoveItem("user");
       }
     }
     getUsers();
@@ -165,7 +166,7 @@ export default function Login() {
         createdAt: user.createdAt || new Date().toISOString(),
         active: user.isActive ?? true,
       };
-      localStorage.setItem("user", JSON.stringify(localUser));
+      dbSetItem("user", JSON.stringify(localUser));
       logAction("login", "auth", `User ${user.name} logged in`, `المستخدم ${user.name} سجّل دخول`);
       window.location.href = user.role === "client" ? "/client-portal" : "/dashboard";
     } catch (err) {

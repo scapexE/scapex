@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ClientDashboard } from "@/components/client-portal/ClientDashboard";
@@ -21,7 +22,7 @@ export const PORTAL_THEMES: { id: PortalTheme; nameAr: string; nameEn: string; p
 const STORAGE_THEME = "scapex_portal_theme";
 
 function getPortalTheme(): PortalTheme {
-  try { return (localStorage.getItem(STORAGE_THEME) as PortalTheme) || "default"; } catch { return "default"; }
+  try { return (dbGetItem(STORAGE_THEME) as PortalTheme) || "default"; } catch { return "default"; }
 }
 
 function ClientPortalLogin({ onLogin, portalTheme }: { onLogin: (user: SystemUser) => void; portalTheme: PortalTheme }) {
@@ -41,7 +42,7 @@ function ClientPortalLogin({ onLogin, portalTheme }: { onLogin: (user: SystemUse
     if (!user) { setError(dir === "rtl" ? "البريد الإلكتروني أو كلمة المرور غير صحيحة" : "Invalid email or password"); return; }
     if (!user.active) { setError(dir === "rtl" ? "الحساب معطّل. تواصل مع المسؤول." : "Account disabled. Contact admin."); return; }
     if (!user.permissions.includes("client_portal")) { setError(dir === "rtl" ? "لا تملك صلاحية الوصول لبوابة العملاء" : "No access to client portal"); return; }
-    localStorage.setItem("user", JSON.stringify(user));
+    dbSetItem("user", JSON.stringify(user));
     onLogin(user);
   };
 
@@ -139,7 +140,7 @@ export default function ClientPortalModule() {
 
   const getSessionUser = (): SystemUser | null => {
     try {
-      const saved = localStorage.getItem("user");
+      const saved = dbGetItem("user");
       if (!saved) return null;
       const u = JSON.parse(saved);
       if (u?.id && u?.permissions?.includes("client_portal")) return u;
@@ -155,14 +156,14 @@ export default function ClientPortalModule() {
     if (isSystemUser) {
       window.location.href = "/dashboard";
     } else {
-      localStorage.removeItem("user");
+      dbRemoveItem("user");
       setPortalUser(null);
     }
   };
 
   const handleChangeTheme = (id: PortalTheme) => {
     setPortalTheme(id);
-    localStorage.setItem(STORAGE_THEME, id);
+    dbSetItem(STORAGE_THEME, id);
     setShowThemePicker(false);
   };
 

@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem, dbRemoveItem } from "@/lib/dbStorage";
 import {
   useState, useRef, useEffect, useImperativeHandle, forwardRef,
 } from "react";
@@ -609,7 +610,7 @@ function AboutSettingsPanel() {
   const update = (key: keyof AboutSettings, val: string) => setForm({ ...form, [key]: val });
 
   const handleSave = () => {
-    localStorage.setItem("scapex_about_settings", JSON.stringify(form));
+    dbSetItem("scapex_about_settings", JSON.stringify(form));
     toast({
       title: t2("تم الحفظ", "Saved"),
       description: t2("تم تحديث معلومات صفحة حول النظام بنجاح", "About page info updated successfully"),
@@ -618,7 +619,7 @@ function AboutSettingsPanel() {
 
   const handleReset = () => {
     setForm(DEFAULT_ABOUT);
-    localStorage.removeItem("scapex_about_settings");
+    dbRemoveItem("scapex_about_settings");
     toast({ title: t2("تم الاستعادة", "Reset"), description: t2("تمت استعادة القيم الافتراضية", "Default values restored") });
   };
 
@@ -1030,7 +1031,7 @@ function SystemAdminContent() {
 // ─── Page Shell ───────────────────────────────────────────────────────────────
 export default function SystemAdmin() {
   const { t } = useLanguage();
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
 
   if (currentUser?.role !== "admin") {
     return (

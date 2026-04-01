@@ -8,7 +8,8 @@
 - **DB Connection**: `server/db.ts` — pooled connection via `DATABASE_URL`
 - **Schema**: `shared/schema.ts` — comprehensive schema with multi-tenant support (`company_id` on all tables)
 - **Languages**: Full Arabic (RTL) + English (LTR) bilingual — toggled via `useLanguage()` hook
-- **Auth**: localStorage-based sessions with RBAC + multi-activity permissions + real email verification via Resend
+- **Data Storage**: All `scapex_*` data stored in PostgreSQL `app_data` table (key-value JSONB), synced to/from localStorage as cache via `client/src/lib/dbStorage.ts`
+- **Auth**: Session in localStorage (non-scapex key), RBAC + multi-activity permissions + real email verification via Resend
 - **Dark Mode**: Full dark/light mode with clear card borders and distinct background/card contrast
 - **Client Portal**: 6 color themes (Default, Ocean, Forest, Royal, Sunset, Slate) + dark mode toggle
 - **Auth Features**: Forgot password (verification code), real email verification on registration (Resend integration), admin approval flow
@@ -24,8 +25,8 @@
 
 ## Database Schema (62 Tables)
 
-### Core/System (7)
-companies, branches, users, roles, audit_logs, notifications
+### Core/System (8)
+companies, branches, users, roles, audit_logs, notifications, app_data
 
 ### CRM (4)
 contacts, pipeline_stages, deals, crm_activities

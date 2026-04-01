@@ -20,6 +20,9 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
+import { appData } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -27,6 +30,63 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   await seedDefaultUsers();
+
+  await db.execute(`CREATE TABLE IF NOT EXISTS app_data (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`);
+
+  app.get("/api/app-data", async (_req, res) => {
+    try {
+      const rows = await db.select().from(appData);
+      const result: Record<string, any> = {};
+      for (const row of rows) {
+        result[row.key] = row.value;
+      }
+      res.json(result);
+    } catch (err: any) {
+      console.error("Get app data error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/app-data/:key", async (req, res) => {
+    try {
+      const rows = await db.select().from(appData).where(eq(appData.key, req.params.key));
+      if (rows.length === 0) return res.status(404).json({ error: "Not found" });
+      res.json(rows[0].value);
+    } catch (err: any) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.put("/api/app-data/:key", async (req, res) => {
+    try {
+      const { value } = req.body;
+      await db.insert(appData).values({
+        key: req.params.key,
+        value: value,
+        updatedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: appData.key,
+        set: { value: value, updatedAt: new Date() },
+      });
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Save app data error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/app-data/:key", async (req, res) => {
+    try {
+      await db.delete(appData).where(eq(appData.key, req.params.key));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
 
   app.post("/api/auth/login", async (req, res) => {
     try {

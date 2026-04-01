@@ -1,3 +1,4 @@
+import { dbGetItem } from "@/lib/dbStorage";
 import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -18,7 +19,7 @@ import { exportAuditToPDF } from "@/lib/pdfExport";
 function AuditLogContent() {
   const { t, dir } = useLanguage();
   const isRtl = dir === "rtl";
-  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser = JSON.parse(dbGetItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
   const [log, setLog] = useState<AuditEntry[]>([]);
   const [search, setSearch] = useState("");

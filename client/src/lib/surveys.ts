@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 export interface Survey {
   id: string;
   customerId: string;
@@ -20,12 +21,12 @@ const STORAGE_KEY = "scapex_surveys";
 
 export function getSurveys(): Survey[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    return JSON.parse(dbGetItem(STORAGE_KEY) || "[]");
   } catch { return []; }
 }
 
 export function saveSurveys(surveys: Survey[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(surveys));
+  dbSetItem(STORAGE_KEY, JSON.stringify(surveys));
   window.dispatchEvent(new CustomEvent("scapex_surveys_update"));
 }
 
@@ -112,7 +113,7 @@ export function getSurveyStats(customerId?: string) {
 }
 
 export function seedDemoSurveys(): void {
-  if (localStorage.getItem("scapex_surveys_seeded")) return;
+  if (dbGetItem("scapex_surveys_seeded")) return;
   const demoSurveys: Survey[] = [
     { id: "SRV-DEMO-001", customerId: "1", customerName: "Saudi Binladin Group", sentVia: "email", sentAt: "2025-12-15T10:30:00Z", status: "responded", rating: 5, feedback: "خدمة ممتازة وفريق عمل محترف. شكراً لكم!", feedbackEn: "Excellent service and professional team. Thank you!", respondedAt: "2025-12-16T14:20:00Z", serviceQuality: 5, communication: 5, timeliness: 4, valueForMoney: 5, recommendation: "yes" },
     { id: "SRV-DEMO-002", customerId: "2", customerName: "NEOM Co.", sentVia: "whatsapp", sentAt: "2025-12-20T09:00:00Z", status: "responded", rating: 4, feedback: "جودة العمل عالية لكن التسليم تأخر قليلاً.", feedbackEn: "High quality work but delivery was slightly delayed.", respondedAt: "2025-12-21T11:45:00Z", serviceQuality: 5, communication: 4, timeliness: 3, valueForMoney: 4, recommendation: "yes" },
@@ -123,5 +124,5 @@ export function seedDemoSurveys(): void {
     { id: "SRV-DEMO-007", customerId: "8", customerName: "SABIC", sentVia: "email", sentAt: "2026-03-10T08:30:00Z", status: "sent" },
   ];
   saveSurveys(demoSurveys);
-  localStorage.setItem("scapex_surveys_seeded", "1");
+  dbSetItem("scapex_surveys_seeded", "1");
 }

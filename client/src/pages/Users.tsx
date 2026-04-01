@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -381,7 +382,7 @@ export default function Users() {
   const { toast } = useToast();
   const { t, dir } = useLanguage();
   const isRtl = dir === 'rtl';
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
   const canApprove = canApproveRegistrations(currentUser);
 
@@ -554,7 +555,7 @@ export default function Users() {
     persist(updated);
     if (currentUser?.email === editUser.email) {
       const nc = updated.find((u) => u.id === editUser.id);
-      if (nc) localStorage.setItem("user", JSON.stringify(nc));
+      if (nc) dbSetItem("user", JSON.stringify(nc));
     }
     setEditUser(null); setForm(emptyForm());
     toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? "تم تحديث بيانات المستخدم" : "User data updated successfully" });

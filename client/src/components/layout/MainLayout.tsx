@@ -1,3 +1,4 @@
+import { dbGetItem } from "@/lib/dbStorage";
 import { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
@@ -46,7 +47,7 @@ function DocumentTitleUpdater() {
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const { dir } = useLanguage();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
 
   return (
     <SettingsProvider>

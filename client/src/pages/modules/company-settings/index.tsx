@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { useState, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -51,7 +52,7 @@ export default function CompanySettingsModule() {
   const isRtl = dir === "rtl";
   const t = (ar: string, en: string) => isRtl ? ar : en;
   const { toast } = useToast();
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
 
   const [form, setForm] = useState<AboutSettings>(getAboutData);
@@ -75,7 +76,7 @@ export default function CompanySettingsModule() {
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem("scapex_about_settings", JSON.stringify(form));
+    dbSetItem("scapex_about_settings", JSON.stringify(form));
     setHasChanges(false);
     logAction("update", "company_settings", "Updated company settings", "تم تحديث إعدادات الشركة");
     window.dispatchEvent(new CustomEvent("scapex_company_update"));
@@ -87,7 +88,7 @@ export default function CompanySettingsModule() {
 
   const handleReset = () => {
     setForm({ ...DEFAULT_ABOUT });
-    localStorage.removeItem("scapex_about_settings");
+    dbRemoveItem("scapex_about_settings");
     setHasChanges(false);
     window.dispatchEvent(new CustomEvent("scapex_company_update"));
     toast({ title: t("تم الاستعادة", "Reset"), description: t("تمت استعادة القيم الافتراضية", "Default values restored") });
@@ -105,7 +106,7 @@ export default function CompanySettingsModule() {
 
   const handleResetSys = () => {
     setSysForm({ ...DEFAULT_SYSTEM_SETTINGS });
-    localStorage.removeItem("scapex_system_settings");
+    dbRemoveItem("scapex_system_settings");
     setHasSysChanges(false);
     window.dispatchEvent(new CustomEvent("scapex_system_settings_update"));
     toast({ title: t("تم الاستعادة", "Reset"), description: t("تمت استعادة الإعدادات الافتراضية", "Default settings restored") });

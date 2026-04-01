@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -42,7 +43,7 @@ export default function AboutModule() {
   const isRtl = dir === "rtl";
   const t = (ar: string, en: string) => isRtl ? ar : en;
   const { toast } = useToast();
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const aboutData = getAboutData();
 
   const [supportForm, setSupportForm] = useState({
@@ -64,14 +65,14 @@ export default function AboutModule() {
       return;
     }
 
-    const tickets = JSON.parse(localStorage.getItem("scapex_support_tickets") || "[]");
+    const tickets = JSON.parse(dbGetItem("scapex_support_tickets") || "[]");
     tickets.push({
       id: `TKT-${Date.now()}`,
       ...supportForm,
       status: "open",
       createdAt: new Date().toISOString(),
     });
-    localStorage.setItem("scapex_support_tickets", JSON.stringify(tickets));
+    dbSetItem("scapex_support_tickets", JSON.stringify(tickets));
 
     setSubmitted(true);
     toast({

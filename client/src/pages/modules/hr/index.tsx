@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -58,13 +59,13 @@ const STORAGE_KEY = "scapex_hr_employees";
 
 function loadEmployees(): Employee[] {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
+    const data = dbGetItem(STORAGE_KEY);
     return data ? JSON.parse(data) : SEED_EMPLOYEES;
   } catch { return SEED_EMPLOYEES; }
 }
 
 function saveEmployees(emps: Employee[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(emps));
+  dbSetItem(STORAGE_KEY, JSON.stringify(emps));
 }
 
 export default function HRModule() {

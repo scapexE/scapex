@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -46,8 +47,8 @@ const SEED_LEAVES: LeaveRequest[] = [
 ];
 
 const STORAGE_ATT = "scapex_attendance"; const STORAGE_LEAVES = "scapex_leaves";
-function load<T>(key: string, seed: T): T { try { const d=localStorage.getItem(key); return d?JSON.parse(d):seed; } catch { return seed; } }
-function save(key: string, data: unknown) { localStorage.setItem(key,JSON.stringify(data)); }
+function load<T>(key: string, seed: T): T { try { const d=dbGetItem(key); return d?JSON.parse(d):seed; } catch { return seed; } }
+function save(key: string, data: unknown) { dbSetItem(key,JSON.stringify(data)); }
 
 export default function AttendanceModule() {
   const { dir } = useLanguage(); const isRtl = dir==="rtl";

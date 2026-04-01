@@ -1,3 +1,4 @@
+import { dbGetItem } from "@/lib/dbStorage";
 import { useState, useEffect, useCallback } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,7 +54,7 @@ function DashboardContent() {
   const { activeRole, isMultiRole } = useActiveRole();
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
 
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
   const userPerms = currentUser?.permissions || [];
 

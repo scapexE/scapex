@@ -1,3 +1,4 @@
+import { dbGetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
@@ -116,13 +117,13 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const { t, dir } = useLanguage();
   const isRtl = dir === "rtl";
 
-  const currentUser: SystemUser | null = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const { activeRole, isMultiRole } = useActiveRole();
   const { activeActivity } = useBusinessActivity();
 
   const handleLogout = () => {
     logAction("logout", "auth", `User ${currentUser?.name} logged out`, `المستخدم ${currentUser?.name} سجّل خروج`);
-    localStorage.removeItem("user");
+    dbRemoveItem("user");
     sessionStorage.removeItem("activeRole");
     window.location.href = "/";
   };

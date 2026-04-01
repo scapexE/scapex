@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -64,8 +65,8 @@ const CATS = [
 
 const STORAGE_PO = "scapex_purchase_orders";
 const STORAGE_VEN = "scapex_vendors";
-function load<T>(key: string, seed: T): T { try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : seed; } catch { return seed; } }
-function save(key: string, data: unknown) { localStorage.setItem(key, JSON.stringify(data)); }
+function load<T>(key: string, seed: T): T { try { const d = dbGetItem(key); return d ? JSON.parse(d) : seed; } catch { return seed; } }
+function save(key: string, data: unknown) { dbSetItem(key, JSON.stringify(data)); }
 
 export default function PurchasesModule() {
   const { dir } = useLanguage();

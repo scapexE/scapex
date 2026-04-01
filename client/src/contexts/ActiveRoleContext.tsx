@@ -1,3 +1,4 @@
+import { dbGetItem } from "@/lib/dbStorage";
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { type Role, type SystemUser, getPrimaryRole } from "@/lib/permissions";
 
@@ -19,7 +20,7 @@ const ActiveRoleContext = createContext<ActiveRoleContextValue>({
 
 export function ActiveRoleProvider({ children }: { children: ReactNode }) {
   const [currentUser] = useState<SystemUser | null>(() =>
-    JSON.parse(localStorage.getItem("user") || "null")
+    JSON.parse(dbGetItem("user") || "null")
   );
 
   const userRoles: Role[] =

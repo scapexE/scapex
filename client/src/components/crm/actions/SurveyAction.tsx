@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState, useEffect } from "react";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -42,14 +43,14 @@ const QUESTIONS_STORAGE_KEY = "scapex_survey_questions";
 
 function loadQuestions(): SurveyQuestion[] {
   try {
-    const saved = localStorage.getItem(QUESTIONS_STORAGE_KEY);
+    const saved = dbGetItem(QUESTIONS_STORAGE_KEY);
     if (saved) return JSON.parse(saved);
   } catch {}
   return DEFAULT_QUESTIONS;
 }
 
 function saveQuestions(questions: SurveyQuestion[]): void {
-  localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(questions));
+  dbSetItem(QUESTIONS_STORAGE_KEY, JSON.stringify(questions));
 }
 
 interface SurveyActionProps {

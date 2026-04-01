@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 // ─── Business Activity (Multi-Tenant per Activity Line) ──────────────────────
 
 export type ActivityColor =
@@ -90,31 +91,31 @@ export const DEFAULT_ACTIVITIES: BusinessActivity[] = [
 ];
 
 export function getActivities(): BusinessActivity[] {
-  const storedVersion = localStorage.getItem(ACTIVITIES_VERSION_KEY);
+  const storedVersion = dbGetItem(ACTIVITIES_VERSION_KEY);
   if (storedVersion !== ACTIVITIES_VERSION) {
-    localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(DEFAULT_ACTIVITIES));
-    localStorage.setItem(ACTIVITIES_VERSION_KEY, ACTIVITIES_VERSION);
+    dbSetItem(ACTIVITIES_KEY, JSON.stringify(DEFAULT_ACTIVITIES));
+    dbSetItem(ACTIVITIES_VERSION_KEY, ACTIVITIES_VERSION);
     return DEFAULT_ACTIVITIES;
   }
   try {
-    const stored = localStorage.getItem(ACTIVITIES_KEY);
+    const stored = dbGetItem(ACTIVITIES_KEY);
     if (stored) return JSON.parse(stored) as BusinessActivity[];
   } catch { /* ignore */ }
-  localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(DEFAULT_ACTIVITIES));
+  dbSetItem(ACTIVITIES_KEY, JSON.stringify(DEFAULT_ACTIVITIES));
   return DEFAULT_ACTIVITIES;
 }
 export function saveActivities(list: BusinessActivity[]): void {
-  localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(list));
+  dbSetItem(ACTIVITIES_KEY, JSON.stringify(list));
 }
 export function getActivityAssignments(): ActivityUserAssignment[] {
   try {
-    const stored = localStorage.getItem(ASSIGNMENTS_KEY);
+    const stored = dbGetItem(ASSIGNMENTS_KEY);
     if (stored) return JSON.parse(stored);
   } catch { /* ignore */ }
   return [];
 }
 export function saveActivityAssignments(list: ActivityUserAssignment[]): void {
-  localStorage.setItem(ASSIGNMENTS_KEY, JSON.stringify(list));
+  dbSetItem(ASSIGNMENTS_KEY, JSON.stringify(list));
 }
 export function getActiveActivityId(): string | null {
   return sessionStorage.getItem(ACTIVE_ACTIVITY_KEY);

@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -104,8 +105,8 @@ const SEED_WORKFLOWS: WorkflowTemplate[] = [
 
 const STORAGE_REQ = "scapex_approval_requests";
 const STORAGE_WF = "scapex_approval_workflows";
-function load<T>(key: string, seed: T): T { try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : seed; } catch { return seed; } }
-function save(key: string, data: unknown) { localStorage.setItem(key, JSON.stringify(data)); }
+function load<T>(key: string, seed: T): T { try { const d = dbGetItem(key); return d ? JSON.parse(d) : seed; } catch { return seed; } }
+function save(key: string, data: unknown) { dbSetItem(key, JSON.stringify(data)); }
 
 const MODULE_ICONS: Record<string, any> = { purchases: ShoppingCart, hr: Users, sales: DollarSign, accounting: DollarSign, engineering: FileText };
 const MODULE_COLORS: Record<string, string> = { purchases: "text-blue-600", hr: "text-green-600", sales: "text-purple-600", accounting: "text-orange-600", engineering: "text-cyan-600" };

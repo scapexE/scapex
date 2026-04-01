@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 // ─── Company Services & Activities Tree System ───────────────────────────────
 
 export interface ServiceSpecialization {
@@ -48,19 +49,19 @@ const ACTIVE_COMPANY_KEY = "scapex_active_company";
 
 export function getCompanies(): Company[] {
   try {
-    const s = localStorage.getItem(COMPANIES_KEY);
+    const s = dbGetItem(COMPANIES_KEY);
     if (s) return JSON.parse(s) as Company[];
   } catch {}
   return getDefaultCompanies();
 }
 
 export function saveCompanies(companies: Company[]): void {
-  localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
+  dbSetItem(COMPANIES_KEY, JSON.stringify(companies));
 }
 
 export function getActiveCompany(): Company {
   try {
-    const id = localStorage.getItem(ACTIVE_COMPANY_KEY);
+    const id = dbGetItem(ACTIVE_COMPANY_KEY);
     const companies = getCompanies();
     if (id) {
       const found = companies.find((c) => c.id === id);
@@ -73,7 +74,7 @@ export function getActiveCompany(): Company {
 }
 
 export function setActiveCompany(id: string): void {
-  localStorage.setItem(ACTIVE_COMPANY_KEY, id);
+  dbSetItem(ACTIVE_COMPANY_KEY, id);
 }
 
 export function updateCompany(company: Company): void {

@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 export type TimeFormat = "24h" | "12h";
 export type DateFormat = "gregorian" | "hijri" | "both";
 
@@ -54,14 +55,14 @@ export const SYSTEM_SETTINGS_KEY = "scapex_system_settings";
 
 export function getSystemSettings(): SystemSettings {
   try {
-    const stored = localStorage.getItem(SYSTEM_SETTINGS_KEY);
+    const stored = dbGetItem(SYSTEM_SETTINGS_KEY);
     if (stored) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(stored) };
   } catch {}
   return DEFAULT_SYSTEM_SETTINGS;
 }
 
 export function saveSystemSettings(data: SystemSettings): void {
-  localStorage.setItem(SYSTEM_SETTINGS_KEY, JSON.stringify(data));
+  dbSetItem(SYSTEM_SETTINGS_KEY, JSON.stringify(data));
   window.dispatchEvent(new CustomEvent("scapex_system_settings_update"));
 }
 
@@ -124,13 +125,13 @@ export const COMPANY_STORAGE_KEY = "scapex_about_settings";
 
 export function getAboutData(): AboutSettings {
   try {
-    const stored = localStorage.getItem(COMPANY_STORAGE_KEY);
+    const stored = dbGetItem(COMPANY_STORAGE_KEY);
     if (stored) return { ...DEFAULT_ABOUT, ...JSON.parse(stored) };
   } catch {}
   return DEFAULT_ABOUT;
 }
 
 export function saveAboutData(data: AboutSettings): void {
-  localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(data));
+  dbSetItem(COMPANY_STORAGE_KEY, JSON.stringify(data));
   window.dispatchEvent(new CustomEvent("scapex_company_update"));
 }

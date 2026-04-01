@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 export type Role = "admin" | "manager" | "accountant" | "engineer" | "hr_manager" | "client" | "viewer";
 
 export interface SystemUser {
@@ -108,8 +109,8 @@ export function canApproveRegistrations(user: SystemUser | null): boolean {
 const PERMISSIONS_VERSION = "v3";
 
 export function getUsers(): SystemUser[] {
-  const saved = localStorage.getItem("users");
-  const storedVersion = localStorage.getItem("users_version");
+  const saved = dbGetItem("users");
+  const storedVersion = dbGetItem("users_version");
   if (!saved || storedVersion !== PERMISSIONS_VERSION) return initDefaultUsers();
   try {
     const users = JSON.parse(saved);
@@ -140,19 +141,19 @@ function initDefaultUsers(): SystemUser[] {
       role: "engineer",   permissions: ROLE_DEFAULTS.engineer,   createdAt: new Date().toISOString(), active: true,
     },
   ];
-  localStorage.setItem("users", JSON.stringify(defaults));
-  localStorage.setItem("users_version", PERMISSIONS_VERSION);
-  const storedUser = localStorage.getItem("user");
+  dbSetItem("users", JSON.stringify(defaults));
+  dbSetItem("users_version", PERMISSIONS_VERSION);
+  const storedUser = dbGetItem("user");
   if (storedUser) {
     try {
       const u = JSON.parse(storedUser) as SystemUser;
       const refreshed = defaults.find((d) => d.id === u.id);
-      if (refreshed) localStorage.setItem("user", JSON.stringify(refreshed));
+      if (refreshed) dbSetItem("user", JSON.stringify(refreshed));
     } catch {}
   }
   return defaults;
 }
 
 export function saveUsers(users: SystemUser[]): void {
-  localStorage.setItem("users", JSON.stringify(users));
+  dbSetItem("users", JSON.stringify(users));
 }

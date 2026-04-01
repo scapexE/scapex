@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { getAboutData, getSystemSettings } from "@/lib/companySettings";
 import { getDocumentSignatures } from "@/lib/signatures";
 
@@ -117,13 +118,13 @@ const CONTRACTS_KEY = "scapex_contracts";
 
 export function getProposals(): Proposal[] {
   try {
-    const s = localStorage.getItem(PROPOSALS_KEY);
+    const s = dbGetItem(PROPOSALS_KEY);
     if (s) return JSON.parse(s) as Proposal[];
   } catch {}
   return [];
 }
 export function saveProposals(list: Proposal[]): void {
-  localStorage.setItem(PROPOSALS_KEY, JSON.stringify(list));
+  dbSetItem(PROPOSALS_KEY, JSON.stringify(list));
 }
 export function saveProposal(proposal: Proposal): void {
   const list = getProposals();
@@ -146,7 +147,7 @@ export function generateId(): string {
 
 export function getContracts(): Contract[] {
   try {
-    const s = localStorage.getItem(CONTRACTS_KEY);
+    const s = dbGetItem(CONTRACTS_KEY);
     if (s) return JSON.parse(s) as Contract[];
   } catch {}
   return [];
@@ -156,7 +157,7 @@ export function saveContract(contract: Contract): void {
   const idx = list.findIndex((c) => c.id === contract.id);
   if (idx >= 0) list[idx] = contract;
   else list.unshift(contract);
-  localStorage.setItem(CONTRACTS_KEY, JSON.stringify(list));
+  dbSetItem(CONTRACTS_KEY, JSON.stringify(list));
 }
 export function generateContractNumber(): string {
   const year = new Date().getFullYear();
@@ -688,10 +689,10 @@ export function printProposal(proposal: Proposal, isRtl: boolean, options?: Prin
   let coLogoColor = "#1e40af";
   let coLogoChar  = coNameEn?.charAt(0)?.toUpperCase() || "S";
   try {
-    const raw = localStorage.getItem("scapex_companies");
+    const raw = dbGetItem("scapex_companies");
     if (raw) {
       const companies = JSON.parse(raw) as Array<{id:string;logoUrl?:string;logoColor?:string;nameEn?:string}>;
-      const activeId = localStorage.getItem("scapex_active_company");
+      const activeId = dbGetItem("scapex_active_company");
       const co = activeId ? companies.find((c) => c.id === activeId) : companies[0];
       if (co) {
         coLogoUrl   = co.logoUrl   || "";
@@ -884,10 +885,10 @@ export function printContract(contract: Contract, isRtl: boolean, options?: { la
   let cVat    = "300123456700003";
   let cLogoUrl = ""; let cLogoColor = "#1e40af"; let cLogoChar = "S";
   try {
-    const raw = localStorage.getItem("scapex_companies");
+    const raw = dbGetItem("scapex_companies");
     if (raw) {
       const cos = JSON.parse(raw) as Array<{id:string;nameAr:string;nameEn:string;vatNumber?:string;logoUrl?:string;logoColor?:string}>;
-      const aid = localStorage.getItem("scapex_active_company");
+      const aid = dbGetItem("scapex_active_company");
       const co  = aid ? cos.find((c) => c.id === aid) : cos[0];
       if (co) { cNameAr = co.nameAr; cNameEn = co.nameEn; cVat = co.vatNumber||cVat; cLogoUrl = co.logoUrl||""; cLogoColor = co.logoColor||"#1e40af"; cLogoChar = co.nameEn?.charAt(0)?.toUpperCase()||"S"; }
     }

@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 // ─── Projects Storage Layer ──────────────────────────────────────────────────
 
 export type ProjectStatus = "planning" | "active" | "on_hold" | "completed" | "cancelled" | "delayed";
@@ -91,7 +92,7 @@ const SEED_PROJECTS: Project[] = [
 
 export function getProjects(): Project[] {
   try {
-    const s = localStorage.getItem(PROJECTS_KEY);
+    const s = dbGetItem(PROJECTS_KEY);
     if (s) {
       const stored: Project[] = JSON.parse(s);
       // Merge seeds for clients that don't have any stored data
@@ -109,12 +110,12 @@ export function saveProject(project: Project): void {
   if (idx >= 0) list[idx] = { ...project, updatedAt: new Date().toISOString().split("T")[0] };
   else list.unshift({ ...project, updatedAt: new Date().toISOString().split("T")[0] });
   // Only save non-seed projects (or updated seeds) to localStorage
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  dbSetItem(PROJECTS_KEY, JSON.stringify(list));
 }
 
 export function deleteProject(id: string): void {
   const list = getProjects().filter(p => p.id !== id);
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  dbSetItem(PROJECTS_KEY, JSON.stringify(list));
 }
 
 export function generateProjectCode(): string {
@@ -148,7 +149,7 @@ export function createProjectFromContract(params: {
     clientEmail: params.clientEmail,
     clientContact: params.clientContact,
     location: "المملكة العربية السعودية",
-    manager: JSON.parse(localStorage.getItem("user") || "{}").name || "مدير المشروع",
+    manager: JSON.parse(dbGetItem("user") || "{}").name || "مدير المشروع",
     status: "planning",
     phase: "Approval",
     progress: 0,

@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -43,8 +44,8 @@ const SEED_MAINT: MaintenanceLog[] = [
 ];
 
 const STORAGE_ASSETS = "scapex_assets"; const STORAGE_MAINT = "scapex_maintenance";
-function load<T>(k: string, s: T): T { try { const d=localStorage.getItem(k); return d?JSON.parse(d):s; } catch { return s; } }
-function save(k: string, d: unknown) { localStorage.setItem(k,JSON.stringify(d)); }
+function load<T>(k: string, s: T): T { try { const d=dbGetItem(k); return d?JSON.parse(d):s; } catch { return s; } }
+function save(k: string, d: unknown) { dbSetItem(k,JSON.stringify(d)); }
 
 export default function EquipmentModule() {
   const { dir } = useLanguage(); const isRtl = dir==="rtl";

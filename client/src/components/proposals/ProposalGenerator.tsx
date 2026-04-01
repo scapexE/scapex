@@ -1,3 +1,4 @@
+import { dbGetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { useState, useCallback, useEffect } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -368,21 +369,21 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
   // Read CRM/Sales prefill — stay at step 1 so user picks service first
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("scapex_proposal_prefill");
+      const raw = dbGetItem("scapex_proposal_prefill");
       if (raw) {
         const data = JSON.parse(raw);
         if (data.clientName)    setClientName(data.clientName);
         if (data.clientContact) setClientContact(data.clientContact);
         if (data.clientEmail)   setClientEmail(data.clientEmail);
         if (data.projectName)   setProjectName(data.projectName);
-        localStorage.removeItem("scapex_proposal_prefill");
+        dbRemoveItem("scapex_proposal_prefill");
         setCrmPrefill({ clientName: data.clientName, projectName: data.projectName });
       }
     } catch {}
 
     // Read sub-service prefill from Service Catalog
     try {
-      const raw = localStorage.getItem("scapex_proposal_sub");
+      const raw = dbGetItem("scapex_proposal_sub");
       if (raw) {
         const data = JSON.parse(raw);
         if (data.serviceType) {
@@ -393,7 +394,7 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
           const sub = getSubService(data.serviceType as ServiceType, data.subServiceId);
           if (sub) setSelectedSubService(sub);
         }
-        localStorage.removeItem("scapex_proposal_sub");
+        dbRemoveItem("scapex_proposal_sub");
       }
     } catch {}
   }, []);
@@ -466,7 +467,7 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         currency: "SAR", status: "draft", notes: "",
         validity: SERVICE_META[selectedService].defaultValidity,
         aiGenerated: useAI, createdAt: now, updatedAt: now,
-        createdBy: JSON.parse(localStorage.getItem("user") || "{}").name || "Admin",
+        createdBy: JSON.parse(dbGetItem("user") || "{}").name || "Admin",
       };
       setIsGenerating(false);
       onCreated(newProposal);
@@ -1655,7 +1656,7 @@ export function ProposalGenerator() {
         const found = all.find(p => p.id === viewId);
         if (found) return "detail";
       }
-      const raw = localStorage.getItem("scapex_proposal_prefill");
+      const raw = dbGetItem("scapex_proposal_prefill");
       if (raw) { const d = JSON.parse(raw); if (d?.clientName) return "create"; }
     } catch {}
     return "list";

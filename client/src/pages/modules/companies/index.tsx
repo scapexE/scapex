@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -62,8 +63,8 @@ const SEED_BRANCHES: Branch[] = [
 
 const STORAGE_COMPANIES = "scapex_mt_companies";
 const STORAGE_BRANCHES = "scapex_mt_branches";
-function load<T>(key: string, seed: T): T { try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : seed; } catch { return seed; } }
-function save(key: string, data: unknown) { localStorage.setItem(key, JSON.stringify(data)); }
+function load<T>(key: string, seed: T): T { try { const d = dbGetItem(key); return d ? JSON.parse(d) : seed; } catch { return seed; } }
+function save(key: string, data: unknown) { dbSetItem(key, JSON.stringify(data)); }
 
 export default function CompaniesModule() {
   const { dir, language } = useLanguage();

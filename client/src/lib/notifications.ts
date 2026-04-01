@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 export interface AppNotification {
   id: string;
   timestamp: string;
@@ -20,14 +21,14 @@ function generateId(): string {
 
 export function getNotifications(): AppNotification[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    return JSON.parse(dbGetItem(STORAGE_KEY) || "[]");
   } catch {
     return [];
   }
 }
 
 function save(list: AppNotification[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  dbSetItem(STORAGE_KEY, JSON.stringify(list));
   window.dispatchEvent(new CustomEvent("scapex_notification_update"));
 }
 
@@ -73,8 +74,8 @@ export function getUnreadCount(): number {
 }
 
 export function seedDemoNotifications(): void {
-  if (getNotifications().length > 0 || localStorage.getItem("scapex_notifications_seeded")) return;
-  localStorage.setItem("scapex_notifications_seeded", "1");
+  if (getNotifications().length > 0 || dbGetItem("scapex_notifications_seeded")) return;
+  dbSetItem("scapex_notifications_seeded", "1");
   const now = Date.now();
   const demos: Omit<AppNotification, "id" | "timestamp" | "read">[] = [
     {
@@ -131,7 +132,7 @@ export function seedDemoNotifications(): void {
       timestamp: new Date(now - i * 3600000).toISOString(),
       read: false,
     });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    dbSetItem(STORAGE_KEY, JSON.stringify(list));
   });
   window.dispatchEvent(new CustomEvent("scapex_notification_update"));
 }

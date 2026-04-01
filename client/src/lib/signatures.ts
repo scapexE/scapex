@@ -1,3 +1,4 @@
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 export interface SignatureRecord {
   id: string;
   signerName: string;
@@ -14,7 +15,7 @@ const STORAGE_KEY = "scapex_signatures";
 
 export function getSignatures(): SignatureRecord[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = dbGetItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -28,7 +29,7 @@ export function saveSignature(sig: SignatureRecord): void {
   );
   if (idx >= 0) all[idx] = sig;
   else all.push(sig);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  dbSetItem(STORAGE_KEY, JSON.stringify(all));
 }
 
 export function getDocumentSignatures(
@@ -45,17 +46,17 @@ export function deleteSignature(documentId: string, party: "first" | "second"): 
   const all = getSignatures().filter(
     (s) => !(s.documentId === documentId && s.party === party),
   );
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  dbSetItem(STORAGE_KEY, JSON.stringify(all));
 }
 
 export function getSavedSignatureImage(): string | null {
   try {
-    return localStorage.getItem("scapex_default_signature");
+    return dbGetItem("scapex_default_signature");
   } catch {
     return null;
   }
 }
 
 export function saveDefaultSignature(dataUrl: string): void {
-  localStorage.setItem("scapex_default_signature", dataUrl);
+  dbSetItem("scapex_default_signature", dataUrl);
 }
