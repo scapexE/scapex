@@ -35,6 +35,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+function rl(r: Role) { return ROLE_LABELS[r] || ROLE_LABELS.viewer; }
+
 const MODULE_CATEGORIES: Record<string, { ar: string; en: string }> = {
   core:        { ar: "النظام الأساسي",   en: "Core" },
   business:    { ar: "الأعمال والمالية", en: "Business & Finance" },
@@ -135,8 +137,8 @@ function ActivationDialog({
               <p className="text-xs text-muted-foreground">{user.email}</p>
             </div>
             {primaryRole && (
-              <Badge variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[primaryRole].color)}>
-                {isRtl ? ROLE_LABELS[primaryRole].ar : ROLE_LABELS[primaryRole].en}
+              <Badge variant="outline" className={cn("border-transparent text-xs", rl(primaryRole).color)}>
+                {isRtl ? rl(primaryRole).ar : rl(primaryRole).en}
                 {selectedRoles.length > 1 && ` +${selectedRoles.length - 1}`}
               </Badge>
             )}
@@ -172,8 +174,8 @@ function ActivationDialog({
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-sm">{isRtl ? ar : en}</p>
                         {selected && (
-                          <Badge variant="outline" className={cn("border-transparent text-[10px] px-1.5", ROLE_LABELS[role].color)}>
-                            {ROLE_LABELS[role].en}
+                          <Badge variant="outline" className={cn("border-transparent text-[10px] px-1.5", rl(role).color)}>
+                            {rl(role).en}
                           </Badge>
                         )}
                       </div>
@@ -190,12 +192,12 @@ function ActivationDialog({
                   {isRtl ? "الأدوار المدمجة:" : "Combined roles:"}
                 </span>
                 {selectedRoles.map((r) => (
-                  <Badge key={r} variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[r].color)}>
-                    {isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}
+                  <Badge key={r} variant="outline" className={cn("border-transparent text-xs", rl(r).color)}>
+                    {isRtl ? rl(r).ar : rl(r).en}
                   </Badge>
                 ))}
                 <span className="text-xs text-muted-foreground w-full mt-0.5">
-                  {t("users.form.primary_role")} <strong>{isRtl ? ROLE_LABELS[getPrimaryRole(selectedRoles)].ar : ROLE_LABELS[getPrimaryRole(selectedRoles)].en}</strong> {isRtl ? "— سيحصل على صلاحيات جميع الأدوار مجمّعة" : "— permissions merged from all roles"}
+                  {t("users.form.primary_role")} <strong>{isRtl ? rl(getPrimaryRole(selectedRoles)).ar : rl(getPrimaryRole(selectedRoles)).en}</strong> {isRtl ? "— سيحصل على صلاحيات جميع الأدوار مجمّعة" : "— permissions merged from all roles"}
                 </span>
               </div>
             )}
@@ -355,7 +357,7 @@ function RoleBadges({ user }: { user: SystemUser }) {
   return (
     <div className="flex flex-wrap gap-1">
       {visible.map((r) => {
-        const label = ROLE_LABELS[r] || ROLE_LABELS.viewer;
+        const label = rl(r);
         return (
           <Badge key={r} variant="outline" className={cn("border-transparent text-xs", label.color)}>
             {isRtl ? label.ar : label.en}
@@ -475,7 +477,7 @@ export default function Users() {
     );
     persist(updated);
     setActivatingUser(null);
-    const roleNames = roles.map((r) => isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en).join(" + ");
+    const roleNames = roles.map((r) => { const l = rl(r); return isRtl ? l.ar : l.en; }).join(" + ");
     toast({
       title: isRtl ? "تم التفعيل" : "Activated",
       description: isRtl ? `تم تفعيل "${user.name}" بأدوار: ${roleNames}` : `"${user.name}" activated with roles: ${roleNames}`
@@ -677,7 +679,7 @@ export default function Users() {
                 <SelectContent>
                   <SelectItem value="all">{t("users.all_roles")}</SelectItem>
                   {ALL_ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>{isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}</SelectItem>
+                    <SelectItem key={r} value={r}>{isRtl ? rl(r).ar : rl(r).en}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -837,8 +839,8 @@ export default function Users() {
               <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
                 <div className="flex flex-wrap gap-1">
                   {(permUser.roles || [permUser.role]).map((r) => (
-                    <Badge key={r} variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[r].color)}>
-                      {isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}
+                    <Badge key={r} variant="outline" className={cn("border-transparent text-xs", rl(r).color)}>
+                      {isRtl ? rl(r).ar : rl(r).en}
                     </Badge>
                   ))}
                 </div>
@@ -1000,7 +1002,7 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
         </div>
         {currentRoles.length > 1 && (
           <p className="text-xs text-blue-600">
-            {t("users.form.primary_role")} <strong>{isRtl ? ROLE_LABELS[getPrimaryRole(currentRoles)].ar : ROLE_LABELS[getPrimaryRole(currentRoles)].en}</strong> {t("users.form.merged_perms")}
+            {t("users.form.primary_role")} <strong>{isRtl ? rl(getPrimaryRole(currentRoles)).ar : rl(getPrimaryRole(currentRoles)).en}</strong> {t("users.form.merged_perms")}
           </p>
         )}
       </div>
