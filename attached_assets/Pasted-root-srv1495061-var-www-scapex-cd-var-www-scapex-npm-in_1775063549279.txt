@@ -1,0 +1,46 @@
+root@srv1495061:/var/www/scapex# cd /var/www/scapex && npm install && npx tsx script/build.ts && pm2 restart scapex
+npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+
+added 110 packages, and audited 459 packages in 2s
+
+76 packages are looking for funding
+  run `npm fund` for details
+
+10 vulnerabilities (1 low, 6 moderate, 3 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+Version bumped to V1.0.3
+building client...
+vite v7.3.1 building client environment for production...
+✓ 2572 modules transformed.
+rendering chunks (1)...[meta-images] no Replit deployment domain found, skipping meta tag updates
+../dist/public/index.html                     1.75 kB │ gzip:   0.76 kB
+../dist/public/assets/index-D8l6PtTA.css    228.87 kB │ gzip:  30.70 kB
+../dist/public/assets/index-D2wmL4pn.js   1,703.20 kB │ gzip: 458.79 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.40s
+building server...
+
+  dist/index.cjs  1.0mb ⚠️
+
+⚡ Done in 145ms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [scapex](ids: [ 0 ])
+[PM2] [scapex](0) ✓
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ scapex    │ default     │ 1.0.0   │ fork    │ 461053   │ 0s     │ 6    │ online    │ 0%       │ 16.6mb   │ root     │ disabled │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@srv1495061:/var/www/scapex# 
