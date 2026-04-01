@@ -354,11 +354,14 @@ function RoleBadges({ user }: { user: SystemUser }) {
 
   return (
     <div className="flex flex-wrap gap-1">
-      {visible.map((r) => (
-        <Badge key={r} variant="outline" className={cn("border-transparent text-xs", ROLE_LABELS[r].color)}>
-          {isRtl ? ROLE_LABELS[r].ar : ROLE_LABELS[r].en}
-        </Badge>
-      ))}
+      {visible.map((r) => {
+        const label = ROLE_LABELS[r] || ROLE_LABELS.viewer;
+        return (
+          <Badge key={r} variant="outline" className={cn("border-transparent text-xs", label.color)}>
+            {isRtl ? label.ar : label.en}
+          </Badge>
+        );
+      })}
       {!showAll && extra > 0 && (
         <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }}
           className="text-xs text-primary hover:underline font-medium">
@@ -397,27 +400,38 @@ export default function Users() {
       const res = await fetch("/api/users");
       if (!res.ok) return;
       const apiUsers: any[] = await res.json();
-      const mapped: SystemUser[] = apiUsers.map((u) => ({
-        id: u.id,
-        nationalId: u.nationalId || u.national_id || "",
-        name: u.name,
-        email: u.email,
-        phone: u.phone || "",
-        password: "",
-        role: (u.role || "client") as Role,
-        roles: u.roles || [u.role || "client"],
-        permissions: Array.isArray(u.permissions) ? u.permissions : [],
-        active: u.isActive ?? u.is_active ?? false,
-        pendingApproval: !(u.isActive ?? u.is_active ?? false),
-        createdAt: u.createdAt || u.created_at || new Date().toISOString(),
-      }));
+      const mapped: SystemUser[] = apiUsers.map((u) => {
+        const isActive = u.isActive ?? u.is_active ?? false;
+        const role = (u.role || "client") as Role;
+        let perms: string[] = [];
+        if (Array.isArray(u.permissions)) {
+          perms = u.permissions;
+        } else if (typeof u.permissions === "string") {
+          try { perms = JSON.parse(u.permissions); } catch { perms = []; }
+        }
+        return {
+          id: u.id,
+          nationalId: u.nationalId || u.national_id || "",
+          name: u.name || "",
+          email: u.email || "",
+          password: "",
+          role,
+          roles: Array.isArray(u.roles) ? u.roles : [role],
+          permissions: perms,
+          active: isActive,
+          pendingApproval: !isActive,
+          createdAt: u.createdAt || u.created_at || new Date().toISOString(),
+        };
+      });
       const localUsers = getUsers();
       const allIds = new Set(mapped.map((u) => u.id));
       const localOnly = localUsers.filter((u) => !allIds.has(u.id));
       const merged = [...mapped, ...localOnly];
       setUsers(merged);
       saveUsers(merged);
-    } catch {}
+    } catch (err) {
+      console.error("Failed to fetch users from API:", err);
+    }
   }, []);
 
   useEffect(() => {
