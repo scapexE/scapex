@@ -125,7 +125,7 @@ export default function CompaniesModule() {
 
   function openNewCompany() {
     setEditCompany(null);
-    setCompanyForm({ type: "subsidiary", parentId: mainCompany?.id || "1", isActive: true });
+    setCompanyForm({ type: "subsidiary", parentId: "", isActive: true });
     setShowCompanyDialog(true);
   }
 
@@ -289,7 +289,7 @@ export default function CompaniesModule() {
                         </div>
                       </TableCell>
                       <TableCell><Badge className={typeColor(c.type)} variant="secondary">{typeLabel(c.type)}</Badge></TableCell>
-                      <TableCell className="text-sm">{c.parentId ? (() => { const p = companies.find(x => x.id === c.parentId); return p ? (isRtl ? p.nameAr : p.nameEn) : "-"; })() : c.type === "main" ? "-" : "-"}</TableCell>
+                      <TableCell className="text-sm">{c.parentId ? (() => { const p = companies.find(x => x.id === c.parentId); return p ? (isRtl ? p.nameAr : p.nameEn) : "-"; })() : t("مستقلة", "Independent")}</TableCell>
                       <TableCell className="font-mono text-sm">{c.crNumber}</TableCell>
                       <TableCell><div className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {c.city}</div></TableCell>
                       <TableCell>{c.employeeCount}</TableCell>
@@ -441,10 +441,11 @@ export default function CompaniesModule() {
               </div>
               {companyForm.type !== "main" && (
                 <div><Label>{t("الشركة الرئيسية التابع لها", "Parent Company")}</Label>
-                  <Select value={companyForm.parentId || mainCompany?.id || ""} onValueChange={v => setCompanyForm(p => ({ ...p, parentId: v }))}>
-                    <SelectTrigger data-testid="select-parent-company"><SelectValue /></SelectTrigger>
+                  <Select value={companyForm.parentId || ""} onValueChange={v => setCompanyForm(p => ({ ...p, parentId: v === "none" ? "" : v }))}>
+                    <SelectTrigger data-testid="select-parent-company"><SelectValue placeholder={t("اختر الشركة الرئيسية", "Select parent company")} /></SelectTrigger>
                     <SelectContent>
-                      {companies.filter(c => c.type === "main").map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</SelectItem>)}
+                      <SelectItem value="none">{t("بدون شركة رئيسية (مستقلة)", "No parent (independent)")}</SelectItem>
+                      {companies.filter(c => c.id !== editCompany?.id).map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn} {c.type === "main" ? t("(الأم)", "(Parent)") : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
