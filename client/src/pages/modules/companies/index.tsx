@@ -215,7 +215,7 @@ export default function CompaniesModule() {
   }
 
   const typeLabel = (type: string) => {
-    const map: Record<string, [string, string]> = { main: ["الشركة الأم", "Main Company"], subsidiary: ["شركة تابعة", "Subsidiary"], branch: ["فرع", "Branch"] };
+    const map: Record<string, [string, string]> = { main: ["الشركة الأم", "Parent Company"], subsidiary: ["رئيسية", "Headquarters"], branch: ["فرع", "Branch"] };
     return t(map[type]?.[0] || type, map[type]?.[1] || type);
   };
   const typeColor = (type: string) => {
@@ -271,6 +271,7 @@ export default function CompaniesModule() {
                   <TableRow>
                     <TableHead>{t("الشركة", "Company")}</TableHead>
                     <TableHead>{t("النوع", "Type")}</TableHead>
+                    <TableHead>{t("تتبع لـ", "Parent")}</TableHead>
                     <TableHead>{t("السجل التجاري", "CR Number")}</TableHead>
                     <TableHead>{t("المدينة", "City")}</TableHead>
                     <TableHead>{t("الموظفين", "Employees")}</TableHead>
@@ -288,6 +289,7 @@ export default function CompaniesModule() {
                         </div>
                       </TableCell>
                       <TableCell><Badge className={typeColor(c.type)} variant="secondary">{typeLabel(c.type)}</Badge></TableCell>
+                      <TableCell className="text-sm">{c.parentId ? (() => { const p = companies.find(x => x.id === c.parentId); return p ? (isRtl ? p.nameAr : p.nameEn) : "-"; })() : c.type === "main" ? "-" : "-"}</TableCell>
                       <TableCell className="font-mono text-sm">{c.crNumber}</TableCell>
                       <TableCell><div className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {c.city}</div></TableCell>
                       <TableCell>{c.employeeCount}</TableCell>
@@ -323,7 +325,7 @@ export default function CompaniesModule() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t("الفرع", "Branch")}</TableHead>
-                    <TableHead>{t("الشركة", "Company")}</TableHead>
+                    <TableHead>{t("الشركة الرئيسية", "Parent Company")}</TableHead>
                     <TableHead>{t("المدينة", "City")}</TableHead>
                     <TableHead>{t("المدير", "Manager")}</TableHead>
                     <TableHead>{t("الموظفين", "Employees")}</TableHead>
@@ -372,7 +374,7 @@ export default function CompaniesModule() {
                         <Building2 className="h-8 w-8" />
                         <div>
                           <h4 className="text-lg font-bold">{isRtl ? main.nameAr : main.nameEn}</h4>
-                          <p className="text-blue-100 text-sm">{typeLabel(main.type)} • {main.city} • {main.employeeCount} {t("موظف", "employees")}</p>
+                          <p className="text-blue-100 text-sm">{t("الشركة الأم", "Parent Company")} • {main.city} • {main.employeeCount} {t("موظف", "employees")}</p>
                         </div>
                       </div>
                     </div>
@@ -384,7 +386,7 @@ export default function CompaniesModule() {
                               <Building2 className="h-5 w-5 text-purple-600" />
                               <h5 className="font-semibold text-sm">{isRtl ? sub.nameAr : sub.nameEn}</h5>
                             </div>
-                            <p className="text-xs text-muted-foreground">{sub.city} • {sub.employeeCount} {t("موظف", "emp")}</p>
+                            <p className="text-xs text-muted-foreground">{t("رئيسية", "HQ")} • {sub.city} • {sub.employeeCount} {t("موظف", "emp")}</p>
                           </div>
                           <div className={cn("space-y-1", isRtl ? "mr-4" : "ml-4")}>
                             {branches.filter(b => b.companyId === sub.id).map(br => (
@@ -431,14 +433,26 @@ export default function CompaniesModule() {
                   <Select value={companyForm.type || "subsidiary"} onValueChange={v => setCompanyForm(p => ({ ...p, type: v as Company["type"] }))}>
                     <SelectTrigger data-testid="select-company-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="subsidiary">{t("شركة تابعة", "Subsidiary")}</SelectItem>
+                      <SelectItem value="subsidiary">{t("رئيسية", "Headquarters")}</SelectItem>
                       <SelectItem value="branch">{t("فرع", "Branch")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+              {companyForm.type !== "main" && (
+                <div><Label>{t("الشركة الرئيسية التابع لها", "Parent Company")}</Label>
+                  <Select value={companyForm.parentId || mainCompany?.id || ""} onValueChange={v => setCompanyForm(p => ({ ...p, parentId: v }))}>
+                    <SelectTrigger data-testid="select-parent-company"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {companies.filter(c => c.type === "main").map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div><Label>{t("العنوان", "Address")}</Label><Input value={companyForm.address || ""} onChange={e => setCompanyForm(p => ({ ...p, address: e.target.value }))} data-testid="input-company-address" /></div>
               <div><Label>{t("البريد الإلكتروني", "Email")}</Label><Input value={companyForm.email || ""} onChange={e => setCompanyForm(p => ({ ...p, email: e.target.value }))} data-testid="input-company-email" /></div>
               <div><Label>{t("الهاتف", "Phone")}</Label><Input value={companyForm.phone || ""} onChange={e => setCompanyForm(p => ({ ...p, phone: e.target.value }))} data-testid="input-company-phone" /></div>
+              <div><Label>{t("الموقع الإلكتروني", "Website")}</Label><Input value={companyForm.website || ""} onChange={e => setCompanyForm(p => ({ ...p, website: e.target.value }))} data-testid="input-company-website" /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCompanyDialog(false)}>{t("إلغاء", "Cancel")}</Button>
@@ -455,16 +469,17 @@ export default function CompaniesModule() {
                 <div><Label>{t("الاسم بالعربي", "Name (Arabic)")}</Label><Input value={branchForm.nameAr || ""} onChange={e => setBranchForm(p => ({ ...p, nameAr: e.target.value }))} data-testid="input-branch-name-ar" /></div>
                 <div><Label>{t("الاسم بالإنجليزي", "Name (English)")}</Label><Input value={branchForm.nameEn || ""} onChange={e => setBranchForm(p => ({ ...p, nameEn: e.target.value }))} data-testid="input-branch-name-en" /></div>
               </div>
-              <div><Label>{t("الشركة", "Company")}</Label>
+              <div><Label>{t("الشركة الرئيسية التابع لها", "Parent Company")}</Label>
                 <Select value={branchForm.companyId || ""} onValueChange={v => setBranchForm(p => ({ ...p, companyId: v }))}>
                   <SelectTrigger data-testid="select-branch-company"><SelectValue /></SelectTrigger>
-                  <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</SelectItem>)}</SelectContent>
+                  <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn} {c.type === "main" ? t("(الأم)", "(Parent)") : ""}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>{t("المدينة", "City")}</Label><Input value={branchForm.city || ""} onChange={e => setBranchForm(p => ({ ...p, city: e.target.value }))} data-testid="input-branch-city" /></div>
                 <div><Label>{t("المدير", "Manager")}</Label><Input value={branchForm.manager || ""} onChange={e => setBranchForm(p => ({ ...p, manager: e.target.value }))} data-testid="input-branch-manager" /></div>
               </div>
+              <div><Label>{t("العنوان", "Address")}</Label><Input value={branchForm.address || ""} onChange={e => setBranchForm(p => ({ ...p, address: e.target.value }))} data-testid="input-branch-address" /></div>
               <div><Label>{t("الهاتف", "Phone")}</Label><Input value={branchForm.phone || ""} onChange={e => setBranchForm(p => ({ ...p, phone: e.target.value }))} data-testid="input-branch-phone" /></div>
             </div>
             <DialogFooter>
