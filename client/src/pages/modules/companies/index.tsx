@@ -1,5 +1,4 @@
-import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +29,7 @@ interface Company {
   parentId: string | null;
   employeeCount: number;
   isActive: boolean;
+  settings?: any;
 }
 
 interface Branch {
@@ -45,33 +45,13 @@ interface Branch {
   isActive: boolean;
 }
 
-const SEED_COMPANIES: Company[] = [
-  { id: "1", nameAr: "شركة سكابكس للمقاولات", nameEn: "Scapex Contracting Co.", crNumber: "1010234567", vatNumber: "300012345600003", city: "الرياض", address: "حي العليا، شارع الأمير محمد بن عبدالعزيز", phone: "+966112345678", email: "info@scapex.sa", website: "www.scapex.sa", type: "main", parentId: null, employeeCount: 156, isActive: true },
-  { id: "2", nameAr: "سكابكس لأنظمة السلامة", nameEn: "Scapex Safety Systems", crNumber: "1010345678", vatNumber: "300012345600004", city: "جدة", address: "حي الروضة، طريق الملك فهد", phone: "+966122345678", email: "safety@scapex.sa", website: "www.scapex-safety.sa", type: "subsidiary", parentId: "1", employeeCount: 45, isActive: true },
-  { id: "3", nameAr: "سكابكس للخدمات البيئية", nameEn: "Scapex Environmental Services", crNumber: "1010456789", vatNumber: "300012345600005", city: "الدمام", address: "حي الشاطئ، شارع الخليج", phone: "+966132345678", email: "env@scapex.sa", website: "www.scapex-env.sa", type: "subsidiary", parentId: "1", employeeCount: 32, isActive: true },
-  { id: "4", nameAr: "سكابكس للبنية التحتية", nameEn: "Scapex Infrastructure", crNumber: "1010567890", vatNumber: "300012345600006", city: "الرياض", address: "حي النخيل، طريق الملك سلمان", phone: "+966114567890", email: "infra@scapex.sa", website: "www.scapex-infra.sa", type: "subsidiary", parentId: "1", employeeCount: 78, isActive: true },
-];
-
-const SEED_BRANCHES: Branch[] = [
-  { id: "1", companyId: "1", nameAr: "المقر الرئيسي - الرياض", nameEn: "HQ - Riyadh", city: "الرياض", address: "حي العليا", phone: "+966112345678", manager: "أحمد الغامدي", employeeCount: 85, isActive: true },
-  { id: "2", companyId: "1", nameAr: "فرع جدة", nameEn: "Jeddah Branch", city: "جدة", address: "حي الروضة", phone: "+966122345678", manager: "محمد القحطاني", employeeCount: 42, isActive: true },
-  { id: "3", companyId: "1", nameAr: "فرع الدمام", nameEn: "Dammam Branch", city: "الدمام", address: "حي الشاطئ", phone: "+966132345678", manager: "خالد الزهراني", employeeCount: 29, isActive: true },
-  { id: "4", companyId: "2", nameAr: "مكتب جدة - السلامة", nameEn: "Jeddah Safety Office", city: "جدة", address: "حي الصفا", phone: "+966122456789", manager: "فيصل العتيبي", employeeCount: 28, isActive: true },
-  { id: "5", companyId: "2", nameAr: "مكتب الرياض - السلامة", nameEn: "Riyadh Safety Office", city: "الرياض", address: "حي الملقا", phone: "+966113456789", manager: "عبدالله الشهري", employeeCount: 17, isActive: true },
-  { id: "6", companyId: "3", nameAr: "مكتب الدمام - البيئة", nameEn: "Dammam Env. Office", city: "الدمام", address: "حي الفيصلية", phone: "+966133456789", manager: "عمر الحربي", employeeCount: 32, isActive: true },
-];
-
-const STORAGE_COMPANIES = "scapex_mt_companies";
-const STORAGE_BRANCHES = "scapex_mt_branches";
-function load<T>(key: string, seed: T): T { try { const d = dbGetItem(key); return d ? JSON.parse(d) : seed; } catch { return seed; } }
-function save(key: string, data: unknown) { dbSetItem(key, JSON.stringify(data)); }
-
 export default function CompaniesModule() {
   const { dir, language } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
-  const [companies, setCompanies] = useState<Company[]>(() => load(STORAGE_COMPANIES, SEED_COMPANIES));
-  const [branches, setBranches] = useState<Branch[]>(() => load(STORAGE_BRANCHES, SEED_BRANCHES));
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showCompanyDialog, setShowCompanyDialog] = useState(false);
   const [showBranchDialog, setShowBranchDialog] = useState(false);
@@ -80,6 +60,54 @@ export default function CompaniesModule() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [companyForm, setCompanyForm] = useState<Partial<Company>>({});
   const [branchForm, setBranchForm] = useState<Partial<Branch>>({});
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [cRes, bRes] = await Promise.all([
+        fetch("/api/companies"),
+        fetch("/api/branches"),
+      ]);
+      const cData = cRes.ok ? await cRes.json() : [];
+      const bData = bRes.ok ? await bRes.json() : [];
+      const mapped: Company[] = cData.map((c: any) => ({
+        id: String(c.id),
+        nameAr: c.nameAr || c.name_ar || "",
+        nameEn: c.nameEn || c.name_en || "",
+        crNumber: c.crNumber || c.cr_number || "",
+        vatNumber: c.vatNumber || c.vat_number || "",
+        city: c.city || "",
+        address: c.address || "",
+        phone: c.phone || "",
+        email: c.email || "",
+        website: c.website || "",
+        type: c.settings?.type || "subsidiary",
+        parentId: c.settings?.parentId || null,
+        employeeCount: c.settings?.employeeCount || 0,
+        isActive: c.isActive ?? c.is_active ?? true,
+        settings: c.settings,
+      }));
+      const mappedB: Branch[] = bData.map((b: any) => ({
+        id: String(b.id),
+        companyId: String(b.companyId || b.company_id),
+        nameAr: b.nameAr || b.name_ar || "",
+        nameEn: b.nameEn || b.name_en || "",
+        city: b.city || "",
+        address: b.address || "",
+        phone: b.phone || "",
+        manager: b.managerName || b.manager_name || "",
+        employeeCount: 0,
+        isActive: b.isActive ?? b.is_active ?? true,
+      }));
+      setCompanies(mapped);
+      setBranches(mappedB);
+    } catch (err) {
+      console.error("Failed to fetch companies:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const t = (ar: string, en: string) => isRtl ? ar : en;
 
@@ -107,29 +135,39 @@ export default function CompaniesModule() {
     setShowCompanyDialog(true);
   }
 
-  function saveCompany() {
+  async function saveCompany() {
     if (!companyForm.nameAr || !companyForm.nameEn) return;
-    let updated: Company[];
-    if (editCompany) {
-      updated = companies.map(c => c.id === editCompany.id ? { ...c, ...companyForm } as Company : c);
-    } else {
-      const nc: Company = { ...companyForm, id: Date.now().toString(), employeeCount: 0 } as Company;
-      updated = [...companies, nc];
-    }
-    setCompanies(updated);
-    save(STORAGE_COMPANIES, updated);
-    setShowCompanyDialog(false);
-    toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ بيانات الشركة", "Company data saved") });
+    const payload = {
+      nameAr: companyForm.nameAr,
+      nameEn: companyForm.nameEn,
+      crNumber: companyForm.crNumber || "",
+      vatNumber: companyForm.vatNumber || "",
+      city: companyForm.city || "",
+      address: companyForm.address || "",
+      phone: companyForm.phone || "",
+      email: companyForm.email || "",
+      website: companyForm.website || "",
+      isActive: companyForm.isActive ?? true,
+      settings: { type: companyForm.type || "subsidiary", parentId: companyForm.parentId, employeeCount: companyForm.employeeCount || 0 },
+    };
+    try {
+      if (editCompany) {
+        await fetch(`/api/companies/${editCompany.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      } else {
+        await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      }
+      await fetchData();
+      setShowCompanyDialog(false);
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ بيانات الشركة", "Company data saved") });
+    } catch { toast({ title: t("خطأ", "Error"), variant: "destructive" }); }
   }
 
-  function deleteCompany(id: string) {
-    const updated = companies.filter(c => c.id !== id);
-    setCompanies(updated);
-    save(STORAGE_COMPANIES, updated);
-    const updBranches = branches.filter(b => b.companyId !== id);
-    setBranches(updBranches);
-    save(STORAGE_BRANCHES, updBranches);
-    toast({ title: t("تم الحذف", "Deleted") });
+  async function deleteCompany(id: string) {
+    try {
+      await fetch(`/api/companies/${id}`, { method: "DELETE" });
+      await fetchData();
+      toast({ title: t("تم الحذف", "Deleted") });
+    } catch { toast({ title: t("خطأ", "Error"), variant: "destructive" }); }
   }
 
   function openNewBranch() {
@@ -144,26 +182,36 @@ export default function CompaniesModule() {
     setShowBranchDialog(true);
   }
 
-  function saveBranch() {
+  async function saveBranch() {
     if (!branchForm.nameAr || !branchForm.nameEn) return;
-    let updated: Branch[];
-    if (editBranch) {
-      updated = branches.map(b => b.id === editBranch.id ? { ...b, ...branchForm } as Branch : b);
-    } else {
-      const nb: Branch = { ...branchForm, id: Date.now().toString(), employeeCount: 0 } as Branch;
-      updated = [...branches, nb];
-    }
-    setBranches(updated);
-    save(STORAGE_BRANCHES, updated);
-    setShowBranchDialog(false);
-    toast({ title: t("تم الحفظ", "Saved") });
+    const payload = {
+      companyId: parseInt(branchForm.companyId || selectedCompany?.id || "1"),
+      nameAr: branchForm.nameAr,
+      nameEn: branchForm.nameEn,
+      city: branchForm.city || "",
+      address: branchForm.address || "",
+      phone: branchForm.phone || "",
+      managerName: branchForm.manager || "",
+      isActive: branchForm.isActive ?? true,
+    };
+    try {
+      if (editBranch) {
+        await fetch(`/api/branches/${editBranch.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      } else {
+        await fetch("/api/branches", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      }
+      await fetchData();
+      setShowBranchDialog(false);
+      toast({ title: t("تم الحفظ", "Saved") });
+    } catch { toast({ title: t("خطأ", "Error"), variant: "destructive" }); }
   }
 
-  function deleteBranch(id: string) {
-    const updated = branches.filter(b => b.id !== id);
-    setBranches(updated);
-    save(STORAGE_BRANCHES, updated);
-    toast({ title: t("تم الحذف", "Deleted") });
+  async function deleteBranch(id: string) {
+    try {
+      await fetch(`/api/branches/${id}`, { method: "DELETE" });
+      await fetchData();
+      toast({ title: t("تم الحذف", "Deleted") });
+    } catch { toast({ title: t("خطأ", "Error"), variant: "destructive" }); }
   }
 
   const typeLabel = (type: string) => {
@@ -174,6 +222,10 @@ export default function CompaniesModule() {
     const map: Record<string, string> = { main: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", subsidiary: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", branch: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" };
     return map[type] || "";
   };
+
+  if (loading) {
+    return <MainLayout><div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div></MainLayout>;
+  }
 
   return (
     <MainLayout>

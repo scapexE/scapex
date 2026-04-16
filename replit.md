@@ -9,6 +9,7 @@
 - **Schema**: `shared/schema.ts` — comprehensive schema with multi-tenant support (`company_id` on all tables)
 - **Languages**: Full Arabic (RTL) + English (LTR) bilingual — toggled via `useLanguage()` hook
 - **Data Storage**: All `scapex_*` data stored in PostgreSQL `app_data` table (key-value JSONB), synced to/from localStorage as cache via `client/src/lib/dbStorage.ts`
+- **Companies & Branches**: Fully migrated to PostgreSQL via REST API (`/api/companies`, `/api/branches`). Seed data auto-populates on first boot. Company Settings syncs main company (type="main") to DB on save. Settings merge-preserved on updates.
 - **Auth**: Session in localStorage (non-scapex key), RBAC + multi-activity permissions + real email verification via Resend
 - **Dark Mode**: Full dark/light mode with clear card borders and distinct background/card contrast
 - **Client Portal**: 6 color themes (Default, Ocean, Forest, Royal, Sunset, Slate) + dark mode toggle

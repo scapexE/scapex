@@ -75,11 +75,35 @@ export default function CompanySettingsModule() {
     setHasSysChanges(true);
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     dbSetItem("scapex_about_settings", JSON.stringify(form));
     setHasChanges(false);
     logAction("update", "company_settings", "Updated company settings", "تم تحديث إعدادات الشركة");
     window.dispatchEvent(new CustomEvent("scapex_company_update"));
+    try {
+      const res = await fetch("/api/companies");
+      if (res.ok) {
+        const companies = await res.json();
+        const mainCompany = companies.find((c: any) => c.settings?.type === "main") || companies[0];
+        if (mainCompany) {
+          await fetch(`/api/companies/${mainCompany.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              nameAr: form.companyNameAr,
+              nameEn: form.companyNameEn,
+              crNumber: form.crNumber,
+              vatNumber: form.vatNumber,
+              address: form.address,
+              phone: form.phone1,
+              email: form.email1,
+              website: form.website,
+              settings: { ...mainCompany.settings, about: form },
+            }),
+          });
+        }
+      }
+    } catch {}
     toast({
       title: t("تم الحفظ بنجاح", "Saved Successfully"),
       description: t("تم تحديث بيانات الشركة وستنعكس على جميع أجزاء النظام", "Company data updated and will reflect across the entire system"),
