@@ -26,7 +26,8 @@ import {
   FONT_OPTIONS, FONT_SIZE_OPTIONS,
 } from "@/lib/companySettings";
 import { logAction } from "@/lib/auditLog";
-import type { SystemUser } from "@/lib/permissions";
+import { type SystemUser, getAllowedCompanyIds } from "@/lib/permissions";
+import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 
 function SettingsField({ label, value, onChange, textarea, dir: fieldDir, placeholder, disabled }: {
   label: string; value: string; onChange: (val: string) => void; textarea?: boolean; dir?: string; placeholder?: string; disabled?: boolean;
@@ -51,6 +52,9 @@ export default function CompanySettingsModule() {
   const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
 
+  const { activeActivity } = useBusinessActivity();
+  const allowedCompanyIds = getAllowedCompanyIds(currentUser);
+
   const [form, setForm] = useState<AboutSettings>(getAboutData);
   const [sysForm, setSysForm] = useState<SystemSettings>(getSystemSettings);
   const [hasChanges, setHasChanges] = useState(false);
@@ -60,9 +64,22 @@ export default function CompanySettingsModule() {
   const [branchForm, setBranchForm] = useState<any>({
     nameAr: "", nameEn: "", city: "", address: "", phone: "", managerName: "", isActive: true,
   });
-  const [mainCompanyId, setMainCompanyId] = useState<number | null>(null);
+  const [allCompanies, setAllCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [dbBranches, setDbBranches] = useState<any[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
+
+  // Companies visible to this user, filtered by active activity
+  const visibleCompanies = (() => {
+    let list = allCompanies;
+    if (allowedCompanyIds !== null) {
+      list = list.filter((c) => allowedCompanyIds.includes(String(c.id)));
+    }
+    if (activeActivity) {
+      list = list.filter((c) => Array.isArray(c.settings?.activityIds) && c.settings.activityIds.includes(activeActivity.id));
+    }
+    return list;
+  })();
 
   const loadBranches = useCallback(async (companyId: number) => {
     try {
@@ -71,24 +88,52 @@ export default function CompanySettingsModule() {
     } catch {}
   }, []);
 
+  // Load all companies once
   useEffect(() => {
     let active = true;
     (async () => {
-      setBranchesLoading(true);
       try {
         const res = await fetch("/api/companies");
-        if (!res.ok) return;
-        const companies = await res.json();
-        const main = companies.find((c: any) => c.settings?.type === "main") || companies[0];
-        if (main && active) {
-          setMainCompanyId(main.id);
-          await loadBranches(main.id);
-        }
+        if (res.ok && active) setAllCompanies(await res.json());
       } catch {}
-      finally { if (active) setBranchesLoading(false); }
     })();
     return () => { active = false; };
-  }, [loadBranches]);
+  }, []);
+
+  // When the visible-companies list changes (activity switch / data load), pick a sensible selection
+  useEffect(() => {
+    if (visibleCompanies.length === 0) {
+      setSelectedCompanyId(null);
+      return;
+    }
+    if (selectedCompanyId && visibleCompanies.some((c) => c.id === selectedCompanyId)) return;
+    const main = visibleCompanies.find((c) => c.settings?.type === "main") || visibleCompanies[0];
+    setSelectedCompanyId(main.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allCompanies, activeActivity?.id]);
+
+  // Load form + branches whenever selected company changes
+  useEffect(() => {
+    if (!selectedCompanyId) return;
+    const company = allCompanies.find((c) => c.id === selectedCompanyId);
+    if (!company) return;
+    const about = company.settings?.about as Partial<AboutSettings> | undefined;
+    setForm({
+      ...DEFAULT_ABOUT,
+      ...(about || {}),
+      companyNameAr: about?.companyNameAr ?? company.nameAr ?? DEFAULT_ABOUT.companyNameAr,
+      companyNameEn: about?.companyNameEn ?? company.nameEn ?? DEFAULT_ABOUT.companyNameEn,
+      crNumber: about?.crNumber ?? company.crNumber ?? "",
+      vatNumber: about?.vatNumber ?? company.vatNumber ?? "",
+      address: about?.address ?? company.address ?? "",
+      phone1: about?.phone1 ?? company.phone ?? "",
+      email1: about?.email1 ?? company.email ?? "",
+      website: about?.website ?? company.website ?? "",
+    });
+    setHasChanges(false);
+    setBranchesLoading(true);
+    loadBranches(selectedCompanyId).finally(() => setBranchesLoading(false));
+  }, [selectedCompanyId, allCompanies, loadBranches]);
 
   const updateField = useCallback((key: keyof AboutSettings, val: string) => {
     setForm(prev => ({ ...prev, [key]: val }));
@@ -101,38 +146,45 @@ export default function CompanySettingsModule() {
   }, []);
 
   const handleSave = async () => {
-    dbSetItem("scapex_about_settings", JSON.stringify(form));
-    setHasChanges(false);
-    logAction("update", "company_settings", "Updated company settings", "تم تحديث إعدادات الشركة");
-    window.dispatchEvent(new CustomEvent("scapex_company_update"));
+    if (!selectedCompanyId) {
+      toast({ title: t("لم يتم تحديد شركة", "No company selected"), variant: "destructive" });
+      return;
+    }
+    const company = allCompanies.find((c) => c.id === selectedCompanyId);
+    if (!company) return;
     try {
-      const res = await fetch("/api/companies");
-      if (res.ok) {
-        const companies = await res.json();
-        const mainCompany = companies.find((c: any) => c.settings?.type === "main") || companies[0];
-        if (mainCompany) {
-          await fetch(`/api/companies/${mainCompany.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              nameAr: form.companyNameAr,
-              nameEn: form.companyNameEn,
-              crNumber: form.crNumber,
-              vatNumber: form.vatNumber,
-              address: form.address,
-              phone: form.phone1,
-              email: form.email1,
-              website: form.website,
-              settings: { ...mainCompany.settings, about: form },
-            }),
-          });
-        }
+      const res = await fetch(`/api/companies/${selectedCompanyId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nameAr: form.companyNameAr,
+          nameEn: form.companyNameEn,
+          crNumber: form.crNumber,
+          vatNumber: form.vatNumber,
+          address: form.address,
+          phone: form.phone1,
+          email: form.email1,
+          website: form.website,
+          settings: { ...(company.settings || {}), about: form },
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      setAllCompanies((prev) => prev.map((c) => (c.id === selectedCompanyId ? updated : c)));
+      // Mirror to local cache only when this is the user's primary company (keeps About page snappy)
+      if (company.settings?.type === "main") {
+        dbSetItem("scapex_about_settings", JSON.stringify(form));
       }
-    } catch {}
-    toast({
-      title: t("تم الحفظ بنجاح", "Saved Successfully"),
-      description: t("تم تحديث بيانات الشركة وستنعكس على جميع أجزاء النظام", "Company data updated and will reflect across the entire system"),
-    });
+      setHasChanges(false);
+      logAction("update", "company_settings", `Updated company ${form.companyNameEn}`, `تم تحديث بيانات الشركة ${form.companyNameAr}`);
+      window.dispatchEvent(new CustomEvent("scapex_company_update"));
+      toast({
+        title: t("تم الحفظ بنجاح", "Saved Successfully"),
+        description: t("تم تحديث بيانات الشركة المختارة", "Selected company data updated"),
+      });
+    } catch {
+      toast({ title: t("فشل الحفظ", "Save failed"), variant: "destructive" });
+    }
   };
 
   const handleReset = () => {
@@ -186,7 +238,7 @@ export default function CompanySettingsModule() {
       toast({ title: t("تنبيه", "Notice"), description: t("اسم الفرع مطلوب", "Branch name is required"), variant: "destructive" });
       return;
     }
-    if (!mainCompanyId) {
+    if (!selectedCompanyId) {
       toast({ title: t("خطأ", "Error"), description: t("لم يتم تحديد الشركة الرئيسية", "Main company not found"), variant: "destructive" });
       return;
     }
@@ -203,12 +255,12 @@ export default function CompanySettingsModule() {
         const res = await fetch(`/api/branches`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...branchForm, companyId: mainCompanyId }),
+          body: JSON.stringify({ ...branchForm, companyId: selectedCompanyId }),
         });
         if (!res.ok) throw new Error();
         logAction("create", "company_branch", `Created branch ${branchForm.nameEn}`, `تم إنشاء الفرع ${branchForm.nameAr}`);
       }
-      await loadBranches(mainCompanyId);
+      await loadBranches(selectedCompanyId);
       window.dispatchEvent(new CustomEvent("scapex_company_update"));
       setBranchDialogOpen(false);
       toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ بيانات الفرع", "Branch saved successfully") });
@@ -218,12 +270,12 @@ export default function CompanySettingsModule() {
   };
 
   const deleteBranch = async (id: number, nameAr: string, nameEn: string) => {
-    if (!mainCompanyId) return;
+    if (!selectedCompanyId) return;
     try {
       const res = await fetch(`/api/branches/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       logAction("delete", "company_branch", `Deleted branch ${nameEn}`, `تم حذف الفرع ${nameAr}`);
-      await loadBranches(mainCompanyId);
+      await loadBranches(selectedCompanyId);
       window.dispatchEvent(new CustomEvent("scapex_company_update"));
       toast({ title: t("تم الحذف", "Deleted"), description: t("تم حذف الفرع", "Branch deleted") });
     } catch {
@@ -282,6 +334,53 @@ export default function CompanySettingsModule() {
             </div>
           </div>
         </div>
+
+        {/* Company selector — driven by active business activity */}
+        <Card className="border-border/50">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 shrink-0">
+                <Building2 className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">{t("الشركة المعروضة", "Viewing company")}</span>
+              </div>
+              {visibleCompanies.length === 0 ? (
+                <p className="text-sm text-muted-foreground" data-testid="text-no-companies">
+                  {activeActivity
+                    ? t(`لا توجد شركات في نشاط ${isRtl ? activeActivity.nameAr : activeActivity.nameEn}`, `No companies under ${activeActivity.nameEn} activity`)
+                    : t("لا توجد شركات متاحة لك", "No companies available")}
+                </p>
+              ) : (
+                <Select
+                  value={selectedCompanyId ? String(selectedCompanyId) : ""}
+                  onValueChange={(v) => setSelectedCompanyId(parseInt(v))}
+                >
+                  <SelectTrigger className="h-9 max-w-md" data-testid="select-active-company">
+                    <SelectValue placeholder={t("اختر شركة...", "Select a company...")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {visibleCompanies.map((c: any) => (
+                      <SelectItem key={c.id} value={String(c.id)} data-testid={`select-company-${c.id}`}>
+                        {isRtl ? c.nameAr : c.nameEn}
+                        {c.settings?.type === "main" && (
+                          <span className="ms-2 text-[10px] text-muted-foreground">{t("(رئيسية)", "(Main)")}</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {activeActivity && (
+                <Badge variant="outline" className="text-[10px] gap-1">
+                  <Settings2 className="w-3 h-3" />
+                  {t("النشاط:", "Activity:")} {isRtl ? activeActivity.nameAr : activeActivity.nameEn}
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground ms-auto">
+                {visibleCompanies.length} {t("شركة", "companies")}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
         <Tabs defaultValue="basic" className="w-full">
           <TabsList className="w-full justify-start h-auto flex-wrap gap-1 bg-secondary/30 p-1.5 rounded-xl">
