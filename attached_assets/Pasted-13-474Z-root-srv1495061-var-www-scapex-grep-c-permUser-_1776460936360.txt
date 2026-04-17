@@ -1,0 +1,42 @@
+13.474Z"}root@srv1495061:/var/www/scapex# grep -c "permUser.permissions })," /var/www/scapex/dist/public/assets/index-*.js
+0
+root@srv1495061:/var/www/scapex# grep -c "تعذر حفظ الصلاحيات" /var/www/scapex/dist/public/assets/index-*.js
+0
+root@srv1495061:/var/www/scapex# cd /var/www/scapex && git log --oneline -3 && git pull origin main && rm -rf dist node_modules/.vite && npm run build && pm2 restart scapex --update-env
+fe869e5 (HEAD -> main, origin/main, origin/HEAD) Add user details to system for better management and tracking
+24d068c Add user creation via API to enable new user logins
+1d5471b Add company selection and filtering to user management
+From https://github.com/scapexE/scapex
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+Version bumped to V1.0.6
+building client...
+vite v7.3.1 building client environment for production...
+✓ 2572 modules transformed.
+rendering chunks (1)...[meta-images] no Replit deployment domain found, skipping meta tag updates
+../dist/public/index.html                     1.75 kB │ gzip:   0.76 kB
+../dist/public/assets/index-D8l6PtTA.css    228.87 kB │ gzip:  30.70 kB
+../dist/public/assets/index-YpodN1fl.js   1,716.03 kB │ gzip: 462.50 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.24s
+building server...
+
+  dist/index.cjs  1.0mb ⚠️
+
+⚡ Done in 148ms
+[PM2] Applying action restartProcessId on app [scapex](ids: [ 0 ])
+[PM2] [scapex](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ scapex             │ fork     │ 21   │ online    │ 0%       │ 16.5mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@srv1495061:/var/www/scapex# 
