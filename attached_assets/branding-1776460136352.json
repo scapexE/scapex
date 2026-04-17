@@ -1,0 +1,162 @@
+{
+  "colorScheme": "light",
+  "fonts": [
+    {
+      "family": "Cairo",
+      "role": "body"
+    },
+    {
+      "family": "Segoe UI",
+      "role": "body"
+    },
+    {
+      "family": "Helvetica Neue",
+      "role": "body"
+    },
+    {
+      "family": "Ubuntu",
+      "role": "body"
+    },
+    {
+      "family": "Cantarell",
+      "role": "body"
+    }
+  ],
+  "colors": {
+    "primary": "#E2C27D",
+    "secondary": "#A886CD",
+    "accent": "#E2C27D",
+    "background": "#FFFFFF",
+    "textPrimary": "#313A44",
+    "link": "#313A44"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Cairo",
+      "heading": "Cairo"
+    },
+    "fontStacks": {
+      "heading": [
+        "Cairo"
+      ],
+      "body": [
+        "Cairo"
+      ],
+      "paragraph": [
+        "Segoe UI",
+        "Helvetica Neue",
+        "Helvetica",
+        "Lucida Grande",
+        "Arial",
+        "Ubuntu",
+        "Cantarell",
+        "Fira Sans",
+        "sans-serif"
+      ]
+    },
+    "fontSizes": {
+      "h1": "16px",
+      "h2": "36px",
+      "body": "14px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 4,
+    "borderRadius": "5px"
+  },
+  "components": {
+    "input": {
+      "background": "#FFFFFF",
+      "textColor": "#111B21",
+      "borderColor": null,
+      "borderRadius": "24px",
+      "borderRadiusCorners": {
+        "topLeft": "24px",
+        "topRight": "24px",
+        "bottomRight": "24px",
+        "bottomLeft": "24px"
+      },
+      "shadow": "none"
+    },
+    "buttonPrimary": {
+      "background": "#E2C27D",
+      "textColor": "#000000",
+      "borderRadius": "5px",
+      "borderRadiusCorners": {
+        "topLeft": "5px",
+        "topRight": "5px",
+        "bottomRight": "5px",
+        "bottomLeft": "5px"
+      },
+      "shadow": "none"
+    },
+    "buttonSecondary": {
+      "background": "#313A44",
+      "textColor": "#FFFFFF",
+      "borderRadius": "5px",
+      "borderRadiusCorners": {
+        "topLeft": "5px",
+        "topRight": "5px",
+        "bottomRight": "5px",
+        "bottomLeft": "5px"
+      },
+      "shadow": "none"
+    }
+  },
+  "images": {
+    "logo": "https://scape.sa/wp-content/uploads/2025/05/444.png",
+    "favicon": "https://scape.sa/wp-content/uploads/2025/05/cropped-444-32x32.png",
+    "ogImage": null,
+    "logoHref": "https://scape.sa/",
+    "logoAlt": "شركة سكيب للإستشارات الهندسية"
+  },
+  "__llm_logo_reasoning": {
+    "selectedIndex": 0,
+    "reasoning": "Selected #0 because it is visible, located in the header, and links to the homepage, matching the brand inferred from the page title and URL.",
+    "confidence": 0.9,
+    "source": "llm"
+  },
+  "__llm_button_reasoning": {
+    "primary": {
+      "index": 2,
+      "text": "طلب استشارة",
+      "reasoning": "Button #2 with text 'طلب استشارة' has a vibrant background color (#E2C27D) and action-oriented text, making it the primary CTA."
+    },
+    "secondary": {
+      "index": 1,
+      "text": "العودة إلى الصفحة الرئيسية",
+      "reasoning": "Button #1 with text 'العودة إلى الصفحة الرئيسية' has a neutral background color (#313A44) and serves as a secondary action, distinct from the primary button's color."
+    },
+    "confidence": 0.95
+  },
+  "personality": {
+    "tone": "professional",
+    "energy": "medium",
+    "targetAudience": "business professionals seeking engineering consultancy"
+  },
+  "designSystem": {
+    "framework": "custom",
+    "componentLibrary": ""
+  },
+  "confidence": {
+    "buttons": 0.95,
+    "colors": 0.9,
+    "overall": 0.925
+  },
+  "__llm_metadata": {
+    "logoSelection": {
+      "llmCalled": true,
+      "llmSucceeded": true,
+      "finalSource": "llm",
+      "rawLogoSelection": {
+        "selectedLogoIndex": 0,
+        "selectedLogoReasoning": "Selected #0 because it is visible, located in the header, and links to the homepage, matching the brand inferred from the page title and URL.",
+        "confidence": 0.9
+      }
+    },
+    "buttonClassification": {
+      "llmCalled": true,
+      "llmSucceeded": true
+    }
+  }
+}
