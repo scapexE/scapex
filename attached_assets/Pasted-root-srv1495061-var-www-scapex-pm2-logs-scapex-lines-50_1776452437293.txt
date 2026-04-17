@@ -1,0 +1,62 @@
+root@srv1495061:/var/www/scapex# pm2 logs scapex --lines 50 --nostream
+[TAILING] Tailing last 50 lines for [scapex] process (change the value with --lines option)
+/root/.pm2/logs/scapex-out.log last 50 lines:
+0|scapex   | �طرف الأول وقّع على عرض السعر PRO-2026-0002","timestamp":"2026-04-01T17:17:07.225Z"},{"id":"mngb2vx2vhabih","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T17:14:33.110Z"},{"id":"mngb2hsckiew7r","action":"logout","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن خليفه logged out","userName":"عبدالرحمن خليفه","userRole":"admin","detailsAr":"المستخدم عبدالرحمن خليفه سجّل خروج","timestamp":"2026-04-01T17:14:14.796Z"},{"id":"mng968gfldpbco","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-01T16:21:10.095Z"},{"id":"mng7xlearwe7ua","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-01T15:46:27.346Z"},{"id":"mng7p17u4mkrxo","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:39:47.946Z"},{"id":"mng7nmqy54gr5s","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:38:42.538Z"},{"id":"mng7hdrfbp3yll","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:33:50.955Z"},{"id":"mng7e2d7o4eliy","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:31:16.219Z"},{"id":"mn3qo7ebijduf5","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-03-23T22:10:01.715Z"},{"id":"mn3edoyfsexpz5","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-03-23T16:25:55.863Z"}],"scapex_about_settings":{"email1":"info@scape.sa","email2":"support@scape.sa","phone1":"0565659333","phone2":"","address":"المملكة العربية السعودية، المدينة المنورة\nطريق الملك عبدالله، برج الراجحي\nالطابق 2، مكتب 202","website":"www.scape.sa","branches":[{"id":"br-1775338487918-vn9s","city":"jeddah","phone":"","nameAr":"مكتب جدة","nameEn":"jeddah office","address":"","manager":"محمد عيسى","isActive":true}],"crNumber":"1010234567","whatsapp":"0565659333","addressEn":"Kingdom of Saudi Arabia, Madinah, \nKing Abdullah Road, Al Rajhi Tower, \n2nd Floor, Office 202","vatNumber":"300012345600003","linkedinUrl":"https://linkedin.com/company/scapex","companyNameAr":"شركة سكيب للاستشارات الهندسية","companyNameEn":"Scape Engineering Consultants","descriptionAr":"سكيبكس هو نظام متكامل لإدارة موارد المؤسسات (ERP) مصمم خصيصاً للسوق السعودي. يوفر النظام 22 وحدة عمل تغطي جميع احتياجات الشركات من إدارة العملاء والمبيعات والمشتريات والمحاسبة والموارد البشرية والمشاريع الهندسية والسلامة المهنية وغيرها. يتميز بدعم كامل للغتين العربية والإنجليزية مع واجهة حديثة ونظام صلاحيات متقدم.","descriptionEn":"Scapex is a comprehensive Enterprise Resource Planning (ERP) system designed specifically for the Saudi market. The platform provides 22 business modules covering all enterprise needs including CRM, Sales, Purchasing, Accounting, HR, Engineering Projects, HSE, and more. It features full Arabic/English bilingual support with a modern interface and advanced role-based access control.","twitterHandle":"@scape_sa","workingHoursAr":"الأحد – الخميس: 10:00 ص – 6:00 م","workingHoursEn":"Sun – Thu: 10:00 AM – 6:00 PM"}}
+0|scapex   | 6:46:30 PM [express] GET /api/branches 304 in 3ms :: [{"id":3,"companyId":4,"nameAr":"رواد للعقار","nameEn":"Ruwad of Real Estate ","city":"المدينة ","address":"طريق الملك عبدالله","phone":"","managerName":"عبدالرحمن ادريس","isActive":true,"createdAt":"2026-04-17T15:29:00.358Z"},{"id":2,"companyId":4,"nameAr":"رواد البنيان للسلامة","nameEn":"Ruwad Al-Bunyan for Safety","city":"المدينة المنورة","address":"المدينة المنورة - طريق الملك عبدالله ","phone":"","managerName":"محمد امين شمو","isActive":true,"createdAt":"2026-04-17T15:24:27.060Z"}]
+0|scapex   | 6:46:30 PM [express] GET /api/companies 304 in 9ms :: [{"id":1,"nameAr":"شركة سكيب للاستشارات الهندسية","nameEn":"Scape Engineering Consultants","vatNumber":"100000000001","crNumber":"4650267097","logoUrl":null,"address":"المدينة المنورة - طريق الملك عبدالله ","city":"المدينة المنورة","country":"SA","phone":"0565659333","email":"info@scape.sa","website":"scape.sa","settings":{"type":"subsidiary","parentId":null,"activityIds":["act_eng_consulting"],"employeeCount":0},"isActive":true,"createdAt":"2026-03-23T16:23:31.676Z"},{"id":4,"nameAr":"رواد البنيان للمقاولات","nameEn":"Rawad Al Bunyan Contracting","vatNumber":"6666666666","crNumber":"555555555","logoUrl":null,"address":"","city":"","country":"SA","phone":"","email":"","website":"","settings":{"type":"subsidiary","parentId":null,"activityIds":["act_contracting"],"employeeCount":0},"isActive":true,"createdAt":"2026-04-16T08:29:50.600Z"},{"id":5,"nameAr":"شركة ريادة التعمير للمقاولات","nameEn":"Ryadat Al- Taamer","vatNumber":"111111111111111","crNumber":"4030166810","logoUrl":null,"address":"المدينة المنورة - طريق الملك عبدالله ","city":"المدينة المنورة","country":"SA","phone":"00000000000","email":"r.ta3mer@gmail.com","website":"","settings":{"type":"subsidiary","parentId":null,"activityIds":["act_contracting"],"employeeCount":0},"isActive":true,"createdAt":"2026-04-17T15:27:24.253Z"}]
+0|scapex   | 6:46:30 PM [express] GET /api/users 304 in 2ms :: [{"id":"f3d9744a-e1e5-4d68-bbad-3ca19088082c","companyId":null,"branchId":null,"username":"admin","name":null,"email":null,"phone":null,"role":"viewer","permissions":[],"avatar":null,"isActive":true,"lastLogin":null,"createdAt":"2026-03-21T15:16:13.474Z"},{"id":"eed7b35b-0ad5-4dd9-973c-feda956eed56","companyId":null,"branchId":null,"username":"admin2","name":null,"email":null,"phone":null,"role":null,"permissions":null,"avatar":null,"isActive":true,"lastLogin":null,"createdAt":"2026-03-21T16:05:08.128Z"},{"id":"82bb1d68-2f77-464f-be5c-b92742ed7aa1","companyId":null,"branchId":null,"username":"arch.bitar93","name":"Mohammad Bitar","email":"arch.bitar93@gmail.com","phone":null,"role":"engineer","permissions":["dashboard","projects","engineering","approvals","equipment","attendance","hse","smart_proposal","service_catalog","crm","bi","dms","client_portal"],"avatar":null,"isActive":true,"lastLogin":null,"createdAt":"2026-03-23T19:32:41.338Z"},{"id":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","companyId":1,"branchId":null,"username":"abdulrahman","name":"عبدالرحمن","email":"h1110111@gmail.com","phone":null,"role":"admin","permissions":["*"],"avatar":null,"isActive":true,"lastLogin":"2026-04-17T18:41:58.139Z","createdAt":"2026-03-23T16:25:21.795Z"},{"id":"1e3266aa-3476-4975-b9bf-1e5fa707ab49","companyId":null,"branchId":null,"username":"ma.farrag942","name":"Mahmoud Farrag ","email":"ma.farrag942@gmail.com","phone":null,"role":"engineer","permissions":["dashboard","projects","engineering","approvals","equipment","attendance","hse","smart_proposal","service_catalog","crm","client_portal"],"avatar":null,"isActive":true,"lastLogin":"2026-04-01T17:24:03.859Z","createdAt":"2026-04-01T17:22:25.950Z"},{"id":"0a489944-6350-4fe7-b52f-030fdd4b9779","companyId":null,"branchId":null,"username":"waxikah690","name":"te5","email":"waxikah690@soco7.com","phone":null,"role":"client","permissions":["dashboard","client_portal"],"avatar":null,"isActive":true,"lastLogin":"2026-03-24T06:39:04.273Z","createdAt":"2026-03-24T05:28:44.871Z"},{"id":"6c169973-75de-4b48-beba-eafc9e2b575b","companyId":null,"branchId":null,"username":"mgtabasanhory24","name":"مجتبى محمد ","email":"mgtabasanhory24@gmail.com","phone":null,"role":"engineer","permissions":["dashboard","projects","engineering","approvals","equipment","attendance","hse","smart_proposal","service_catalog","crm"],"avatar":null,"isActive":true,"lastLogin":"2026-04-02T14:56:30.426Z","createdAt":"2026-04-02T14:46:02.773Z"}]
+0|scapex   | 🚀 Webhook وصل من GitHub
+
+/root/.pm2/logs/scapex-error.log last 50 lines:
+0|scapex   |     at ChildProcess.emit (node:events:524:28)
+0|scapex   |     at maybeClose (node:internal/child_process:1104:16)
+0|scapex   |     at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+0|scapex   |   code: 127,
+0|scapex   |   killed: false,
+0|scapex   |   signal: null,
+0|scapex   |   cmd: 'cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npm run build && pm2 restart scapex'
+0|scapex   | }
+0|scapex   | ❌ خطأ: Error: Command failed: cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npm run build && pm2 restart scapex
+0|scapex   | From https://github.com/scapexE/scapex
+0|scapex   |  * branch            main       -> FETCH_HEAD
+0|scapex   |    bdba0db..fe869e5  main       -> origin/main
+0|scapex   | sh: 1: tsx: not found
+0|scapex   | 
+0|scapex   |     at genericNodeError (node:internal/errors:984:15)
+0|scapex   |     at wrappedFn (node:internal/errors:538:14)
+0|scapex   |     at ChildProcess.exithandler (node:child_process:422:12)
+0|scapex   |     at ChildProcess.emit (node:events:524:28)
+0|scapex   |     at maybeClose (node:internal/child_process:1104:16)
+0|scapex   |     at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+0|scapex   |   code: 127,
+0|scapex   |   killed: false,
+0|scapex   |   signal: null,
+0|scapex   |   cmd: 'cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npm run build && pm2 restart scapex'
+0|scapex   | }
+0|scapex   | error: column "national_id" does not exist
+0|scapex   |     at /var/www/scapex/dist/index.cjs:59:14227
+0|scapex   |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:65:31413
+0|scapex   |     at async sw (/var/www/scapex/dist/index.cjs:65:131114)
+0|scapex   |     at async vw (/var/www/scapex/dist/index.cjs:86:5128)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:90:9567 {
+0|scapex   |   length: 111,
+0|scapex   |   severity: 'ERROR',
+0|scapex   |   code: '42703',
+0|scapex   |   detail: undefined,
+0|scapex   |   hint: undefined,
+0|scapex   |   position: '91',
+0|scapex   |   internalPosition: undefined,
+0|scapex   |   internalQuery: undefined,
+0|scapex   |   where: undefined,
+0|scapex   |   schema: undefined,
+0|scapex   |   table: undefined,
+0|scapex   |   column: undefined,
+0|scapex   |   dataType: undefined,
+0|scapex   |   constraint: undefined,
+0|scapex   |   file: 'parse_relation.c',
+0|scapex   |   line: '3647',
+0|scapex   |   routine: 'errorMissingColumn'
+0|scapex   | }
+
+root@srv1495061:/var/www/scapex# 
