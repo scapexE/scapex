@@ -1,0 +1,58 @@
+root@srv1495061:/var/www/scapex# cd /var/www/scapex && git pull origin main && rm -rf dist && npm run build && pm2 restart scapex --update-env
+From https://github.com/scapexE/scapex
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+sh: 1: tsx: not found
+root@srv1495061:/var/www/scapex# grep -c "تعذر حفظ الصلاحيات" /var/www/scapex/dist/public/assets/index-*.js
+grep: /var/www/scapex/dist/public/assets/index-*.js: No such file or directory
+root@srv1495061:/var/www/scapex# curl -i https://erp.scape.sa/dashboard 2>&1 | head -15
+echo "---"
+ls -la /var/www/scapex/dist/public/index.html
+echo "---"
+pm2 logs scapex --lines 20 --nostream | tail -25
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   136  100   136    0     0   3091      0 --:--:-- --:--:-- --:--:--  3162
+HTTP/1.1 404 Not Found
+Server: nginx/1.18.0 (Ubuntu)
+Date: Fri, 17 Apr 2026 21:31:47 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 136
+Connection: keep-alive
+X-Powered-By: Express
+Content-Security-Policy: default-src 'none'
+X-Content-Type-Options: nosniff
+
+<!DOCTYPE html>
+<html lang="en">
+---
+ls: cannot access '/var/www/scapex/dist/public/index.html': No such file or directory
+---
+0|scapex   | 9:28:05 PM [express] POST /api/auth/login 200 in 294ms :: {"user":{"id":"cc295f78-4f4f-403a-9140-8f4b333d50ef","companyId":null,"branchId":null,"username":"scape.eng","name":"مدير عبدالرحمن","email":"scape.eng@gmail.com","phone":null,"nationalId":"1111111119","role":"admin","roles":["admin"],"permissions":["dashboard","ai_control","bi","multi_tenant","company_settings","crm","sales","purchases","accounting","projects","inventory","equipment","engineering","approvals","government","smart_proposal","service_catalog","hr","payroll","mobile_app","attendance","hse","dms","client_portal","approve_registrations","users","system_admin"],"companyIds":[],"branchIds":[],"avatar":null,"isActive":true,"lastLogin":null,"createdAt":"2026-04-17T21:27:21.723Z"}}
+0|scapex   | 9:28:05 PM [express] PUT /api/app-data/scapex_audit_log 200 in 3ms :: {"success":true}
+
+/root/.pm2/logs/scapex-error.log last 20 lines:
+0|scapex   |     at wrappedFn (node:internal/errors:538:14)
+0|scapex   |     at ChildProcess.exithandler (node:child_process:422:12)
+0|scapex   |     at ChildProcess.emit (node:events:524:28)
+0|scapex   |     at maybeClose (node:internal/child_process:1104:16)
+0|scapex   |     at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+0|scapex   |   code: 127,
+0|scapex   |   killed: false,
+0|scapex   |   signal: null,
+0|scapex   |   cmd: 'cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npm run build && pm2 restart scapex'
+0|scapex   | }
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
