@@ -3,6 +3,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getAllowedCompanyIds, getAllowedBranchIds, type SystemUser } from "@/lib/permissions";
+import { dbGetItem } from "@/lib/dbStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +63,9 @@ function CompaniesContent() {
   const isRtl = dir === "rtl";
   const { toast } = useToast();
   const { activities, activeActivity } = useBusinessActivity();
+  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
+  const allowedCompanyIds = getAllowedCompanyIds(currentUser);
+  const allowedBranchIds = getAllowedBranchIds(currentUser);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,11 +129,15 @@ function CompaniesContent() {
 
   const t = (ar: string, en: string) => isRtl ? ar : en;
 
+  const userScopedCompanies = allowedCompanyIds === null
+    ? companies
+    : companies.filter(c => allowedCompanyIds.includes(c.id));
   const activityFiltered = activeActivity
-    ? companies.filter(c => Array.isArray(c.activityIds) && c.activityIds.includes(activeActivity.id))
-    : companies;
+    ? userScopedCompanies.filter(c => Array.isArray(c.activityIds) && c.activityIds.includes(activeActivity.id))
+    : userScopedCompanies;
   const activityFilteredIds = new Set(activityFiltered.map(c => c.id));
-  const branchesInActivity = activeActivity ? branches.filter(b => activityFilteredIds.has(b.companyId)) : branches;
+  const userScopedBranches = branches.filter(b => activityFilteredIds.has(b.companyId) && (allowedBranchIds === null || allowedBranchIds.includes(b.id)));
+  const branchesInActivity = userScopedBranches;
 
   const totalEmployees = activityFiltered.reduce((s, c) => s + c.employeeCount, 0);
   const activeCompanies = activityFiltered.filter(c => c.isActive).length;

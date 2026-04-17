@@ -397,6 +397,37 @@ export default function Users() {
   const [activatingUser, setActivatingUser] = useState<SystemUser | null>(null);
   const [form, setForm] = useState<Partial<SystemUser>>(emptyForm());
   const [showPass, setShowPass] = useState(false);
+  const [apiCompanies, setApiCompanies] = useState<{ id: string; nameAr: string; nameEn: string; activityIds: string[] }[]>([]);
+  const [apiBranches, setApiBranches] = useState<{ id: string; companyId: string; nameAr: string; nameEn: string }[]>([]);
+  const [availableActivities, setAvailableActivities] = useState<{ id: string; nameAr: string; nameEn: string }[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [cRes, bRes] = await Promise.all([fetch("/api/companies"), fetch("/api/branches")]);
+        const cData = cRes.ok ? await cRes.json() : [];
+        const bData = bRes.ok ? await bRes.json() : [];
+        setApiCompanies(cData.map((c: any) => ({
+          id: String(c.id),
+          nameAr: c.nameAr || c.name_ar || "",
+          nameEn: c.nameEn || c.name_en || "",
+          activityIds: Array.isArray(c.settings?.activityIds) ? c.settings.activityIds : [],
+        })));
+        setApiBranches(bData.map((b: any) => ({
+          id: String(b.id),
+          companyId: String(b.companyId || b.company_id),
+          nameAr: b.nameAr || b.name_ar || "",
+          nameEn: b.nameEn || b.name_en || "",
+        })));
+      } catch {}
+      try {
+        const stored = JSON.parse(dbGetItem("scapex_activities") || "[]");
+        if (Array.isArray(stored) && stored.length > 0) {
+          setAvailableActivities(stored.filter((a: any) => a.active).map((a: any) => ({ id: a.id, nameAr: a.nameAr, nameEn: a.nameEn })));
+        }
+      } catch {}
+    })();
+  }, []);
 
   const fetchUsersFromApi = useCallback(async () => {
     try {
@@ -532,6 +563,7 @@ export default function Users() {
       id: generateId(), nationalId: form.nationalId!, name: form.name!, email: form.email!, password: form.password!,
       role: primary, roles, permissions: form.permissions || mergePermissions(roles),
       createdAt: new Date().toISOString(), active: form.active ?? true,
+      companyIds: form.companyIds || [], branchIds: form.branchIds || [],
     };
     persist([...users, newUser]); setAddOpen(false); setForm(emptyForm());
     toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? `تمت إضافة "${newUser.name}"` : `"${newUser.name}" has been added` });
@@ -550,7 +582,7 @@ export default function Users() {
     const primary = getPrimaryRole(roles);
     const updated = users.map((u) =>
       u.id === editUser.id
-        ? { ...u, nationalId: form.nationalId!, name: form.name!, email: form.email!, role: primary, roles, permissions: form.permissions || [], active: form.active ?? true, ...(form.password ? { password: form.password } : {}) }
+        ? { ...u, nationalId: form.nationalId!, name: form.name!, email: form.email!, role: primary, roles, permissions: form.permissions || [], active: form.active ?? true, companyIds: form.companyIds || [], branchIds: form.branchIds || [], ...(form.password ? { password: form.password } : {}) }
         : u
     );
     persist(updated);
@@ -597,7 +629,7 @@ export default function Users() {
 
   const openEdit = (user: SystemUser) => {
     const roles = user.roles && user.roles.length > 0 ? user.roles : [user.role];
-    setForm({ nationalId: user.nationalId ?? "", name: user.name, email: user.email, password: "", role: user.role, roles, permissions: [...user.permissions], active: user.active });
+    setForm({ nationalId: user.nationalId ?? "", name: user.name, email: user.email, password: "", role: user.role, roles, permissions: [...user.permissions], active: user.active, companyIds: [...(user.companyIds || [])], branchIds: [...(user.branchIds || [])] });
     setEditUser(user);
   };
 
@@ -789,7 +821,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle className="text-right">{t("users.dialog.add")}</DialogTitle>
           </DialogHeader>
-          <UserForm form={form} setForm={setForm} showPass={showPass} setShowPass={setShowPass} isNew />
+          <UserForm form={form} setForm={setForm} showPass={showPass} setShowPass={setShowPass} isNew companies={apiCompanies} branches={apiBranches} activities={availableActivities} />
           <DialogFooter className="flex-row-reverse gap-2">
             <Button onClick={handleAddSubmit} data-testid="button-confirm-add">{t("users.btn.save")}</Button>
             <Button variant="outline" onClick={() => setAddOpen(false)}>{t("users.btn.cancel")}</Button>
@@ -803,7 +835,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle className="text-right">{t("users.dialog.edit")}</DialogTitle>
           </DialogHeader>
-          <UserForm form={form} setForm={setForm} showPass={showPass} setShowPass={setShowPass} />
+          <UserForm form={form} setForm={setForm} showPass={showPass} setShowPass={setShowPass} companies={apiCompanies} branches={apiBranches} activities={availableActivities} />
           <DialogFooter className="flex-row-reverse gap-2">
             <Button onClick={handleEditSubmit} data-testid="button-confirm-edit">{t("users.btn.save_edit")}</Button>
             <Button variant="outline" onClick={() => setEditUser(null)}>{t("users.btn.cancel")}</Button>
@@ -893,9 +925,12 @@ export default function Users() {
 // ─────────────────────────────────────────────────────────────────────────────
 // UserForm — supports multi-role selection
 // ─────────────────────────────────────────────────────────────────────────────
-function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
+function UserForm({ form, setForm, showPass, setShowPass, isNew = false, companies = [], branches = [], activities = [] }: {
   form: Partial<SystemUser>; setForm: (f: Partial<SystemUser>) => void;
   showPass: boolean; setShowPass: (v: boolean) => void; isNew?: boolean;
+  companies?: { id: string; nameAr: string; nameEn: string; activityIds: string[] }[];
+  branches?: { id: string; companyId: string; nameAr: string; nameEn: string }[];
+  activities?: { id: string; nameAr: string; nameEn: string }[];
 }) {
   const { t, dir } = useLanguage();
   const isRtl = dir === 'rtl';
@@ -1008,6 +1043,50 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false }: {
           </p>
         )}
       </div>
+
+      {!currentRoles.includes("admin") && companies.length > 0 && (
+        <div className="space-y-2">
+          <Label>{isRtl ? "الشركات المسموح بها" : "Allowed Companies"}</Label>
+          <p className="text-xs text-muted-foreground">{isRtl ? "حدد الشركات التي يستطيع المستخدم الوصول إليها (اتركها فارغة لمنع الوصول)" : "Select which companies this user can access (leave empty to block all)"}</p>
+          <div className="grid grid-cols-1 gap-1.5 p-3 border rounded-lg max-h-44 overflow-y-auto">
+            {companies.map((c) => {
+              const checked = (form.companyIds || []).includes(c.id);
+              return (
+                <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer" data-testid={`checkbox-user-company-${c.id}`}>
+                  <Checkbox checked={checked} onCheckedChange={(v) => {
+                    const cur = form.companyIds || [];
+                    setForm({ ...form, companyIds: v ? [...cur, c.id] : cur.filter((x) => x !== c.id) });
+                  }} />
+                  <span>{isRtl ? c.nameAr : c.nameEn}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!currentRoles.includes("admin") && (form.companyIds || []).length > 0 && branches.length > 0 && (
+        <div className="space-y-2">
+          <Label>{isRtl ? "الفروع المسموح بها (اختياري)" : "Allowed Branches (optional)"}</Label>
+          <p className="text-xs text-muted-foreground">{isRtl ? "اتركها فارغة للسماح بكل فروع الشركات المختارة" : "Leave empty to allow all branches of the selected companies"}</p>
+          <div className="grid grid-cols-1 gap-1.5 p-3 border rounded-lg max-h-44 overflow-y-auto">
+            {branches.filter((b) => (form.companyIds || []).includes(b.companyId)).map((b) => {
+              const checked = (form.branchIds || []).includes(b.id);
+              const comp = companies.find((c) => c.id === b.companyId);
+              return (
+                <label key={b.id} className="flex items-center gap-2 text-sm cursor-pointer" data-testid={`checkbox-user-branch-${b.id}`}>
+                  <Checkbox checked={checked} onCheckedChange={(v) => {
+                    const cur = form.branchIds || [];
+                    setForm({ ...form, branchIds: v ? [...cur, b.id] : cur.filter((x) => x !== b.id) });
+                  }} />
+                  <span>{isRtl ? b.nameAr : b.nameEn}</span>
+                  {comp && <span className="text-xs text-muted-foreground">— {isRtl ? comp.nameAr : comp.nameEn}</span>}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
         <Switch data-testid="switch-user-active" id="active"

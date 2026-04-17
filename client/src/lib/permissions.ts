@@ -14,6 +14,25 @@ export interface SystemUser {
   active: boolean;
   pendingApproval?: boolean;
   emailVerified?: boolean;
+  /** Companies this user is allowed to access. Empty/undefined for admin = all */
+  companyIds?: string[];
+  /** Specific branches the user is restricted to. Empty = all branches of allowed companies */
+  branchIds?: string[];
+}
+
+/** Returns the list of company IDs a user can access. Admins return null = unrestricted. */
+export function getAllowedCompanyIds(user: SystemUser | null): string[] | null {
+  if (!user) return [];
+  if (user.role === "admin") return null;
+  return Array.isArray(user.companyIds) ? user.companyIds : [];
+}
+
+/** Returns the list of branch IDs a user can access. null = unrestricted. */
+export function getAllowedBranchIds(user: SystemUser | null): string[] | null {
+  if (!user) return [];
+  if (user.role === "admin") return null;
+  if (Array.isArray(user.branchIds) && user.branchIds.length > 0) return user.branchIds;
+  return null;
 }
 
 /** Validates Saudi/Resident ID: 10 digits, starts with 1 or 2 */
