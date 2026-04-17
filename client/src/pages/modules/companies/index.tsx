@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +31,7 @@ interface Company {
   parentId: string | null;
   employeeCount: number;
   isActive: boolean;
+  activityIds: string[];
   settings?: any;
 }
 
@@ -46,9 +49,18 @@ interface Branch {
 }
 
 export default function CompaniesModule() {
+  return (
+    <MainLayout>
+      <CompaniesContent />
+    </MainLayout>
+  );
+}
+
+function CompaniesContent() {
   const { dir, language } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
+  const { activities, activeActivity } = useBusinessActivity();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +96,7 @@ export default function CompaniesModule() {
         parentId: c.settings?.parentId || null,
         employeeCount: c.settings?.employeeCount || 0,
         isActive: c.isActive ?? c.is_active ?? true,
+        activityIds: Array.isArray(c.settings?.activityIds) ? c.settings.activityIds : [],
         settings: c.settings,
       }));
       const mappedB: Branch[] = bData.map((b: any) => ({
@@ -111,17 +124,23 @@ export default function CompaniesModule() {
 
   const t = (ar: string, en: string) => isRtl ? ar : en;
 
-  const totalEmployees = companies.reduce((s, c) => s + c.employeeCount, 0);
-  const activeCompanies = companies.filter(c => c.isActive).length;
-  const totalBranches = branches.length;
-  const mainCompany = companies.find(c => c.type === "main");
+  const activityFiltered = activeActivity
+    ? companies.filter(c => Array.isArray(c.activityIds) && c.activityIds.includes(activeActivity.id))
+    : companies;
+  const activityFilteredIds = new Set(activityFiltered.map(c => c.id));
+  const branchesInActivity = activeActivity ? branches.filter(b => activityFilteredIds.has(b.companyId)) : branches;
 
-  const filteredCompanies = companies.filter(c => {
+  const totalEmployees = activityFiltered.reduce((s, c) => s + c.employeeCount, 0);
+  const activeCompanies = activityFiltered.filter(c => c.isActive).length;
+  const totalBranches = branchesInActivity.length;
+  const mainCompany = activityFiltered.find(c => c.type === "main");
+
+  const filteredCompanies = activityFiltered.filter(c => {
     const q = search.toLowerCase();
     return !q || c.nameAr.includes(q) || c.nameEn.toLowerCase().includes(q) || c.city.includes(q);
   });
 
-  const companyBranches = selectedCompany ? branches.filter(b => b.companyId === selectedCompany.id) : [];
+  const companyBranches = selectedCompany ? branchesInActivity.filter(b => b.companyId === selectedCompany.id) : [];
 
   function openNewCompany() {
     setEditCompany(null);
@@ -148,7 +167,7 @@ export default function CompaniesModule() {
       email: companyForm.email || "",
       website: companyForm.website || "",
       isActive: companyForm.isActive ?? true,
-      settings: { type: companyForm.type || "subsidiary", parentId: companyForm.parentId, employeeCount: companyForm.employeeCount || 0 },
+      settings: { ...(editCompany?.settings || {}), type: companyForm.type || "subsidiary", parentId: companyForm.parentId, employeeCount: companyForm.employeeCount || 0, activityIds: companyForm.activityIds || [] },
     };
     try {
       if (editCompany) {
@@ -224,11 +243,10 @@ export default function CompaniesModule() {
   };
 
   if (loading) {
-    return <MainLayout><div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div></MainLayout>;
+    return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   }
 
   return (
-    <MainLayout>
       <div className="p-4 md:p-6 space-y-6" dir={dir}>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -310,11 +328,11 @@ export default function CompaniesModule() {
 
           <TabsContent value="branches" className="space-y-4">
             <div className="flex justify-between items-center">
-              <Select value={selectedCompany?.id || "all"} onValueChange={v => setSelectedCompany(v === "all" ? null : companies.find(c => c.id === v) || null)}>
+              <Select value={selectedCompany?.id || "all"} onValueChange={v => setSelectedCompany(v === "all" ? null : activityFiltered.find(c => c.id === v) || null)}>
                 <SelectTrigger className="w-[250px]" data-testid="select-company-filter"><SelectValue placeholder={t("كل الشركات", "All Companies")} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("كل الشركات", "All Companies")}</SelectItem>
-                  {companies.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</SelectItem>)}
+                  {activityFiltered.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Button onClick={openNewBranch} data-testid="button-add-branch"><Plus className="h-4 w-4 me-2" /> {t("إضافة فرع", "Add Branch")}</Button>
@@ -367,7 +385,7 @@ export default function CompaniesModule() {
             <Card className="p-6">
               <h3 className="text-lg font-bold mb-6">{t("الهيكل التنظيمي لمجموعة سكابكس", "Scapex Group Organization Structure")}</h3>
               <div className="space-y-4">
-                {companies.filter(c => c.type === "main").map(main => (
+                {activityFiltered.filter(c => c.type === "main").map(main => (
                   <div key={main.id} className="space-y-3">
                     <div className="p-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                       <div className="flex items-center gap-3">
@@ -454,6 +472,26 @@ export default function CompaniesModule() {
               <div><Label>{t("البريد الإلكتروني", "Email")}</Label><Input value={companyForm.email || ""} onChange={e => setCompanyForm(p => ({ ...p, email: e.target.value }))} data-testid="input-company-email" /></div>
               <div><Label>{t("الهاتف", "Phone")}</Label><Input value={companyForm.phone || ""} onChange={e => setCompanyForm(p => ({ ...p, phone: e.target.value }))} data-testid="input-company-phone" /></div>
               <div><Label>{t("الموقع الإلكتروني", "Website")}</Label><Input value={companyForm.website || ""} onChange={e => setCompanyForm(p => ({ ...p, website: e.target.value }))} data-testid="input-company-website" /></div>
+              <div>
+                <Label>{t("الأنشطة التجارية", "Business Activities")}</Label>
+                <p className="text-xs text-muted-foreground mb-2">{t("اختر الأنشطة التي تعمل بها هذه الشركة", "Select the activities this company operates in")}</p>
+                <div className="grid grid-cols-2 gap-2 p-3 border rounded-md max-h-48 overflow-y-auto">
+                  {activities.filter(a => a.active).map(a => {
+                    const checked = (companyForm.activityIds || []).includes(a.id);
+                    return (
+                      <label key={a.id} className="flex items-center gap-2 cursor-pointer text-sm" data-testid={`checkbox-activity-${a.id}`}>
+                        <Checkbox checked={checked} onCheckedChange={(v) => {
+                          setCompanyForm(p => {
+                            const cur = p.activityIds || [];
+                            return { ...p, activityIds: v ? [...cur, a.id] : cur.filter(x => x !== a.id) };
+                          });
+                        }} />
+                        <span>{isRtl ? a.nameAr : a.nameEn}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCompanyDialog(false)}>{t("إلغاء", "Cancel")}</Button>
@@ -490,6 +528,5 @@ export default function CompaniesModule() {
           </DialogContent>
         </Dialog>
       </div>
-    </MainLayout>
   );
 }

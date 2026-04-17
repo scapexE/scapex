@@ -38,7 +38,7 @@ async function seedDefaultCompanies() {
       phone: "+966112345678",
       email: "info@scapex.sa",
       website: "www.scapex.sa",
-      settings: { type: "main", parentId: null, employeeCount: 156 },
+      settings: { type: "main", parentId: null, employeeCount: 156, activityIds: ["act_contracting", "act_eng_consulting"] },
       isActive: true,
     }).returning();
 
@@ -52,7 +52,7 @@ async function seedDefaultCompanies() {
       phone: "+966122345678",
       email: "safety@scapex.sa",
       website: "www.scapex-safety.sa",
-      settings: { type: "subsidiary", parentId: String(main.id), employeeCount: 45 },
+      settings: { type: "subsidiary", parentId: String(main.id), employeeCount: 45, activityIds: ["act_safety_consulting", "act_safety_services"] },
       isActive: true,
     }).returning();
 
@@ -66,7 +66,7 @@ async function seedDefaultCompanies() {
       phone: "+966132345678",
       email: "env@scapex.sa",
       website: "www.scapex-env.sa",
-      settings: { type: "subsidiary", parentId: String(main.id), employeeCount: 32 },
+      settings: { type: "subsidiary", parentId: String(main.id), employeeCount: 32, activityIds: ["act_env_consulting"] },
       isActive: true,
     }).returning();
 
@@ -80,7 +80,7 @@ async function seedDefaultCompanies() {
       phone: "+966114567890",
       email: "infra@scapex.sa",
       website: "www.scapex-infra.sa",
-      settings: { type: "subsidiary", parentId: String(main.id), employeeCount: 78 },
+      settings: { type: "subsidiary", parentId: String(main.id), employeeCount: 78, activityIds: ["act_contracting", "act_eng_consulting"] },
       isActive: true,
     });
 
