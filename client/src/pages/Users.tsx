@@ -669,11 +669,25 @@ export default function Users() {
     persist(users.map((u) => u.id === user.id ? { ...u, active: !u.active } : u));
   };
 
-  const handlePermSave = () => {
+  const handlePermSave = async () => {
     if (!permUser) return;
-    persist(users.map((u) => u.id === permUser.id ? { ...u, permissions: permUser.permissions } : u));
-    setPermUser(null);
-    toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? "تم حفظ الصلاحيات" : "Permissions saved successfully" });
+    try {
+      const res = await fetch(`/api/users/${permUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: permUser.permissions }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        toast({ title: isRtl ? "فشل الحفظ" : "Save failed", description: errBody.error || (isRtl ? "تعذر حفظ الصلاحيات في قاعدة البيانات" : "Could not save permissions to database"), variant: "destructive" });
+        return;
+      }
+      persist(users.map((u) => u.id === permUser.id ? { ...u, permissions: permUser.permissions } : u));
+      setPermUser(null);
+      toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? "تم حفظ الصلاحيات" : "Permissions saved successfully" });
+    } catch {
+      toast({ title: isRtl ? "خطأ في الاتصال" : "Network error", description: isRtl ? "تعذر الاتصال بالخادم" : "Could not reach server", variant: "destructive" });
+    }
   };
 
   const togglePermEdit = (modId: string) => {
