@@ -1,5 +1,5 @@
 import { dbGetItem, dbSetItem, dbRemoveItem } from "@/lib/dbStorage";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,17 +20,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
-  type AboutSettings, type CompanyBranch, DEFAULT_ABOUT, getAboutData,
+  type AboutSettings, DEFAULT_ABOUT, getAboutData,
   type SystemSettings, type FontFamily, type FontSize,
   DEFAULT_SYSTEM_SETTINGS, getSystemSettings, saveSystemSettings,
   FONT_OPTIONS, FONT_SIZE_OPTIONS,
 } from "@/lib/companySettings";
 import { logAction } from "@/lib/auditLog";
 import type { SystemUser } from "@/lib/permissions";
-
-function generateId() {
-  return `br-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-}
 
 function SettingsField({ label, value, onChange, textarea, dir: fieldDir, placeholder, disabled }: {
   label: string; value: string; onChange: (val: string) => void; textarea?: boolean; dir?: string; placeholder?: string; disabled?: boolean;
@@ -60,10 +56,39 @@ export default function CompanySettingsModule() {
   const [hasChanges, setHasChanges] = useState(false);
   const [hasSysChanges, setHasSysChanges] = useState(false);
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
-  const [editingBranch, setEditingBranch] = useState<CompanyBranch | null>(null);
-  const [branchForm, setBranchForm] = useState<CompanyBranch>({
-    id: "", nameAr: "", nameEn: "", city: "", address: "", phone: "", manager: "", isActive: true,
+  const [editingBranch, setEditingBranch] = useState<any | null>(null);
+  const [branchForm, setBranchForm] = useState<any>({
+    nameAr: "", nameEn: "", city: "", address: "", phone: "", managerName: "", isActive: true,
   });
+  const [mainCompanyId, setMainCompanyId] = useState<number | null>(null);
+  const [dbBranches, setDbBranches] = useState<any[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+
+  const loadBranches = useCallback(async (companyId: number) => {
+    try {
+      const res = await fetch(`/api/branches?companyId=${companyId}`);
+      if (res.ok) setDbBranches(await res.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setBranchesLoading(true);
+      try {
+        const res = await fetch("/api/companies");
+        if (!res.ok) return;
+        const companies = await res.json();
+        const main = companies.find((c: any) => c.settings?.type === "main") || companies[0];
+        if (main && active) {
+          setMainCompanyId(main.id);
+          await loadBranches(main.id);
+        }
+      } catch {}
+      finally { if (active) setBranchesLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [loadBranches]);
 
   const updateField = useCallback((key: keyof AboutSettings, val: string) => {
     setForm(prev => ({ ...prev, [key]: val }));
@@ -138,35 +163,72 @@ export default function CompanySettingsModule() {
 
   const openAddBranch = () => {
     setEditingBranch(null);
-    setBranchForm({ id: generateId(), nameAr: "", nameEn: "", city: "", address: "", phone: "", manager: "", isActive: true });
+    setBranchForm({ nameAr: "", nameEn: "", city: "", address: "", phone: "", managerName: "", isActive: true });
     setBranchDialogOpen(true);
   };
 
-  const openEditBranch = (branch: CompanyBranch) => {
+  const openEditBranch = (branch: any) => {
     setEditingBranch(branch);
-    setBranchForm({ ...branch });
+    setBranchForm({
+      nameAr: branch.nameAr || "",
+      nameEn: branch.nameEn || "",
+      city: branch.city || "",
+      address: branch.address || "",
+      phone: branch.phone || "",
+      managerName: branch.managerName || branch.manager || "",
+      isActive: branch.isActive ?? true,
+    });
     setBranchDialogOpen(true);
   };
 
-  const saveBranch = () => {
+  const saveBranch = async () => {
     if (!branchForm.nameAr || !branchForm.nameEn) {
       toast({ title: t("تنبيه", "Notice"), description: t("اسم الفرع مطلوب", "Branch name is required"), variant: "destructive" });
       return;
     }
-    let newBranches: CompanyBranch[];
-    if (editingBranch) {
-      newBranches = (form.branches || []).map(b => b.id === editingBranch.id ? branchForm : b);
-    } else {
-      newBranches = [...(form.branches || []), branchForm];
+    if (!mainCompanyId) {
+      toast({ title: t("خطأ", "Error"), description: t("لم يتم تحديد الشركة الرئيسية", "Main company not found"), variant: "destructive" });
+      return;
     }
-    setForm(prev => ({ ...prev, branches: newBranches }));
-    setHasChanges(true);
-    setBranchDialogOpen(false);
+    try {
+      if (editingBranch) {
+        const res = await fetch(`/api/branches/${editingBranch.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(branchForm),
+        });
+        if (!res.ok) throw new Error();
+        logAction("update", "company_branch", `Updated branch ${branchForm.nameEn}`, `تم تعديل الفرع ${branchForm.nameAr}`);
+      } else {
+        const res = await fetch(`/api/branches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...branchForm, companyId: mainCompanyId }),
+        });
+        if (!res.ok) throw new Error();
+        logAction("create", "company_branch", `Created branch ${branchForm.nameEn}`, `تم إنشاء الفرع ${branchForm.nameAr}`);
+      }
+      await loadBranches(mainCompanyId);
+      window.dispatchEvent(new CustomEvent("scapex_company_update"));
+      setBranchDialogOpen(false);
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ بيانات الفرع", "Branch saved successfully") });
+    } catch {
+      toast({ title: t("فشل الحفظ", "Save failed"), description: t("تعذر حفظ الفرع", "Could not save branch"), variant: "destructive" });
+    }
   };
 
-  const deleteBranch = (id: string) => {
-    setForm(prev => ({ ...prev, branches: (prev.branches || []).filter(b => b.id !== id) }));
-    setHasChanges(true);
+  const deleteBranch = async (id: number, nameAr: string, nameEn: string) => {
+    if (!mainCompanyId) return;
+    try {
+      const res = await fetch(`/api/branches/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      logAction("delete", "company_branch", `Deleted branch ${nameEn}`, `تم حذف الفرع ${nameAr}`);
+      await loadBranches(mainCompanyId);
+      window.dispatchEvent(new CustomEvent("scapex_company_update"));
+      toast({ title: t("تم الحذف", "Deleted"), description: t("تم حذف الفرع", "Branch deleted") });
+    } catch {
+      toast({ title: t("فشل الحذف", "Delete failed"), description: t("تعذر حذف الفرع", "Could not delete branch"), variant: "destructive" });
+    }
   };
 
   const completeness = (() => {
@@ -234,8 +296,8 @@ export default function CompanySettingsModule() {
             </TabsTrigger>
             <TabsTrigger value="branches" className="gap-1.5 text-xs" data-testid="tab-branches">
               <GitBranch className="w-3.5 h-3.5" />{t("الفروع", "Branches")}
-              {(form.branches || []).length > 0 && (
-                <Badge variant="secondary" className="text-[10px] px-1 py-0 ms-1">{(form.branches || []).length}</Badge>
+              {dbBranches.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] px-1 py-0 ms-1">{dbBranches.length}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="social" className="gap-1.5 text-xs" data-testid="tab-social">
@@ -381,7 +443,9 @@ export default function CompanySettingsModule() {
                 </div>
               </CardHeader>
               <CardContent>
-                {(!form.branches || form.branches.length === 0) ? (
+                {branchesLoading ? (
+                  <div className="text-center py-10 text-muted-foreground text-sm">{t("جارٍ التحميل...", "Loading...")}</div>
+                ) : dbBranches.length === 0 ? (
                   <div className="text-center py-10 text-muted-foreground space-y-2">
                     <GitBranch className="w-10 h-10 mx-auto opacity-30" />
                     <p className="text-sm">{t("لا توجد فروع مضافة", "No branches added")}</p>
@@ -389,7 +453,7 @@ export default function CompanySettingsModule() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {(form.branches || []).map((branch) => (
+                    {dbBranches.map((branch: any) => (
                       <div key={branch.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors" data-testid={`branch-${branch.id}`}>
                         <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", branch.isActive ? "bg-green-100 dark:bg-green-900/30" : "bg-gray-100 dark:bg-gray-800")}>
                           <MapPin className={cn("w-4 h-4", branch.isActive ? "text-green-600 dark:text-green-400" : "text-gray-400")} />
@@ -402,8 +466,8 @@ export default function CompanySettingsModule() {
                             </Badge>
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                            <span>{branch.city}</span>
-                            {branch.manager && <span>• {branch.manager}</span>}
+                            {branch.city && <span>{branch.city}</span>}
+                            {branch.managerName && <span>• {branch.managerName}</span>}
                             {branch.phone && <span dir="ltr">• {branch.phone}</span>}
                           </div>
                         </div>
@@ -411,7 +475,7 @@ export default function CompanySettingsModule() {
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditBranch(branch)} data-testid={`button-edit-branch-${branch.id}`}>
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteBranch(branch.id)} data-testid={`button-delete-branch-${branch.id}`}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteBranch(branch.id, branch.nameAr, branch.nameEn)} data-testid={`button-delete-branch-${branch.id}`}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
@@ -419,11 +483,12 @@ export default function CompanySettingsModule() {
                     ))}
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1.5">
+                  <Info className="w-3 h-3" />
+                  {t("الفروع هنا مرتبطة مباشرة بإدارة الشركات — أي تغيير ينعكس في النظام كاملاً", "Branches here are linked directly to Company Management — any change reflects across the entire system")}
+                </p>
               </CardContent>
             </Card>
-            <div className="flex items-center gap-3 justify-end">
-              <Button onClick={handleSave} className="gap-1.5 min-w-[140px]" disabled={!hasChanges}><Save className="w-3.5 h-3.5" />{t("حفظ التغييرات", "Save")}</Button>
-            </div>
           </TabsContent>
 
           {/* ═══ Social ═══ */}
@@ -651,7 +716,7 @@ export default function CompanySettingsModule() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">{t("المدير", "Manager")}</Label>
-                  <Input value={branchForm.manager} onChange={(e) => setBranchForm({ ...branchForm, manager: e.target.value })} data-testid="input-branch-manager" />
+                  <Input value={branchForm.managerName} onChange={(e) => setBranchForm({ ...branchForm, managerName: e.target.value })} data-testid="input-branch-manager" />
                 </div>
               </div>
               <div className="space-y-1.5">
