@@ -349,6 +349,15 @@ export default function CompanySettingsModule() {
                     ? t(`لا توجد شركات في نشاط ${isRtl ? activeActivity.nameAr : activeActivity.nameEn}`, `No companies under ${activeActivity.nameEn} activity`)
                     : t("لا توجد شركات متاحة لك", "No companies available")}
                 </p>
+              ) : visibleCompanies.length === 1 ? (
+                <div className="flex items-center gap-2" data-testid="text-locked-company">
+                  <span className="text-sm font-medium">
+                    {isRtl ? visibleCompanies[0].nameAr : visibleCompanies[0].nameEn}
+                  </span>
+                  {visibleCompanies[0].settings?.type === "main" && (
+                    <Badge variant="secondary" className="text-[10px]">{t("رئيسية", "Main")}</Badge>
+                  )}
+                </div>
               ) : (
                 <Select
                   value={selectedCompanyId ? String(selectedCompanyId) : ""}
