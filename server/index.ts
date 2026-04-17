@@ -65,10 +65,12 @@ app.post("/hooks/deploy", (req, res) => {
   const { exec } = require("child_process");
 
   exec(
-    "cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npm run build && pm2 restart scapex",
+    "cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npx drizzle-kit push --force && npm run build && pm2 restart scapex --update-env",
+    { env: { ...process.env } },
     (err, stdout, stderr) => {
       if (err) {
         console.error("❌ خطأ:", err);
+        console.error("stderr:", stderr);
         return;
       }
 
