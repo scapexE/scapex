@@ -435,6 +435,34 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/users", async (req, res) => {
+    try {
+      const { email, password, name, role, permissions, isActive, phone, username } = req.body;
+      if (!email || !password || !name) {
+        return res.status(400).json({ error: "name, email and password are required" });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+      const user = await createUser({
+        username: username || email.toLowerCase().split("@")[0],
+        password,
+        name,
+        email,
+        phone: phone || undefined,
+        role: role || "viewer",
+        permissions: Array.isArray(permissions) ? permissions : [],
+        isActive: isActive ?? true,
+      });
+      const { password: _, ...safeUser } = user;
+      res.status(201).json(safeUser);
+    } catch (err: any) {
+      console.error("Create user error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.get("/api/users/:id", async (req, res) => {
     try {
       const user = await findUserById(req.params.id);

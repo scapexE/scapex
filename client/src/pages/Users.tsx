@@ -544,7 +544,7 @@ export default function Users() {
   }, [users, search, roleFilter]);
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
-  const handleAddSubmit = () => {
+  const handleAddSubmit = async () => {
     if (!form.nationalId || !form.name || !form.email || !form.password) {
       toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "يرجى ملء جميع الحقول المطلوبة (الهوية، الاسم، البريد، كلمة المرور)" : "Please fill all required fields (ID, name, email, password)", variant: "destructive" }); return;
     }
@@ -559,17 +559,44 @@ export default function Users() {
     }
     const roles = form.roles && form.roles.length > 0 ? form.roles : [form.role as Role];
     const primary = getPrimaryRole(roles);
-    const newUser: SystemUser = {
-      id: generateId(), nationalId: form.nationalId!, name: form.name!, email: form.email!, password: form.password!,
-      role: primary, roles, permissions: form.permissions || mergePermissions(roles),
-      createdAt: new Date().toISOString(), active: form.active ?? true,
-      companyIds: form.companyIds || [], branchIds: form.branchIds || [],
-    };
-    persist([...users, newUser]); setAddOpen(false); setForm(emptyForm());
-    toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? `تمت إضافة "${newUser.name}"` : `"${newUser.name}" has been added` });
+    const permissions = form.permissions || mergePermissions(roles);
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          role: primary,
+          permissions,
+          isActive: form.active ?? true,
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        toast({
+          title: isRtl ? "فشل إنشاء المستخدم" : "Failed to create user",
+          description: errBody.error || (isRtl ? "تعذر الحفظ في قاعدة البيانات" : "Could not save to database"),
+          variant: "destructive",
+        });
+        return;
+      }
+      const dbUser = await res.json();
+      const newUser: SystemUser = {
+        id: dbUser.id, nationalId: form.nationalId!, name: form.name!, email: form.email!, password: form.password!,
+        role: primary, roles, permissions,
+        createdAt: dbUser.createdAt || new Date().toISOString(), active: form.active ?? true,
+        companyIds: form.companyIds || [], branchIds: form.branchIds || [],
+      };
+      persist([...users, newUser]); setAddOpen(false); setForm(emptyForm());
+      toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? `تمت إضافة "${newUser.name}" — يمكنه تسجيل الدخول الآن` : `"${newUser.name}" has been added — can now log in` });
+    } catch (err) {
+      toast({ title: isRtl ? "خطأ في الاتصال" : "Network error", description: isRtl ? "تعذر الاتصال بالخادم" : "Could not reach server", variant: "destructive" });
+    }
   };
 
-  const handleEditSubmit = () => {
+  const handleEditSubmit = async () => {
     if (!editUser || !form.nationalId || !form.name || !form.email) {
       toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "يرجى ملء الحقول المطلوبة" : "Please fill all required fields", variant: "destructive" }); return;
     }
@@ -580,18 +607,41 @@ export default function Users() {
     if (dupId) { toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "رقم الهوية مسجّل لمستخدم آخر" : "National ID belongs to another user", variant: "destructive" }); return; }
     const roles = form.roles && form.roles.length > 0 ? form.roles : [form.role as Role];
     const primary = getPrimaryRole(roles);
-    const updated = users.map((u) =>
-      u.id === editUser.id
-        ? { ...u, nationalId: form.nationalId!, name: form.name!, email: form.email!, role: primary, roles, permissions: form.permissions || [], active: form.active ?? true, companyIds: form.companyIds || [], branchIds: form.branchIds || [], ...(form.password ? { password: form.password } : {}) }
-        : u
-    );
-    persist(updated);
-    if (currentUser?.email === editUser.email) {
-      const nc = updated.find((u) => u.id === editUser.id);
-      if (nc) dbSetItem("user", JSON.stringify(nc));
+    const permissions = form.permissions || [];
+    try {
+      const patchBody: any = {
+        name: form.name,
+        email: form.email,
+        role: primary,
+        permissions,
+        isActive: form.active ?? true,
+      };
+      if (form.password) patchBody.password = form.password;
+      const res = await fetch(`/api/users/${editUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patchBody),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        toast({ title: isRtl ? "فشل التحديث" : "Update failed", description: errBody.error || (isRtl ? "تعذر التحديث في قاعدة البيانات" : "Could not update database"), variant: "destructive" });
+        return;
+      }
+      const updated = users.map((u) =>
+        u.id === editUser.id
+          ? { ...u, nationalId: form.nationalId!, name: form.name!, email: form.email!, role: primary, roles, permissions, active: form.active ?? true, companyIds: form.companyIds || [], branchIds: form.branchIds || [], ...(form.password ? { password: form.password } : {}) }
+          : u
+      );
+      persist(updated);
+      if (currentUser?.email === editUser.email) {
+        const nc = updated.find((u) => u.id === editUser.id);
+        if (nc) dbSetItem("user", JSON.stringify(nc));
+      }
+      setEditUser(null); setForm(emptyForm());
+      toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? "تم تحديث بيانات المستخدم" : "User data updated successfully" });
+    } catch {
+      toast({ title: isRtl ? "خطأ في الاتصال" : "Network error", description: isRtl ? "تعذر الاتصال بالخادم" : "Could not reach server", variant: "destructive" });
     }
-    setEditUser(null); setForm(emptyForm());
-    toast({ title: isRtl ? "تم بنجاح" : "Success", description: isRtl ? "تم تحديث بيانات المستخدم" : "User data updated successfully" });
   };
 
   const handleDelete = () => {
