@@ -1,0 +1,55 @@
+
+root@srv1495061:/var/www/scapex# cd /var/www/scapex && npm install --include=dev && npm run build && pm2 restart scapex --update-env && sleep 3 && curl -i https://erp.scape.sa/dashboard 2>&1 | head -5
+npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+
+added 110 packages, and audited 459 packages in 2s
+
+76 packages are looking for funding
+  run `npm fund` for details
+
+12 vulnerabilities (1 low, 5 moderate, 6 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+Version bumped to V1.0.3
+building client...
+vite v7.3.1 building client environment for production...
+✓ 2572 modules transformed.
+rendering chunks (1)...[meta-images] no Replit deployment domain found, skipping meta tag updates
+../dist/public/index.html                     1.75 kB │ gzip:   0.76 kB
+../dist/public/assets/index-D8l6PtTA.css    228.87 kB │ gzip:  30.70 kB
+../dist/public/assets/index-BfW4sMgg.js   1,716.62 kB │ gzip: 462.56 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 6.91s
+building server...
+
+  dist/index.cjs  1.0mb ⚠️
+
+⚡ Done in 167ms
+[PM2] Applying action restartProcessId on app [scapex](ids: [ 0 ])
+[PM2] [scapex](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ scapex             │ fork     │ 22   │ online    │ 0%       │ 18.5mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1753  100  1753    0     0  55788      0 --:--:-- --:--:-- --:--:-- 56548
+HTTP/1.1 200 OK
+Server: nginx/1.18.0 (Ubuntu)
+root@srv1495061:/var/www/scapex# 
