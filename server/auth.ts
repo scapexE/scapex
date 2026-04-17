@@ -29,8 +29,12 @@ export async function createUser(data: {
   name: string;
   email: string;
   phone?: string;
+  nationalId?: string;
   role?: string;
+  roles?: string[];
   permissions?: string[];
+  companyIds?: string[];
+  branchIds?: string[];
   isActive?: boolean;
 }) {
   const hashedPassword = await hashPassword(data.password);
@@ -40,8 +44,12 @@ export async function createUser(data: {
     name: data.name,
     email: data.email.toLowerCase(),
     phone: data.phone || null,
+    nationalId: data.nationalId || null,
     role: data.role || "viewer",
+    roles: data.roles || [],
     permissions: data.permissions || [],
+    companyIds: data.companyIds || [],
+    branchIds: data.branchIds || [],
     isActive: data.isActive ?? false,
   }).returning();
   return result[0];
@@ -55,8 +63,12 @@ export async function updateUser(id: string, data: Partial<{
   name: string;
   email: string;
   phone: string;
+  nationalId: string;
   role: string;
+  roles: string[];
   permissions: string[];
+  companyIds: string[];
+  branchIds: string[];
   isActive: boolean;
   password: string;
 }>) {

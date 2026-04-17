@@ -437,7 +437,7 @@ export async function registerRoutes(
 
   app.post("/api/users", async (req, res) => {
     try {
-      const { email, password, name, role, permissions, isActive, phone, username } = req.body;
+      const { email, password, name, role, roles, permissions, isActive, phone, username, nationalId, companyIds, branchIds } = req.body;
       if (!email || !password || !name) {
         return res.status(400).json({ error: "name, email and password are required" });
       }
@@ -451,8 +451,12 @@ export async function registerRoutes(
         name,
         email,
         phone: phone || undefined,
+        nationalId: nationalId || undefined,
         role: role || "viewer",
+        roles: Array.isArray(roles) ? roles : [],
         permissions: Array.isArray(permissions) ? permissions : [],
+        companyIds: Array.isArray(companyIds) ? companyIds : [],
+        branchIds: Array.isArray(branchIds) ? branchIds : [],
         isActive: isActive ?? true,
       });
       const { password: _, ...safeUser } = user;

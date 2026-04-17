@@ -450,8 +450,10 @@ export default function Users() {
           email: u.email || "",
           password: "",
           role,
-          roles: Array.isArray(u.roles) ? u.roles : [role],
+          roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [role],
           permissions: perms,
+          companyIds: Array.isArray(u.companyIds) ? u.companyIds : (Array.isArray(u.company_ids) ? u.company_ids : []),
+          branchIds: Array.isArray(u.branchIds) ? u.branchIds : (Array.isArray(u.branch_ids) ? u.branch_ids : []),
           active: isActive,
           pendingApproval: !isActive,
           createdAt: u.createdAt || u.created_at || new Date().toISOString(),
@@ -568,8 +570,12 @@ export default function Users() {
           name: form.name,
           email: form.email,
           password: form.password,
+          nationalId: form.nationalId,
           role: primary,
+          roles,
           permissions,
+          companyIds: form.companyIds || [],
+          branchIds: form.branchIds || [],
           isActive: form.active ?? true,
         }),
       });
@@ -612,8 +618,12 @@ export default function Users() {
       const patchBody: any = {
         name: form.name,
         email: form.email,
+        nationalId: form.nationalId,
         role: primary,
+        roles,
         permissions,
+        companyIds: form.companyIds || [],
+        branchIds: form.branchIds || [],
         isActive: form.active ?? true,
       };
       if (form.password) patchBody.password = form.password;
