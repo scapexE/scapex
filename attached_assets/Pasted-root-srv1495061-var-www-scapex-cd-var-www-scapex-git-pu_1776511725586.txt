@@ -1,0 +1,49 @@
+root@srv1495061:/var/www/scapex# cd /var/www/scapex && git pull && npm install --include=dev && npm run build && pm2 restart scapex
+Already up to date.
+
+up to date, audited 459 packages in 1s
+
+76 packages are looking for funding
+  run `npm fund` for details
+
+12 vulnerabilities (1 low, 5 moderate, 6 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+Version bumped to V1.0.4
+building client...
+vite v7.3.1 building client environment for production...
+✓ 2572 modules transformed.
+rendering chunks (1)...[meta-images] no Replit deployment domain found, skipping meta tag updates
+../dist/public/index.html                     1.75 kB │ gzip:   0.76 kB
+../dist/public/assets/index-D8l6PtTA.css    228.87 kB │ gzip:  30.70 kB
+../dist/public/assets/index-BxEZ239r.js   1,716.67 kB │ gzip: 462.58 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 6.80s
+building server...
+
+  dist/index.cjs  1.0mb ⚠️
+
+⚡ Done in 170ms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [scapex](ids: [ 0 ])
+[PM2] [scapex](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ scapex             │ fork     │ 25   │ online    │ 0%       │ 7.8mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@srv1495061:/var/www/scapex# 
