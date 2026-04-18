@@ -1,0 +1,161 @@
+root@srv1495061:/var/www/scapex# cd /var/www/scapex && git pull && npm run build && pm2 restart scapex
+Already up to date.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+Version bumped to V1.0.4
+building client...
+vite v7.3.1 building client environment for production...
+✓ 92 modules transformed.
+✗ Build failed in 795ms
+[vite:esbuild] Transform failed with 1 error:
+/var/www/scapex/client/src/pages/modules/company-settings/index.tsx:844:17: ERROR: Unterminated regular expression
+file: /var/www/scapex/client/src/pages/modules/company-settings/index.tsx:844:17
+
+Unterminated regular expression
+842 |          </Dialog>
+843 |        </div>
+844 |      </MainLayout>
+    |                   ^
+845 |    );
+846 |  }
+
+    at failureErrorWithLog (/var/www/scapex/node_modules/vite/node_modules/esbuild/lib/main.js:1467:15)
+    at /var/www/scapex/node_modules/vite/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/var/www/scapex/node_modules/vite/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/var/www/scapex/node_modules/vite/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/var/www/scapex/node_modules/vite/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter],
+  frame: '\n' +
+    '\x1B[33mUnterminated regular expression\x1B[39m\n' +
+    '842 |          </Dialog>\n' +
+    '843 |        </div>\n' +
+    '844 |      </MainLayout>\n' +
+    '    |                   ^\n' +
+    '845 |    );\n' +
+    '846 |  }\n',
+  loc: {
+    column: 17,
+    file: '/var/www/scapex/client/src/pages/modules/company-settings/index.tsx',
+    length: 0,
+    line: 844,
+    lineText: '    </MainLayout>',
+    namespace: '',
+    suggestion: ''
+  },
+  code: 'PLUGIN_ERROR',
+  plugin: 'vite:esbuild',
+  hook: 'transform',
+  id: '/var/www/scapex/client/src/pages/modules/company-settings/index.tsx',
+  watchFiles: [
+    '/var/www/scapex/client/index.html',
+    '/var/www/scapex/client/src/main.tsx',
+    '/var/www/scapex/package.json',
+    '/var/www/scapex/node_modules/react/jsx-runtime.js',
+    '/var/www/scapex/node_modules/react-dom/client.js',
+    '/var/www/scapex/client/src/App.tsx',
+    '/var/www/scapex/client/src/index.css',
+    '/var/www/scapex/node_modules/tailwindcss/index.css',
+    '/var/www/scapex/node_modules/tw-animate-css/dist/tw-animate.css',
+    '/var/www/scapex/client/src/contexts/SettingsContext.tsx',
+    '/var/www/scapex/client/src/contexts/ActiveRoleContext.tsx',
+    '/var/www/scapex/client/src/contexts/LanguageContext.tsx',
+    '/var/www/scapex/client/src/contexts/BusinessActivityContext.tsx',
+    '/var/www/scapex/client/src/pages/not-found.tsx',
+    '/var/www/scapex/client/src/pages/SystemAdmin.tsx',
+    '/var/www/scapex/client/src/pages/Users.tsx',
+    '/var/www/scapex/client/src/pages/modules/accounting/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/hse/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/crm/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/equipment/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/mobile-app/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/dms/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/approvals/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/service-catalog/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/company-settings/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/government/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/projects/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/ai-control/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/payroll/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/sales/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/audit-log/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/client-portal/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/companies/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/smart-proposal/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/purchases/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/bi/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/engineering/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/about/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/inventory/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/hr/index.tsx',
+    '/var/www/scapex/client/src/pages/modules/ModulePlaceholder.tsx',
+    '/var/www/scapex/client/src/pages/modules/attendance/index.tsx',
+    '/var/www/scapex/client/src/pages/Login.tsx',
+    '/var/www/scapex/client/src/pages/dashboard/index.tsx',
+    '/var/www/scapex/client/src/components/accounting/AccountingDashboard.tsx',
+    '/var/www/scapex/client/src/components/accounting/JournalEntries.tsx',
+    '/var/www/scapex/client/src/components/crm/SurveyResults.tsx',
+    '/var/www/scapex/client/src/components/crm/CustomersList.tsx',
+    '/var/www/scapex/client/src/components/crm/CRMDashboard.tsx',
+    '/var/www/scapex/client/src/components/crm/CustomerCard.tsx',
+    '/var/www/scapex/client/src/components/crm/actions/EmailAction.tsx',
+    '/var/www/scapex/client/src/components/crm/actions/WhatsAppAction.tsx',
+    '/var/www/scapex/client/src/components/crm/actions/SurveyAction.tsx',
+    '/var/www/scapex/client/src/components/crm/PipelineBoard.tsx',
+    '/var/www/scapex/client/src/components/proposals/ProposalGenerator.tsx',
+    '/var/www/scapex/client/src/components/proposals/SignatureDialog.tsx',
+    '/var/www/scapex/client/src/components/projects/ProjectsList.tsx',
+    '/var/www/scapex/client/src/components/projects/ProjectTimeline.tsx',
+    '/var/www/scapex/client/src/components/ProtectedRoute.tsx',
+    '/var/www/scapex/client/src/components/sales/ContractsList.tsx',
+    '/var/www/scapex/client/src/components/sales/ContractSignature.tsx',
+    '/var/www/scapex/client/src/components/client-portal/ClientLogin.tsx',
+    '/var/www/scapex/client/src/components/client-portal/ClientDashboard.tsx',
+    '/var/www/scapex/client/src/components/layout/MainLayout.tsx',
+    '/var/www/scapex/client/src/components/layout/ActivitySwitcher.tsx',
+    '/var/www/scapex/client/src/components/layout/Sidebar.tsx',
+    '/var/www/scapex/client/src/components/layout/RoleSwitcherBar.tsx',
+    '/var/www/scapex/client/src/components/layout/Header.tsx',
+    '/var/www/scapex/client/src/components/ui/separator.tsx',
+    '/var/www/scapex/client/src/components/ui/sonner.tsx',
+    '/var/www/scapex/client/src/components/ui/table.tsx',
+    '/var/www/scapex/client/src/components/ui/toaster.tsx',
+    '/var/www/scapex/client/src/components/ui/button.tsx',
+    '/var/www/scapex/client/src/components/ui/slider.tsx',
+    '/var/www/scapex/client/src/components/ui/breadcrumb.tsx',
+    '/var/www/scapex/client/src/components/ui/input-otp.tsx',
+    '/var/www/scapex/client/src/components/ui/textarea.tsx',
+    '/var/www/scapex/client/src/components/ui/hover-card.tsx',
+    '/var/www/scapex/client/src/components/ui/empty.tsx',
+    '/var/www/scapex/client/src/components/ui/pagination.tsx',
+    '/var/www/scapex/client/src/components/ui/command.tsx',
+    '/var/www/scapex/client/src/components/ui/tabs.tsx',
+    '/var/www/scapex/client/src/components/ui/badge.tsx',
+    '/var/www/scapex/client/src/components/ui/field.tsx',
+    '/var/www/scapex/client/src/components/ui/label.tsx',
+    '/var/www/scapex/client/src/components/ui/scroll-area.tsx',
+    '/var/www/scapex/client/src/components/ui/collapsible.tsx',
+    '/var/www/scapex/client/src/components/ui/dropdown-menu.tsx',
+    '/var/www/scapex/client/src/components/ui/sidebar.tsx',
+    '/var/www/scapex/client/src/components/ui/item.tsx',
+    '/var/www/scapex/client/src/components/ui/chart.tsx',
+    '/var/www/scapex/client/src/components/ui/aspect-ratio.tsx',
+    '/var/www/scapex/client/src/components/ui/signature-pad.tsx',
+    '/var/www/scapex/client/src/components/ui/avatar.tsx',
+    '/var/www/scapex/client/src/components/ui/popover.tsx',
+    '/var/www/scapex/client/src/components/ui/calendar.tsx',
+    '/var/www/scapex/client/src/components/ui/kbd.tsx',
+    '/var/www/scapex/client/src/components/ui/input.tsx',
+    '/var/www/scapex/client/src/components/ui/radio-group.tsx',
+    '/var/www/scapex/client/src/components/ui/input-group.tsx',
+    ... 107 more items
+  ]
+}
+root@srv1495061:/var/www/scapex# 

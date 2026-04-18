@@ -841,6 +841,5 @@ function CompanySettingsContent() {
           </DialogContent>
         </Dialog>
       </div>
-    </MainLayout>
   );
 }
