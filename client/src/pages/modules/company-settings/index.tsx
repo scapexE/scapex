@@ -289,21 +289,15 @@ export default function CompanySettingsModule() {
     return Math.round((filled / fields.length) * 100);
   })();
 
-  if (!isAdmin) {
-    return (
-      <MainLayout>
-        <div className="p-6 max-w-2xl mx-auto text-center space-y-4" dir={dir}>
-          <Shield className="w-16 h-16 mx-auto text-muted-foreground/30" />
-          <h2 className="text-xl font-bold">{t("صلاحية محدودة", "Restricted Access")}</h2>
-          <p className="text-muted-foreground">{t("هذه الصفحة متاحة للمدير فقط", "This page is only available to administrators")}</p>
-        </div>
-      </MainLayout>
-    );
-  }
-
   return (
     <MainLayout>
       <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto" dir={dir}>
+        {!isAdmin && (
+          <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+            <Shield className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{t("أنت تعرض هذه الصفحة في وضع القراءة فقط. التعديل متاح للمدير فقط.", "You are viewing this page in read-only mode. Editing is available only to administrators.")}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
