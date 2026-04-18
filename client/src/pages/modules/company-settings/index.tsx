@@ -45,6 +45,14 @@ function SettingsField({ label, value, onChange, textarea, dir: fieldDir, placeh
 }
 
 export default function CompanySettingsModule() {
+  return (
+    <MainLayout>
+      <CompanySettingsContent />
+    </MainLayout>
+  );
+}
+
+function CompanySettingsContent() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const t = (ar: string, en: string) => isRtl ? ar : en;
