@@ -65,7 +65,7 @@ app.post("/hooks/deploy", (req, res) => {
   const { exec } = require("child_process");
 
   exec(
-    "cd /var/www/scapex && git reset --hard && git pull origin main && npm install && npx drizzle-kit push --force && npm run build && pm2 restart scapex --update-env",
+    "cd /var/www/scapex && git reset --hard && git pull origin main && npm install --include=dev && npx drizzle-kit push --force && npm run build && pm2 restart scapex --update-env",
     { env: { ...process.env } },
     (err, stdout, stderr) => {
       if (err) {
