@@ -298,7 +298,6 @@ function CompanySettingsContent() {
   })();
 
   return (
-    <MainLayout>
       <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto" dir={dir}>
         {!isAdmin && (
           <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
@@ -351,21 +350,12 @@ function CompanySettingsContent() {
                     ? t(`لا توجد شركات في نشاط ${isRtl ? activeActivity.nameAr : activeActivity.nameEn}`, `No companies under ${activeActivity.nameEn} activity`)
                     : t("لا توجد شركات متاحة لك", "No companies available")}
                 </p>
-              ) : visibleCompanies.length === 1 ? (
-                <div className="flex items-center gap-2" data-testid="text-locked-company">
-                  <span className="text-sm font-medium">
-                    {isRtl ? visibleCompanies[0].nameAr : visibleCompanies[0].nameEn}
-                  </span>
-                  {visibleCompanies[0].settings?.type === "main" && (
-                    <Badge variant="secondary" className="text-[10px]">{t("رئيسية", "Main")}</Badge>
-                  )}
-                </div>
               ) : (
                 <Select
                   value={selectedCompanyId ? String(selectedCompanyId) : ""}
                   onValueChange={(v) => setSelectedCompanyId(parseInt(v))}
                 >
-                  <SelectTrigger className="h-9 max-w-md" data-testid="select-active-company">
+                  <SelectTrigger className="h-9 max-w-md min-w-[260px]" data-testid="select-active-company">
                     <SelectValue placeholder={t("اختر شركة...", "Select a company...")} />
                   </SelectTrigger>
                   <SelectContent>
