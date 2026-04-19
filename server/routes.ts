@@ -422,9 +422,30 @@ export async function registerRoutes(
   });
 
   // ═══ Deals (CRM Pipeline) CRUD ════════════════════════════════════════
-  app.get("/api/deals", async (_req, res) => {
+  // Helper: identify actor + roles from x-user-id header
+  async function getActor(req: any): Promise<{ id: string; roles: Set<string> } | null> {
+    const actorId = (req.header("x-user-id") || "").trim();
+    if (!actorId) return null;
+    const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+    if (!actor) return null;
+    const roles = new Set<string>([
+      actor.role || "",
+      ...(Array.isArray((actor as any).roles) ? (actor as any).roles as string[] : []),
+    ]);
+    return { id: actorId, roles };
+  }
+
+  app.get("/api/deals", async (req, res) => {
     try {
-      const rows = await db.select().from(deals).orderBy(desc(deals.createdAt));
+      const activityId = (req.query.activityId as string) || null;
+      const assignedTo = (req.query.assignedTo as string) || null;
+      const conds: any[] = [];
+      if (activityId) conds.push(eq(deals.activityId, activityId));
+      if (assignedTo) conds.push(eq(deals.assignedTo, assignedTo));
+      const q = db.select().from(deals);
+      const rows = conds.length
+        ? await q.where(conds.length > 1 ? and(...conds) : conds[0]).orderBy(desc(deals.createdAt))
+        : await q.orderBy(desc(deals.createdAt));
       res.json(rows);
     } catch (err: any) {
       console.error("Get deals error:", err);
@@ -452,6 +473,8 @@ export async function registerRoutes(
         priority: d.priority || "medium",
         status: d.status || "open",
         source: d.source || null,
+        activityId: d.activityId || null,
+        assignedTo: d.assignedTo || d.createdBy || null,
         createdBy: d.createdBy || null,
       }).returning();
       res.json(result[0]);
@@ -468,6 +491,15 @@ export async function registerRoutes(
       const d = req.body || {};
       const [existing] = await db.select().from(deals).where(eq(deals.id, id));
       if (!existing) return res.status(404).json({ error: "Not found" });
+
+      const actor = await getActor(req);
+      if (!actor) return res.status(401).json({ error: "Unauthorized" });
+      const isPrivileged = actor.roles.has("admin") || actor.roles.has("manager");
+      const isOwner = existing.assignedTo === actor.id || existing.createdBy === actor.id;
+      if (!isPrivileged && !isOwner) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
       const result = await db.update(deals).set({
         contactId: d.contactId ?? existing.contactId,
         titleAr: d.titleAr ?? existing.titleAr,
@@ -480,6 +512,8 @@ export async function registerRoutes(
         stage: d.stage ?? existing.stage,
         priority: d.priority ?? existing.priority,
         status: d.status ?? existing.status,
+        activityId: d.activityId ?? existing.activityId,
+        assignedTo: d.assignedTo ?? existing.assignedTo,
         updatedAt: new Date(),
       }).where(eq(deals.id, id)).returning();
       res.json(result[0]);
@@ -493,6 +527,11 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const actor = await getActor(req);
+      if (!actor) return res.status(401).json({ error: "Unauthorized" });
+      if (!actor.roles.has("admin") && !actor.roles.has("manager")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       await db.delete(deals).where(eq(deals.id, id));
       res.json({ success: true });
     } catch (err: any) {

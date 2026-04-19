@@ -162,6 +162,7 @@ export const deals = pgTable("deals", {
   priority: text("priority").default("medium"),
   nextAction: text("next_action"),
   lostReason: text("lost_reason"),
+  activityId: text("activity_id"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
