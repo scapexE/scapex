@@ -8,14 +8,22 @@ import { CustomersList } from "@/components/crm/CustomersList";
 import { Button } from "@/components/ui/button";
 import { Plus, FileText } from "lucide-react";
 import { useLocation } from "wouter";
+import { useState } from "react";
 
 export default function CRMModule() {
   const { t, dir } = useLanguage();
   const isRtl = dir === "rtl";
   const [, navigate] = useLocation();
+  const [activeTab, setActiveTab] = useState("pipeline");
+  const [addCustomerSignal, setAddCustomerSignal] = useState(0);
 
   const handleNewProposal = () => {
     navigate("/smart-proposal");
+  };
+
+  const handleNewLead = () => {
+    setActiveTab("customers");
+    setAddCustomerSignal((n) => n + 1);
   };
 
   return (
@@ -31,7 +39,7 @@ export default function CRMModule() {
               <FileText className="w-4 h-4" />
               {isRtl ? "إنشاء عرض سعر" : "Create Proposal"}
             </Button>
-            <Button size="sm" className="bg-primary hover:bg-primary/90" data-testid="button-new-lead">
+            <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={handleNewLead} data-testid="button-new-lead">
               <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {t('crm.new_lead')}
             </Button>

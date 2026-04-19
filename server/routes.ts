@@ -20,7 +20,8 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches } from "@shared/schema";
+import { appData, companies, branches, contacts } from "@shared/schema";
+import { and, desc } from "drizzle-orm";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -298,6 +299,94 @@ export async function registerRoutes(
       await db.delete(branches).where(eq(branches.id, id));
       res.json({ success: true });
     } catch (err: any) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ═══ Customers (CRM) CRUD ═══════════════════════════════════════════════
+  app.get("/api/customers", async (req, res) => {
+    try {
+      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : null;
+      const where = companyId
+        ? and(eq(contacts.type, "customer"), eq(contacts.companyId, companyId))
+        : eq(contacts.type, "customer");
+      const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.createdAt));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("Get customers error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/customers", async (req, res) => {
+    try {
+      const d = req.body || {};
+      if (!d.nameEn && !d.nameAr) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+      const result = await db.insert(contacts).values({
+        companyId: d.companyId ?? null,
+        nameAr: d.nameAr || d.nameEn || null,
+        nameEn: d.nameEn || d.nameAr || null,
+        email: d.email || null,
+        phone: d.phone || null,
+        mobile: d.mobile || d.phone || null,
+        organization: d.organization || null,
+        position: d.position || null,
+        type: "customer",
+        source: d.source || null,
+        address: d.address || null,
+        city: d.city || null,
+        notes: d.notes || null,
+        tags: Array.isArray(d.tags) ? d.tags : [],
+        isActive: d.isActive ?? true,
+        createdBy: d.createdBy || null,
+      }).returning();
+      res.json(result[0]);
+    } catch (err: any) {
+      console.error("Create customer error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const d = req.body || {};
+      const [existing] = await db.select().from(contacts).where(eq(contacts.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      const result = await db.update(contacts).set({
+        nameAr: d.nameAr ?? existing.nameAr,
+        nameEn: d.nameEn ?? existing.nameEn,
+        email: d.email ?? existing.email,
+        phone: d.phone ?? existing.phone,
+        mobile: d.mobile ?? existing.mobile,
+        organization: d.organization ?? existing.organization,
+        position: d.position ?? existing.position,
+        source: d.source ?? existing.source,
+        address: d.address ?? existing.address,
+        city: d.city ?? existing.city,
+        notes: d.notes ?? existing.notes,
+        tags: d.tags ?? existing.tags,
+        isActive: d.isActive ?? existing.isActive,
+        updatedAt: new Date(),
+      }).where(eq(contacts.id, id)).returning();
+      res.json(result[0]);
+    } catch (err: any) {
+      console.error("Update customer error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      await db.delete(contacts).where(eq(contacts.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete customer error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
