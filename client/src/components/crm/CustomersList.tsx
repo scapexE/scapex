@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
+import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Search, Filter, Mail, Phone, MapPin, Plus, Trash2, Loader2,
-  MoreVertical, Building, Star, MessageSquare, Download, Copy, FileText, ClipboardCheck
+  MoreVertical, Building, Star, MessageSquare, Download, Copy, FileText,
+  ClipboardCheck, UserCog, User as UserIcon
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -41,6 +43,17 @@ interface DbContact {
   city: string | null;
   notes: string | null;
   isActive: boolean | null;
+  activityId: string | null;
+  assignedTo: string | null;
+  createdBy: string | null;
+}
+
+interface SimpleUser {
+  id: string;
+  name: string;
+  email?: string;
+  role?: string;
+  roles?: string[];
 }
 
 function toCustomer(c: DbContact, isRtl: boolean): Customer {
@@ -57,10 +70,6 @@ function toCustomer(c: DbContact, isRtl: boolean): Customer {
   };
 }
 
-export interface CustomersListHandle {
-  openAddDialog: () => void;
-}
-
 export function CustomersList({
   onCreateProposal,
   openAddDialogSignal,
@@ -71,11 +80,16 @@ export function CustomersList({
   const { t, dir } = useLanguage();
   const { toast } = useToast();
   const { currentUser } = useActiveRole();
+  const { activeActivity, getActivityUserIds } = useBusinessActivity();
   const isAdmin = currentUser?.role === "admin" || (currentUser?.roles ?? []).includes("admin");
+  const isManager = currentUser?.role === "manager" || (currentUser?.roles ?? []).includes("manager");
+  const canSeeAll = isAdmin || isManager;
   const isRtl = dir === "rtl";
 
   const [rows, setRows] = useState<DbContact[]>([]);
+  const [users, setUsers] = useState<SimpleUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(canSeeAll);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [cardCustomer, setCardCustomer] = useState<Customer | null>(null);
@@ -83,6 +97,8 @@ export function CustomersList({
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [assignTarget, setAssignTarget] = useState<DbContact | null>(null);
+  const [assignTo, setAssignTo] = useState<string>("");
   const [form, setForm] = useState({
     nameAr: "", nameEn: "", organization: "", position: "",
     email: "", phone: "", city: "", address: "", source: "active", notes: "",
@@ -91,12 +107,20 @@ export function CustomersList({
   useEffect(() => { seedDemoSurveys(); }, []);
 
   const fetchData = useCallback(async () => {
+    if (!activeActivity) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
-      const r = await fetch("/api/customers");
-      if (!r.ok) throw new Error("fetch failed");
-      const data = await r.json();
-      setRows(Array.isArray(data) ? data : []);
+      const params = new URLSearchParams({ activityId: activeActivity.id });
+      const [r, u] = await Promise.all([
+        fetch(`/api/customers?${params.toString()}`).then(x => x.json()),
+        fetch("/api/users").then(x => x.json()),
+      ]);
+      setRows(Array.isArray(r) ? r : []);
+      setUsers(Array.isArray(u) ? u : []);
     } catch (err) {
       console.error("Failed to load customers:", err);
       toast({
@@ -106,7 +130,7 @@ export function CustomersList({
     } finally {
       setLoading(false);
     }
-  }, [toast, isRtl]);
+  }, [toast, isRtl, activeActivity]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -116,7 +140,33 @@ export function CustomersList({
     }
   }, [openAddDialogSignal]);
 
-  const customers = rows.map((r) => toCustomer(r, isRtl));
+  // Users available for assignment within this activity
+  const activityUserIds = useMemo(() => {
+    if (!activeActivity) return new Set<string>();
+    return new Set(getActivityUserIds(activeActivity.id));
+  }, [activeActivity, getActivityUserIds]);
+
+  const assignableUsers = useMemo(() => {
+    return users.filter(u => {
+      if (!activityUserIds.has(u.id)) return false;
+      const roles = new Set<string>([u.role || "", ...(u.roles || [])]);
+      // Exclude pure clients/viewers from assignment targets
+      if (roles.has("client") || roles.has("viewer")) return false;
+      return true;
+    });
+  }, [users, activityUserIds]);
+
+  const userById = (id: string | null | undefined) =>
+    id ? users.find(u => u.id === id) : null;
+
+  // Visibility: admin/manager see all, others see only their assignments
+  const visibleRows = useMemo(() => {
+    if (canSeeAll && showAll) return rows;
+    if (!currentUser?.id) return [];
+    return rows.filter(r => r.assignedTo === currentUser.id || r.createdBy === currentUser.id);
+  }, [rows, canSeeAll, showAll, currentUser?.id]);
+
+  const customers = visibleRows.map((r) => toCustomer(r, isRtl));
 
   const filtered = search.trim()
     ? customers.filter(c =>
@@ -175,11 +225,12 @@ export function CustomersList({
   });
 
   const handleSave = async () => {
+    if (!activeActivity) {
+      toast({ title: isRtl ? "اختر نشاطاً أولاً" : "Select an activity first", variant: "destructive" });
+      return;
+    }
     if (!form.nameAr.trim() && !form.nameEn.trim()) {
-      toast({
-        title: isRtl ? "الاسم مطلوب" : "Name is required",
-        variant: "destructive",
-      });
+      toast({ title: isRtl ? "الاسم مطلوب" : "Name is required", variant: "destructive" });
       return;
     }
     try {
@@ -189,21 +240,18 @@ export function CustomersList({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          activityId: activeActivity.id,
           createdBy: currentUser?.id || null,
+          assignedTo: currentUser?.id || null,
         }),
       });
       if (!res.ok) throw new Error("save failed");
-      toast({
-        title: isRtl ? "تم إضافة العميل" : "Customer added",
-      });
+      toast({ title: isRtl ? "تم إضافة العميل وإسناده لك" : "Customer added and assigned to you" });
       setAddOpen(false);
       resetForm();
       await fetchData();
-    } catch (err) {
-      toast({
-        title: isRtl ? "تعذر حفظ العميل" : "Failed to save customer",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: isRtl ? "تعذر حفظ العميل" : "Failed to save customer", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -212,22 +260,65 @@ export function CustomersList({
   const confirmDelete = async () => {
     if (!deleteId) return;
     try {
-      const res = await fetch(`/api/customers/${deleteId}`, { method: "DELETE" });
+      const res = await fetch(`/api/customers/${deleteId}`, {
+        method: "DELETE",
+        headers: { "x-user-id": currentUser?.id || "" },
+      });
       if (!res.ok) throw new Error("delete failed");
       toast({ title: isRtl ? "تم حذف العميل" : "Customer deleted" });
       setSelectedIds(prev => prev.filter(id => id !== deleteId));
       setDeleteId(null);
       await fetchData();
-    } catch (err) {
-      toast({
-        title: isRtl ? "تعذر حذف العميل" : "Failed to delete customer",
-        variant: "destructive",
+    } catch {
+      toast({ title: isRtl ? "تعذر حذف العميل" : "Failed to delete customer", variant: "destructive" });
+    }
+  };
+
+  const canReassign = (c: DbContact) => {
+    if (isAdmin || isManager) return true;
+    return c.assignedTo === currentUser?.id || c.createdBy === currentUser?.id;
+  };
+
+  const openAssignDialog = (c: DbContact) => {
+    setAssignTarget(c);
+    setAssignTo(c.assignedTo || "");
+  };
+
+  const handleAssign = async () => {
+    if (!assignTarget) return;
+    if (!assignTo) {
+      toast({ title: isRtl ? "اختر موظفاً" : "Choose an employee", variant: "destructive" });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/customers/${assignTarget.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": currentUser?.id || "",
+        },
+        body: JSON.stringify({ assignedTo: assignTo }),
       });
+      if (!res.ok) throw new Error("assign failed");
+      const targetUser = userById(assignTo);
+      toast({
+        title: isRtl ? "تم نقل العميل" : "Customer transferred",
+        description: targetUser ? (isRtl ? `الآن مسند إلى ${targetUser.name}` : `Now assigned to ${targetUser.name}`) : "",
+      });
+      setAssignTarget(null);
+      await fetchData();
+    } catch {
+      toast({ title: isRtl ? "تعذر النقل" : "Failed to transfer", variant: "destructive" });
     }
   };
 
   return (
     <>
+      {!activeActivity && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-3 rounded-md mb-4 text-sm">
+          {isRtl ? "اختر نشاطاً تجارياً من الأعلى لعرض عملائه." : "Select a business activity to view its customers."}
+        </div>
+      )}
       <Card className="flex-1 border-border/50 shadow-sm overflow-hidden flex flex-col h-full relative">
         <CardHeader className="p-4 border-b border-border/50 bg-card">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -245,15 +336,41 @@ export function CustomersList({
               <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
                 <Filter className="h-4 w-4" />
               </Button>
+              {canSeeAll && (
+                <div className="flex items-center gap-1 text-xs">
+                  <Button
+                    size="sm"
+                    variant={showAll ? "default" : "outline"}
+                    className="h-9 px-2"
+                    onClick={() => setShowAll(true)}
+                    data-testid="button-filter-all"
+                  >
+                    {isRtl ? "الكل" : "All"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={!showAll ? "default" : "outline"}
+                    className="h-9 px-2"
+                    onClick={() => setShowAll(false)}
+                    data-testid="button-filter-mine"
+                  >
+                    {isRtl ? "عملائي" : "Mine"}
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <div className="text-sm text-muted-foreground font-medium">
                 {filtered.length} {t('crm.cust.total')}
+                {activeActivity && (
+                  <span className="ms-2 text-xs text-primary">· {isRtl ? activeActivity.nameAr : activeActivity.nameEn}</span>
+                )}
               </div>
               <Button
                 size="sm"
                 className="bg-primary hover:bg-primary/90 gap-1.5"
                 onClick={() => setAddOpen(true)}
+                disabled={!activeActivity}
                 data-testid="button-add-customer"
               >
                 <Plus className="w-4 h-4" />
@@ -296,11 +413,19 @@ export function CustomersList({
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-12 text-center text-muted-foreground gap-3">
               <Building className="w-12 h-12 opacity-30" />
-              <div className="font-medium">{isRtl ? "لا يوجد عملاء بعد" : "No customers yet"}</div>
-              <Button size="sm" onClick={() => setAddOpen(true)} data-testid="button-add-first-customer">
-                <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-                {isRtl ? "أضف أول عميل" : "Add first customer"}
-              </Button>
+              <div className="font-medium">
+                {!activeActivity
+                  ? (isRtl ? "لا يوجد نشاط مختار" : "No activity selected")
+                  : (canSeeAll && showAll
+                    ? (isRtl ? "لا يوجد عملاء في هذا النشاط بعد" : "No customers in this activity yet")
+                    : (isRtl ? "لا يوجد عملاء مسندون إليك" : "No customers assigned to you"))}
+              </div>
+              {activeActivity && (
+                <Button size="sm" onClick={() => setAddOpen(true)} data-testid="button-add-first-customer">
+                  <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                  {isRtl ? "أضف عميل" : "Add customer"}
+                </Button>
+              )}
             </div>
           ) : (
           <Table>
@@ -315,13 +440,15 @@ export function CustomersList({
                 </TableHead>
                 <TableHead className={isRtl ? 'text-right' : 'text-left'}>{t('crm.cust.col.company')}</TableHead>
                 <TableHead className={isRtl ? 'text-right' : 'text-left'}>{t('crm.cust.col.contact')}</TableHead>
-                <TableHead className={isRtl ? 'text-right' : 'text-left'}>{t('crm.cust.col.industry')}</TableHead>
+                <TableHead className={isRtl ? 'text-right' : 'text-left'}>{isRtl ? "الموظف المسؤول" : "Assigned to"}</TableHead>
                 <TableHead className={isRtl ? 'text-right' : 'text-left'}>{t('crm.cust.col.status')}</TableHead>
                 <TableHead className={isRtl ? 'text-left' : 'text-right'}>{t('crm.cust.col.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((customer) => {
+                const dbRow = rows.find(r => String(r.id) === customer.id)!;
+                const assignedUser = userById(dbRow?.assignedTo);
                 const isSelected = selectedIds.includes(customer.id);
                 return (
                   <TableRow
@@ -351,7 +478,7 @@ export function CustomersList({
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <MapPin className="w-3 h-3" />
-                            {rows.find(r => String(r.id) === customer.id)?.city || (isRtl ? "غير محدد" : "—")}
+                            {dbRow?.city || (isRtl ? "غير محدد" : "—")}
                           </div>
                         </div>
                       </div>
@@ -364,7 +491,16 @@ export function CustomersList({
                       </div>
                     </TableCell>
                     <TableCell className={isRtl ? 'text-right' : 'text-left'}>
-                      <Badge variant="secondary" className="font-normal bg-secondary/80">{customer.industry}</Badge>
+                      {assignedUser ? (
+                        <Badge variant="outline" className="font-normal gap-1 border-primary/30 text-primary bg-primary/5">
+                          <UserIcon className="w-3 h-3" />
+                          {assignedUser.name}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="font-normal text-muted-foreground">
+                          {isRtl ? "غير مسند" : "Unassigned"}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className={isRtl ? 'text-right' : 'text-left'}>
                       <Badge variant="outline" className={cn("font-normal border-transparent",
@@ -395,6 +531,15 @@ export function CustomersList({
                             data-testid={`button-quote-${customer.id}`}
                             onClick={() => onCreateProposal(customer.name, customer.email, customer.phone)}>
                             <FileText className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canReassign(dbRow) && (
+                          <Button variant="ghost" size="icon"
+                            className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
+                            title={isRtl ? "نقل / إسناد لموظف آخر" : "Transfer / Assign to another employee"}
+                            data-testid={`button-assign-customer-${customer.id}`}
+                            onClick={() => openAssignDialog(dbRow)}>
+                            <UserCog className="h-4 w-4" />
                           </Button>
                         )}
                         {isAdmin && (
@@ -446,7 +591,11 @@ export function CustomersList({
           <DialogHeader>
             <DialogTitle>{isRtl ? "إضافة عميل جديد" : "Add New Customer"}</DialogTitle>
             <DialogDescription>
-              {isRtl ? "أدخل بيانات العميل ليتم حفظها في قاعدة البيانات." : "Enter customer information to save it to the database."}
+              {activeActivity
+                ? (isRtl
+                    ? `سيتم حفظ العميل ضمن نشاط "${activeActivity.nameAr}" وإسناده لك مباشرة.`
+                    : `Customer will be saved under "${activeActivity.nameEn}" activity and assigned to you.`)
+                : (isRtl ? "اختر نشاطاً تجارياً أولاً." : "Select a business activity first.")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -504,9 +653,53 @@ export function CustomersList({
             <Button variant="outline" onClick={() => setAddOpen(false)} data-testid="button-cancel-customer">
               {isRtl ? "إلغاء" : "Cancel"}
             </Button>
-            <Button onClick={handleSave} disabled={saving} data-testid="button-save-customer">
+            <Button onClick={handleSave} disabled={saving || !activeActivity} data-testid="button-save-customer">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2 rtl:ml-2 rtl:mr-0" /> : null}
               {isRtl ? "حفظ" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign / Transfer Dialog */}
+      <Dialog open={!!assignTarget} onOpenChange={(o) => { if (!o) setAssignTarget(null); }}>
+        <DialogContent dir={dir} data-testid="dialog-assign-customer">
+          <DialogHeader>
+            <DialogTitle>{isRtl ? "نقل / إسناد العميل" : "Transfer / Assign Customer"}</DialogTitle>
+            <DialogDescription>
+              {assignTarget && (isRtl
+                ? `اختر الموظف المسؤول عن متابعة العميل "${assignTarget.nameAr || assignTarget.nameEn}".`
+                : `Choose the employee responsible for "${assignTarget.nameEn || assignTarget.nameAr}".`)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            <Label htmlFor="assign-to">{isRtl ? "الموظف المسؤول" : "Responsible employee"}</Label>
+            <select
+              id="assign-to"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={assignTo}
+              onChange={(e) => setAssignTo(e.target.value)}
+              data-testid="select-assign-to"
+            >
+              <option value="">{isRtl ? "— اختر موظفاً —" : "— Choose —"}</option>
+              {assignableUsers.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.name} {u.role ? `(${u.role})` : ""}
+                </option>
+              ))}
+            </select>
+            {assignableUsers.length === 0 && (
+              <p className="text-xs text-amber-600">
+                {isRtl ? "لا يوجد موظفون مرتبطون بهذا النشاط." : "No employees assigned to this activity."}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignTarget(null)} data-testid="button-cancel-assign">
+              {isRtl ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button onClick={handleAssign} data-testid="button-confirm-assign">
+              {isRtl ? "نقل" : "Transfer"}
             </Button>
           </DialogFooter>
         </DialogContent>

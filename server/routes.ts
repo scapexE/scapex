@@ -306,10 +306,12 @@ export async function registerRoutes(
   // ═══ Customers (CRM) CRUD ═══════════════════════════════════════════════
   app.get("/api/customers", async (req, res) => {
     try {
-      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : null;
-      const where = companyId
-        ? and(eq(contacts.type, "customer"), eq(contacts.companyId, companyId))
-        : eq(contacts.type, "customer");
+      const activityId = (req.query.activityId as string) || null;
+      const assignedTo = (req.query.assignedTo as string) || null;
+      const conds: any[] = [eq(contacts.type, "customer")];
+      if (activityId) conds.push(eq(contacts.activityId, activityId));
+      if (assignedTo) conds.push(eq(contacts.assignedTo, assignedTo));
+      const where = conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.createdAt));
       res.json(rows);
     } catch (err: any) {
@@ -340,6 +342,8 @@ export async function registerRoutes(
         notes: d.notes || null,
         tags: Array.isArray(d.tags) ? d.tags : [],
         isActive: d.isActive ?? true,
+        activityId: d.activityId || null,
+        assignedTo: d.assignedTo || d.createdBy || null,
         createdBy: d.createdBy || null,
       }).returning();
       res.json(result[0]);
@@ -356,6 +360,29 @@ export async function registerRoutes(
       const d = req.body || {};
       const [existing] = await db.select().from(contacts).where(eq(contacts.id, id));
       if (!existing) return res.status(404).json({ error: "Not found" });
+
+      // Authorization: derive actor from x-user-id header
+      const actorId = (req.header("x-user-id") || "").trim();
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      if (!actor) return res.status(401).json({ error: "Unknown user" });
+      const actorRoles = new Set<string>([
+        actor.role || "",
+        ...(Array.isArray((actor as any).roles) ? (actor as any).roles as string[] : []),
+      ]);
+      const isPrivileged = actorRoles.has("admin") || actorRoles.has("manager");
+      const isOwner = existing.assignedTo === actorId || existing.createdBy === actorId;
+
+      // Reassignment-only flow: only assignedTo provided
+      const isAssignOnly = Object.keys(d).length === 1 && "assignedTo" in d;
+      if (isAssignOnly) {
+        if (!isPrivileged && !isOwner) {
+          return res.status(403).json({ error: "Forbidden: cannot transfer this customer" });
+        }
+      } else if (!isPrivileged && !isOwner) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
       const result = await db.update(contacts).set({
         nameAr: d.nameAr ?? existing.nameAr,
         nameEn: d.nameEn ?? existing.nameEn,
@@ -370,6 +397,8 @@ export async function registerRoutes(
         notes: d.notes ?? existing.notes,
         tags: d.tags ?? existing.tags,
         isActive: d.isActive ?? existing.isActive,
+        activityId: d.activityId ?? existing.activityId,
+        assignedTo: d.assignedTo ?? existing.assignedTo,
         updatedAt: new Date(),
       }).where(eq(contacts.id, id)).returning();
       res.json(result[0]);

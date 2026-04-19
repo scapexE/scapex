@@ -126,6 +126,8 @@ export const contacts = pgTable("contacts", {
   notes: text("notes"),
   tags: jsonb("tags").default([]),
   isActive: boolean("is_active").default(true),
+  activityId: text("activity_id"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
