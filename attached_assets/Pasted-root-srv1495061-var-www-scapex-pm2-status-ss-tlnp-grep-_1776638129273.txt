@@ -1,0 +1,44 @@
+root@srv1495061:/var/www/scapex# pm2 status
+ss -tlnp | grep 5000
+curl -sf http://127.0.0.1:5000/api/customers && echo "OK" || echo "FAIL"
+pm2 logs scapex --lines 30 --nostream --err
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ scapex             │ fork     │ 38   │ online    │ 0%       │ 74.9mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+FAIL
+[TAILING] Tailing last 30 lines for [scapex] process (change the value with --lines option)
+/root/.pm2/logs/scapex-error.log last 30 lines:
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | error: password authentication failed for user "postgres"
+0|scapex   |     at /var/www/scapex/dist/index.cjs:59:14227
+0|scapex   |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:65:31413
+0|scapex   |     at async sw (/var/www/scapex/dist/index.cjs:65:131347)
+0|scapex   |     at async vw (/var/www/scapex/dist/index.cjs:86:5115)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:90:15536 {
+0|scapex   |   length: 104,
+0|scapex   |   severity: 'FATAL',
+0|scapex   |   code: '28P01',
+0|scapex   |   detail: undefined,
+0|scapex   |   hint: undefined,
+0|scapex   |   position: undefined,
+0|scapex   |   internalPosition: undefined,
+0|scapex   |   internalQuery: undefined,
+0|scapex   |   where: undefined,
+0|scapex   |   schema: undefined,
+0|scapex   |   table: undefined,
+0|scapex   |   column: undefined,
+0|scapex   |   dataType: undefined,
+0|scapex   |   constraint: undefined,
+0|scapex   |   file: 'auth.c',
+0|scapex   |   line: '343',
+0|scapex   |   routine: 'auth_failed'
+0|scapex   | }
+
+root@srv1495061:/var/www/scapex# 
