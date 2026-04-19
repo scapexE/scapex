@@ -25,9 +25,8 @@ import {
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import {
-  type BusinessActivity, type ActivityColor, ACTIVITY_COLOR_MAP,
-} from "@/lib/activities";
+import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
+import type { BusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ICON_OPTIONS } from "@/lib/icons";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
@@ -720,13 +719,40 @@ function SystemAdminContent() {
   const { t, dir } = useLanguage();
   const isRtl = dir === 'rtl';
   const { toast } = useToast();
-  const { activities, setActivities, assignments, setAssignments, getActivityUserIds } = useBusinessActivity();
-  const allUsers = getUsers().filter((u) => u.active && !u.pendingApproval);
+  const {
+    activities, getActivityUserIds,
+    createActivity, updateActivity, deleteActivity: apiDeleteActivity, setActivityMembers,
+  } = useBusinessActivity();
+  const [allUsers, setAllUsers] = useState<SystemUser[]>([]);
+  const [apiCompanies, setApiCompanies] = useState<{ id: number; nameAr: string; nameEn: string; logoUrl?: string | null }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/users").then((r) => r.ok ? r.json() : []).then((rows: any[]) => {
+      const mapped: SystemUser[] = (rows || []).filter((u) => u.isActive).map((u) => ({
+        id: u.id, name: u.name || u.username || "", email: u.email || "",
+        nationalId: u.nationalId || "", password: "",
+        role: (u.role || "viewer") as any,
+        roles: Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role || "viewer"],
+        permissions: Array.isArray(u.permissions) ? u.permissions : [],
+        active: !!u.isActive, createdAt: u.createdAt || new Date().toISOString(),
+      }));
+      setAllUsers(mapped);
+    }).catch(() => {});
+    fetch("/api/companies").then((r) => r.ok ? r.json() : []).then((rows: any[]) => {
+      setApiCompanies((rows || []).map((c) => ({
+        id: c.id, nameAr: c.nameAr || c.name_ar || "", nameEn: c.nameEn || c.name_en || "", logoUrl: c.logoUrl || c.logo_url || null,
+      })));
+    }).catch(() => {});
+  }, []);
 
   const [addOpen, setAddOpen] = useState(false);
   const [editActivity, setEditActivity] = useState<BusinessActivity | null>(null);
   const [deleteActivity, setDeleteActivity] = useState<BusinessActivity | null>(null);
   const [initialForm, setInitialForm] = useState<Partial<BusinessActivity>>(emptyActivity());
+
+  // Company assignment for the activity (NEW: per-company activities)
+  const [addCompanyId, setAddCompanyId] = useState<number | null>(null);
+  const [editCompanyId, setEditCompanyId] = useState<number | null>(null);
 
   // Company branding state managed here (not inside ActivityForm) for reliable capture
   const [addCompanyNameAr, setAddCompanyNameAr] = useState("");
@@ -741,56 +767,64 @@ function SystemAdminContent() {
   const addFormRef = useRef<ActivityFormHandle>(null);
   const editFormRef = useRef<ActivityFormHandle>(null);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const values = addFormRef.current?.getValues();
     if (!values?.nameAr || !values?.nameEn) {
       toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "اسم النشاط مطلوب" : "Activity name is required", variant: "destructive" }); return;
     }
-    const a: BusinessActivity = {
-      id: generateId(), nameAr: values.nameAr, nameEn: values.nameEn,
+    const targetCompanyId = addCompanyId || apiCompanies[0]?.id;
+    if (!targetCompanyId) {
+      toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "يجب اختيار شركة" : "Company is required", variant: "destructive" }); return;
+    }
+    const co = apiCompanies.find((c) => c.id === targetCompanyId);
+    const created = await createActivity({
+      nameAr: values.nameAr, nameEn: values.nameEn,
       color: (values.color as ActivityColor) ?? "blue", icon: values.icon ?? "HardHat",
       modules: values.modules ?? ["dashboard"], active: true,
-      createdAt: new Date().toISOString(),
-      companyNameAr: addCompanyNameAr,
-      companyNameEn: addCompanyNameEn,
-      companyLogoUrl: addCompanyLogoUrl,
-    };
-    setActivities([...activities, a]);
+      companyId: targetCompanyId,
+      companyNameAr: addCompanyNameAr || co?.nameAr || null,
+      companyNameEn: addCompanyNameEn || co?.nameEn || null,
+      companyLogoUrl: addCompanyLogoUrl || co?.logoUrl || null,
+    } as any);
+    if (!created) {
+      toast({ title: isRtl ? "تعذر الحفظ" : "Save failed", variant: "destructive" }); return;
+    }
     setAddOpen(false);
-    setAddCompanyNameAr(""); setAddCompanyNameEn(""); setAddCompanyLogoUrl(null);
-    toast({ title: isRtl ? "تم بنجاح" : "Success", description: `${isRtl ? "تمت إضافة" : "Added"} "${isRtl ? a.nameAr : a.nameEn}"` });
+    setAddCompanyNameAr(""); setAddCompanyNameEn(""); setAddCompanyLogoUrl(null); setAddCompanyId(null);
+    toast({ title: isRtl ? "تم بنجاح" : "Success", description: `${isRtl ? "تمت إضافة" : "Added"} "${isRtl ? created.nameAr : created.nameEn}"` });
   };
 
-  const handleEdit = () => {
+  const handleEdit = async () => {
     if (!editActivity) return;
     const values = editFormRef.current?.getValues();
     if (!values?.nameAr || !values?.nameEn) {
       toast({ title: isRtl ? "خطأ" : "Error", description: isRtl ? "اسم النشاط مطلوب" : "Activity name is required", variant: "destructive" }); return;
     }
-    setActivities(activities.map((a) =>
-      a.id === editActivity.id ? {
-        ...a,
-        nameAr: values.nameAr!, nameEn: values.nameEn!,
-        color: (values.color as ActivityColor) ?? a.color, icon: values.icon ?? a.icon,
-        modules: values.modules ?? a.modules,
-        companyNameAr: editCompanyNameAr,
-        companyNameEn: editCompanyNameEn,
-        companyLogoUrl: editCompanyLogoUrl,
-      } : a
-    ));
+    const updated = await updateActivity(editActivity.id, {
+      nameAr: values.nameAr, nameEn: values.nameEn,
+      color: (values.color as ActivityColor) ?? editActivity.color,
+      icon: values.icon ?? editActivity.icon,
+      modules: values.modules ?? editActivity.modules,
+      companyId: editCompanyId ?? editActivity.companyId ?? null,
+      companyNameAr: editCompanyNameAr,
+      companyNameEn: editCompanyNameEn,
+      companyLogoUrl: editCompanyLogoUrl,
+    } as any);
+    if (!updated) { toast({ title: isRtl ? "تعذر الحفظ" : "Save failed", variant: "destructive" }); return; }
     setEditActivity(null);
     toast({ title: isRtl ? "تم بنجاح" : "Saved", description: isRtl ? "تم تحديث النشاط" : "Activity updated" });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteActivity) return;
-    setActivities(activities.filter((a) => a.id !== deleteActivity.id));
+    const ok = await apiDeleteActivity(deleteActivity.id);
+    if (!ok) { toast({ title: isRtl ? "تعذر الحذف" : "Delete failed", variant: "destructive" }); return; }
     setDeleteActivity(null);
     toast({ title: isRtl ? "تم الحذف" : "Deleted", variant: "destructive" });
   };
 
-  const handleToggleActive = (activity: BusinessActivity) => {
-    setActivities(activities.map((a) => a.id === activity.id ? { ...a, active: !a.active } : a));
+  const handleToggleActive = async (activity: BusinessActivity) => {
+    await updateActivity(activity.id, { active: !activity.active } as any);
   };
 
   const openEdit = (a: BusinessActivity) => {
@@ -798,6 +832,7 @@ function SystemAdminContent() {
       nameAr: a.nameAr, nameEn: a.nameEn, color: a.color, icon: a.icon,
       modules: [...a.modules], active: a.active,
     });
+    setEditCompanyId(a.companyId ?? null);
     // Seed company branding state directly — no ref needed
     setEditCompanyNameAr(a.companyNameAr ?? "");
     setEditCompanyNameEn(a.companyNameEn ?? "");
@@ -805,20 +840,14 @@ function SystemAdminContent() {
     setEditActivity(a);
   };
 
-  const toggleUserAssignment = (activityId: string, userId: string) => {
-    const existing = assignments.find((a) => a.activityId === activityId);
-    if (existing) {
-      const newIds = existing.userIds.includes(userId)
-        ? existing.userIds.filter((id) => id !== userId)
-        : [...existing.userIds, userId];
-      setAssignments(assignments.map((a) => a.activityId === activityId ? { ...a, userIds: newIds } : a));
-    } else {
-      setAssignments([...assignments, { activityId, userIds: [userId] }]);
-    }
+  const toggleUserAssignment = async (activityId: string, userId: string) => {
+    const current = getActivityUserIds(activityId);
+    const newIds = current.includes(userId) ? current.filter((x) => x !== userId) : [...current, userId];
+    await setActivityMembers(activityId, newIds);
   };
 
   const isUserAssigned = (activityId: string, userId: string) =>
-    assignments.find((a) => a.activityId === activityId)?.userIds.includes(userId) ?? false;
+    getActivityUserIds(activityId).includes(userId);
 
   return (
     <div className="flex flex-col gap-6" dir={dir}>
@@ -974,6 +1003,15 @@ function SystemAdminContent() {
               <Plus className="w-5 h-5 text-primary" /> {t("sa.add_title")}
             </DialogTitle>
           </DialogHeader>
+          <div className="px-1 mb-3">
+            <Label className="text-xs font-semibold mb-1.5 block">{isRtl ? "الشركة *" : "Company *"}</Label>
+            <select
+              value={addCompanyId ?? ""} onChange={(e) => setAddCompanyId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm" data-testid="select-add-activity-company">
+              <option value="">{isRtl ? "اختر شركة" : "Select company"}</option>
+              {apiCompanies.map((c) => (<option key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</option>))}
+            </select>
+          </div>
           <CompanyBrandingSection
             nameAr={addCompanyNameAr} nameEn={addCompanyNameEn} logoUrl={addCompanyLogoUrl}
             onNameAr={setAddCompanyNameAr} onNameEn={setAddCompanyNameEn} onLogo={setAddCompanyLogoUrl}
@@ -995,6 +1033,15 @@ function SystemAdminContent() {
               <Pencil className="w-5 h-5 text-primary" /> {t("sa.edit_title")} {isRtl ? editActivity?.nameAr : editActivity?.nameEn}
             </DialogTitle>
           </DialogHeader>
+          <div className="px-1 mb-3">
+            <Label className="text-xs font-semibold mb-1.5 block">{isRtl ? "الشركة *" : "Company *"}</Label>
+            <select
+              value={editCompanyId ?? ""} onChange={(e) => setEditCompanyId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm" data-testid="select-edit-activity-company">
+              <option value="">{isRtl ? "اختر شركة" : "Select company"}</option>
+              {apiCompanies.map((c) => (<option key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</option>))}
+            </select>
+          </div>
           <CompanyBrandingSection
             nameAr={editCompanyNameAr} nameEn={editCompanyNameEn} logoUrl={editCompanyLogoUrl}
             onNameAr={setEditCompanyNameAr} onNameEn={setEditCompanyNameEn} onLogo={setEditCompanyLogoUrl}

@@ -167,13 +167,20 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   }, [activeActivity, getActivityUserIds]);
 
   const assignableUsers = useMemo(() => {
-    return users.filter(u => {
+    const base = users.filter(u => {
       if (!activityUserIds.has(u.id)) return false;
       const roles = new Set<string>([u.role || "", ...(u.roles || [])]);
       if (roles.has("client") || roles.has("viewer")) return false;
       return true;
     });
-  }, [users, activityUserIds]);
+    // Always ensure the current assignee is included (even if removed from activity)
+    const currentAssigneeId = assignTarget?.assignedTo;
+    if (currentAssigneeId && !base.some(u => u.id === currentAssigneeId)) {
+      const cur = users.find(u => u.id === currentAssigneeId);
+      if (cur) return [cur, ...base];
+    }
+    return base;
+  }, [users, activityUserIds, assignTarget?.assignedTo]);
 
   // Visibility
   const visibleDeals = useMemo(() => {
@@ -218,9 +225,17 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
         headers: { "Content-Type": "application/json", "x-user-id": currentUser?.id || "" },
         body: JSON.stringify({ stage: stageId }),
       });
-      if (!res.ok) throw new Error("move failed");
-    } catch {
-      toast({ title: isRtl ? "تعذر نقل البطاقة" : "Failed to move card", variant: "destructive" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || `HTTP ${res.status}`);
+      }
+    } catch (e: any) {
+      console.error("Drag-drop move failed:", e);
+      toast({
+        title: isRtl ? "تعذر نقل البطاقة" : "Failed to move card",
+        description: e?.message || "",
+        variant: "destructive",
+      });
       fetchData();
     }
   };

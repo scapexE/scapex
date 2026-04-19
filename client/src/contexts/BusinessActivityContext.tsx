@@ -1,27 +1,53 @@
-import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
-import {
-  type BusinessActivity,
-  getActivities, saveActivities,
-  getActiveActivityId, setActiveActivityId,
-  getActivityAssignments, saveActivityAssignments,
-  type ActivityUserAssignment,
-} from "@/lib/activities";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { type SystemUser } from "@/lib/permissions";
+
+export type ActivityColor =
+  | "blue" | "emerald" | "amber" | "violet" | "cyan" | "rose" | "orange" | "teal"
+  | "red" | "pink" | "indigo" | "sky" | "lime" | "yellow" | "purple" | "fuchsia"
+  | "green" | "slate";
+
+export interface BusinessActivity {
+  id: string;
+  companyId: number | null;
+  nameAr: string;
+  nameEn: string;
+  color: ActivityColor;
+  icon: string;
+  modules: string[];
+  active: boolean;
+  companyNameAr?: string | null;
+  companyNameEn?: string | null;
+  companyLogoUrl?: string | null;
+  userIds: string[];
+  createdAt?: string;
+}
+
+export interface ActivityUserAssignment {
+  activityId: string;
+  userIds: string[];
+}
 
 interface BusinessActivityContextValue {
   activities: BusinessActivity[];
-  setActivities: (list: BusinessActivity[]) => void;
-  /** Activities visible to the current user (filtered by assignment for non-admins) */
+  refresh: () => Promise<void>;
+  /** Activities visible to the current user (filtered by membership for non-admins) */
   userActivities: BusinessActivity[];
   activeActivity: BusinessActivity | null;
   setActiveActivity: (a: BusinessActivity | null) => void;
   assignments: ActivityUserAssignment[];
-  setAssignments: (list: ActivityUserAssignment[]) => void;
+  loading: boolean;
   getUserActivityIds: (userId: string) => string[];
   getActivityUserIds: (activityId: string) => string[];
+  /** CRUD helpers (admin/manager only on server) */
+  createActivity: (a: Partial<BusinessActivity>) => Promise<BusinessActivity | null>;
+  updateActivity: (id: string, patch: Partial<BusinessActivity>) => Promise<BusinessActivity | null>;
+  deleteActivity: (id: string) => Promise<boolean>;
+  setActivityMembers: (activityId: string, userIds: string[]) => Promise<boolean>;
 }
 
 const BusinessActivityContext = createContext<BusinessActivityContextValue | null>(null);
+
+const ACTIVE_ACTIVITY_KEY = "scapex_active_activity";
 
 export function BusinessActivityProvider({
   children,
@@ -30,87 +56,149 @@ export function BusinessActivityProvider({
   children: ReactNode;
   currentUser: SystemUser | null;
 }) {
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || (currentUser?.roles ?? []).includes("admin");
+  const isManager = currentUser?.role === "manager" || (currentUser?.roles ?? []).includes("manager");
   const userId = currentUser?.id ?? null;
 
-  const [activities, setActivitiesState] = useState<BusinessActivity[]>(() => getActivities());
-  const [assignments, setAssignmentsState] = useState<ActivityUserAssignment[]>(() => getActivityAssignments());
+  const [activities, setActivities] = useState<BusinessActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeActivity, setActiveActivityState] = useState<BusinessActivity | null>(null);
 
-  /** Compute activities visible to this user */
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/activities");
+      const data: BusinessActivity[] = res.ok ? await res.json() : [];
+      setActivities(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load activities:", err);
+      setActivities([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
   const userActivities = useMemo<BusinessActivity[]>(() => {
-    if (isAdmin) return activities.filter((a) => a.active);
+    const visible = activities.filter((a) => a.active);
+    if (isAdmin || isManager) return visible;
     if (!userId) return [];
-    return activities.filter((a) => {
-      if (!a.active) return false;
-      const asgn = assignments.find((x) => x.activityId === a.id);
-      return asgn?.userIds.includes(userId) ?? false;
-    });
-  }, [activities, assignments, isAdmin, userId]);
+    return visible.filter((a) => (a.userIds || []).includes(userId));
+  }, [activities, isAdmin, isManager, userId]);
 
-  const [activeActivity, setActiveActivityState] = useState<BusinessActivity | null>(() => {
-    const storedId = getActiveActivityId();
-    const list = getActivities();
-    const initAssignments = getActivityAssignments();
-
-    const isUserVisible = (a: BusinessActivity) => {
-      if (!a.active) return false;
-      if (isAdmin) return true;
-      if (!userId) return false;
-      const asgn = initAssignments.find((x) => x.activityId === a.id);
-      return asgn?.userIds.includes(userId) ?? false;
-    };
-
-    if (storedId) {
-      const found = list.find((a) => a.id === storedId && isUserVisible(a));
-      if (found) return found;
+  // Initialize / reconcile active activity whenever activities or userActivities change
+  useEffect(() => {
+    if (loading) return;
+    const list = userActivities;
+    // If no visible activities, clear any stale selection
+    if (list.length === 0) {
+      if (activeActivity !== null) {
+        setActiveActivityState(null);
+        sessionStorage.removeItem(ACTIVE_ACTIVITY_KEY);
+      }
+      return;
     }
-    return list.find(isUserVisible) ?? null;
-  });
+    if (activeActivity && list.find((a) => a.id === activeActivity.id)) {
+      // Refresh in-place data
+      const fresh = list.find((a) => a.id === activeActivity.id);
+      if (fresh && fresh !== activeActivity) setActiveActivityState(fresh);
+      return;
+    }
+    // Try persisted (localStorage first; user.lastActivityId fallback)
+    const storedId =
+      sessionStorage.getItem(ACTIVE_ACTIVITY_KEY) ||
+      (currentUser as any)?.lastActivityId ||
+      null;
+    const found = (storedId && list.find((a) => a.id === storedId)) || list[0] || null;
+    setActiveActivityState(found);
+  }, [loading, activities, userActivities, currentUser]);
 
-  const setActivities = (list: BusinessActivity[]) => {
-    setActivitiesState(list);
-    saveActivities(list);
-    // Keep activeActivity in sync — if the active one was edited, reflect changes immediately
-    setActiveActivityState((prev) => {
-      if (!prev) return prev;
-      return list.find((a) => a.id === prev.id) ?? prev;
-    });
-  };
-
-  const setAssignments = (list: ActivityUserAssignment[]) => {
-    setAssignmentsState(list);
-    saveActivityAssignments(list);
-  };
-
-  const setActiveActivity = (a: BusinessActivity | null) => {
+  const setActiveActivity = useCallback((a: BusinessActivity | null) => {
     setActiveActivityState(a);
-    setActiveActivityId(a?.id ?? null);
-  };
-
-  const getUserActivityIds = (uid: string): string[] => {
-    const result: string[] = [];
-    for (const a of assignments) {
-      if (a.userIds.includes(uid)) result.push(a.activityId);
+    if (a?.id) sessionStorage.setItem(ACTIVE_ACTIVITY_KEY, a.id);
+    else sessionStorage.removeItem(ACTIVE_ACTIVITY_KEY);
+    if (currentUser?.id) {
+      fetch(`/api/users/${currentUser.id}/last-activity`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-user-id": currentUser.id },
+        body: JSON.stringify({ activityId: a?.id || null }),
+      }).catch(() => {});
     }
-    return result;
-  };
+  }, [currentUser]);
 
-  const getActivityUserIds = (activityId: string): string[] => {
-    return assignments.find((a) => a.activityId === activityId)?.userIds ?? [];
-  };
+  const assignments = useMemo<ActivityUserAssignment[]>(
+    () => activities.map((a) => ({ activityId: a.id, userIds: a.userIds || [] })),
+    [activities]
+  );
+
+  const getUserActivityIds = useCallback((uid: string): string[] => {
+    return activities.filter((a) => (a.userIds || []).includes(uid)).map((a) => a.id);
+  }, [activities]);
+
+  const getActivityUserIds = useCallback((activityId: string): string[] => {
+    return activities.find((a) => a.id === activityId)?.userIds ?? [];
+  }, [activities]);
+
+  const authHeaders = useMemo(() => ({
+    "Content-Type": "application/json",
+    ...(currentUser?.id ? { "x-user-id": currentUser.id } : {}),
+  }), [currentUser?.id]);
+
+  const createActivity = useCallback(async (a: Partial<BusinessActivity>) => {
+    try {
+      const res = await fetch("/api/activities", { method: "POST", headers: authHeaders, body: JSON.stringify(a) });
+      if (!res.ok) return null;
+      await refresh();
+      return await res.json();
+    } catch { return null; }
+  }, [authHeaders, refresh]);
+
+  const updateActivity = useCallback(async (id: string, patch: Partial<BusinessActivity>) => {
+    try {
+      const res = await fetch(`/api/activities/${id}`, { method: "PATCH", headers: authHeaders, body: JSON.stringify(patch) });
+      if (!res.ok) return null;
+      await refresh();
+      return await res.json();
+    } catch { return null; }
+  }, [authHeaders, refresh]);
+
+  const deleteActivity = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/activities/${id}`, { method: "DELETE", headers: authHeaders });
+      if (!res.ok) return false;
+      await refresh();
+      return true;
+    } catch { return false; }
+  }, [authHeaders, refresh]);
+
+  const setActivityMembers = useCallback(async (activityId: string, userIds: string[]) => {
+    try {
+      const res = await fetch(`/api/activities/${activityId}/members`, {
+        method: "PUT", headers: authHeaders, body: JSON.stringify({ userIds }),
+      });
+      if (!res.ok) return false;
+      await refresh();
+      return true;
+    } catch { return false; }
+  }, [authHeaders, refresh]);
 
   return (
     <BusinessActivityContext.Provider
       value={{
         activities,
-        setActivities,
+        refresh,
         userActivities,
         activeActivity,
         setActiveActivity,
         assignments,
-        setAssignments,
+        loading,
         getUserActivityIds,
         getActivityUserIds,
+        createActivity,
+        updateActivity,
+        deleteActivity,
+        setActivityMembers,
       }}
     >
       {children}

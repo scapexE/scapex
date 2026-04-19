@@ -59,8 +59,38 @@ export const users = pgTable("users", {
   avatar: text("avatar"),
   isActive: boolean("is_active").default(true),
   lastLogin: timestamp("last_login"),
+  lastActivityId: text("last_activity_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const businessActivities = pgTable("business_activities", {
+  id: text("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en").notNull(),
+  color: text("color").default("blue"),
+  icon: text("icon").default("Layers"),
+  modules: jsonb("modules").$type<string[]>().default([]),
+  active: boolean("active").default(true),
+  companyNameAr: text("company_name_ar"),
+  companyNameEn: text("company_name_en"),
+  companyLogoUrl: text("company_logo_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const activityMembers = pgTable("activity_members", {
+  id: serial("id").primaryKey(),
+  activityId: text("activity_id").notNull().references(() => businessActivities.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  uniq: index("activity_members_uniq").on(t.activityId, t.userId),
+}));
+
+export const insertBusinessActivitySchema = createInsertSchema(businessActivities);
+export type InsertBusinessActivity = z.infer<typeof insertBusinessActivitySchema>;
+export type BusinessActivityRow = typeof businessActivities.$inferSelect;
+export type ActivityMemberRow = typeof activityMembers.$inferSelect;
 
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),

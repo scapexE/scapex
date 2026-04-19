@@ -38,9 +38,27 @@ export function ActivitySwitcher() {
     }
   }, [isAdmin, userActivities, activeActivity, setActiveActivity]);
 
+  // Non-admin without any activity assigned: always show a clear empty state
+  if (!isAdmin && userActivities.length === 0) {
+    return (
+      <div className="px-3 mb-1.5" data-testid="activity-switcher-empty">
+        <div className="w-full flex items-start gap-2 px-2.5 py-2 rounded-lg border border-dashed border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-950/20">
+          <Layers className="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 leading-tight">
+              {isRtl ? "لا توجد أنشطة مُسندة إليك" : "No activities assigned"}
+            </p>
+            <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70 leading-tight mt-0.5">
+              {isRtl ? "تواصل مع المدير" : "Contact your administrator"}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Non-admin with exactly one activity: show static badge (no switcher needed)
-  if (!isAdmin && userActivities.length <= 1) {
-    if (userActivities.length === 0) return null;
+  if (!isAdmin && userActivities.length === 1) {
     const act = userActivities[0];
     const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor];
     return (
@@ -52,9 +70,16 @@ export function ActivitySwitcher() {
           <div className={cn("w-5 h-5 rounded-md flex items-center justify-center shrink-0", c.badge)}>
             <ActivityIcon name={act.icon} className={cn("w-3 h-3", c.text)} />
           </div>
-          <p className={cn("flex-1 text-right text-[11px] font-semibold truncate leading-none", c.text)}>
-            {isRtl ? act.nameAr : act.nameEn}
-          </p>
+          <div className="flex-1 min-w-0 text-right">
+            <p className={cn("text-[11px] font-semibold truncate leading-none", c.text)}>
+              {isRtl ? act.nameAr : act.nameEn}
+            </p>
+            {(act.companyNameAr || act.companyNameEn) && (
+              <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
+                {isRtl ? (act.companyNameAr || act.companyNameEn) : (act.companyNameEn || act.companyNameAr)}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     );

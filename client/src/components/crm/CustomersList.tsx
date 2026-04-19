@@ -148,14 +148,20 @@ export function CustomersList({
   }, [activeActivity, getActivityUserIds]);
 
   const assignableUsers = useMemo(() => {
-    return users.filter(u => {
+    const base = users.filter(u => {
       if (!activityUserIds.has(u.id)) return false;
       const roles = new Set<string>([u.role || "", ...(u.roles || [])]);
       // Exclude pure clients/viewers from assignment targets
       if (roles.has("client") || roles.has("viewer")) return false;
       return true;
     });
-  }, [users, activityUserIds]);
+    const currentAssigneeId = assignTarget?.assignedTo;
+    if (currentAssigneeId && !base.some(u => u.id === currentAssigneeId)) {
+      const cur = users.find(u => u.id === currentAssigneeId);
+      if (cur) return [cur, ...base];
+    }
+    return base;
+  }, [users, activityUserIds, assignTarget?.assignedTo]);
 
   const userById = (id: string | null | undefined) =>
     id ? users.find(u => u.id === id) : null;
@@ -290,13 +296,20 @@ export function CustomersList({
   const usersForActivity = useMemo(() => {
     if (!assignActivity) return [] as SimpleUser[];
     const ids = new Set(getActivityUserIds(assignActivity));
-    return users.filter(u => {
+    const base = users.filter(u => {
       if (!ids.has(u.id)) return false;
       const roles = new Set<string>([u.role || "", ...(u.roles || [])]);
       if (roles.has("client") || roles.has("viewer")) return false;
       return true;
     });
-  }, [assignActivity, users, getActivityUserIds]);
+    // Always include the current assignee even if removed from this activity
+    const currentAssigneeId = assignTarget?.assignedTo;
+    if (currentAssigneeId && !base.some(u => u.id === currentAssigneeId)) {
+      const cur = users.find(u => u.id === currentAssigneeId);
+      if (cur) return [cur, ...base];
+    }
+    return base;
+  }, [assignActivity, users, getActivityUserIds, assignTarget?.assignedTo]);
 
   const handleAssign = async () => {
     if (!assignTarget) return;

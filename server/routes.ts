@@ -20,10 +20,115 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals } from "@shared/schema";
-import { and, desc } from "drizzle-orm";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users } from "@shared/schema";
+import { and, desc, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
+
+// Default activity catalog (mirror of client/src/lib/activities.ts DEFAULT_ACTIVITIES)
+const DEFAULT_ACTIVITY_CATALOG: Array<{
+  id: string; nameAr: string; nameEn: string; color: string; icon: string; modules: string[];
+}> = [
+  { id: "act_eng_consulting",    nameAr: "استشارات هندسية",  nameEn: "Engineering Consultancy",      color: "blue",    icon: "HardHat",     modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"] },
+  { id: "act_env_consulting",    nameAr: "استشارات بيئية",   nameEn: "Environmental Consultancy",    color: "emerald", icon: "Leaf",        modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"] },
+  { id: "act_safety_consulting", nameAr: "استشارات سلامة",   nameEn: "Safety Consultancy",           color: "amber",   icon: "ShieldAlert", modules: ["dashboard","crm","sales","accounting","projects","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"] },
+  { id: "act_safety_services",   nameAr: "خدمات سلامة",      nameEn: "Safety Services",              color: "orange",  icon: "Flame",       modules: ["dashboard","crm","sales","accounting","purchases","equipment","smart_proposal","hse","attendance","mobile_app","hr","payroll","dms"] },
+  { id: "act_contracting",       nameAr: "مقاولات",           nameEn: "Contracting",                  color: "violet",  icon: "Building2",   modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"] },
+  { id: "act_metal_recycling",   nameAr: "تدوير المعادن",    nameEn: "Metal Recycling",              color: "teal",    icon: "RefreshCcw",  modules: ["dashboard","crm","sales","accounting","purchases","inventory","equipment","smart_proposal","hr","payroll","attendance","hse","dms","bi"] },
+];
+
+async function seedDefaultActivities() {
+  try {
+    const existing = await db.select().from(businessActivities);
+    if (existing.length > 0) return;
+
+    // 1) First check legacy app_data for previously-saved activities
+    const legacy = await db.select().from(appData).where(eq(appData.key, "scapex_activities"));
+    const legacyAsg = await db.select().from(appData).where(eq(appData.key, "scapex_activity_assignments"));
+
+    const cos = await db.select().from(companies);
+    const insertedActivityIds = new Set<string>();
+
+    if (legacy.length > 0 && Array.isArray((legacy[0] as any).value)) {
+      // Migrate legacy activities → assign each to first company that referenced it via settings.activityIds
+      const list = (legacy[0] as any).value as any[];
+      for (const a of list) {
+        if (!a?.id || !a?.nameAr || !a?.nameEn) continue;
+        const owner = cos.find((c) => Array.isArray((c.settings as any)?.activityIds) && (c.settings as any).activityIds.includes(a.id));
+        const targetId = `${a.id}_c${owner?.id ?? cos[0]?.id ?? 0}`;
+        if (insertedActivityIds.has(targetId)) continue;
+        insertedActivityIds.add(targetId);
+        await db.insert(businessActivities).values({
+          id: targetId,
+          companyId: owner?.id ?? cos[0]?.id ?? null,
+          nameAr: a.nameAr, nameEn: a.nameEn,
+          color: a.color || "blue", icon: a.icon || "Layers",
+          modules: Array.isArray(a.modules) ? a.modules : [],
+          active: a.active ?? true,
+          companyNameAr: a.companyNameAr || owner?.nameAr || null,
+          companyNameEn: a.companyNameEn || owner?.nameEn || null,
+          companyLogoUrl: a.companyLogoUrl || owner?.logoUrl || null,
+        }).onConflictDoNothing();
+      }
+      // Migrate legacy assignments
+      if (legacyAsg.length > 0 && Array.isArray((legacyAsg[0] as any).value)) {
+        const asgs = (legacyAsg[0] as any).value as Array<{ activityId: string; userIds: string[] }>;
+        for (const a of asgs) {
+          for (const uid of a.userIds || []) {
+            // map old id → new (per company)
+            const matches = Array.from(insertedActivityIds).filter((id) => id.startsWith(a.activityId + "_c"));
+            for (const newId of matches) {
+              try {
+                await db.insert(activityMembers).values({ activityId: newId, userId: uid }).onConflictDoNothing();
+              } catch { /* user may not exist */ }
+            }
+          }
+        }
+      }
+    }
+
+    // 2) Otherwise (or in addition) seed defaults: create one activity per company × catalog item the company needs
+    for (const company of cos) {
+      const catalogIds: string[] = Array.isArray((company.settings as any)?.activityIds) && (company.settings as any).activityIds.length > 0
+        ? (company.settings as any).activityIds
+        : DEFAULT_ACTIVITY_CATALOG.map((c) => c.id);
+      for (const catId of catalogIds) {
+        const cat = DEFAULT_ACTIVITY_CATALOG.find((x) => x.id === catId);
+        if (!cat) continue;
+        const targetId = `${cat.id}_c${company.id}`;
+        if (insertedActivityIds.has(targetId)) continue;
+        await db.insert(businessActivities).values({
+          id: targetId,
+          companyId: company.id,
+          nameAr: cat.nameAr, nameEn: cat.nameEn,
+          color: cat.color, icon: cat.icon, modules: cat.modules,
+          active: true,
+          companyNameAr: company.nameAr,
+          companyNameEn: company.nameEn,
+          companyLogoUrl: company.logoUrl,
+        }).onConflictDoNothing();
+        insertedActivityIds.add(targetId);
+      }
+    }
+
+    // 3) Auto-assign admins/managers to all activities for visibility
+    const allUsers = await db.select().from(users);
+    const allActivities = await db.select().from(businessActivities);
+    for (const u of allUsers) {
+      const userRoles = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
+      if (!userRoles.has("admin") && !userRoles.has("manager")) continue;
+      for (const a of allActivities) {
+        try {
+          await db.insert(activityMembers).values({ activityId: a.id, userId: u.id }).onConflictDoNothing();
+        } catch { /* ignore */ }
+      }
+    }
+
+    console.log("✅ Default business activities seeded");
+  } catch (err) {
+    console.error("Seed activities error:", err);
+  }
+}
 
 async function seedDefaultCompanies() {
   try {
@@ -106,6 +211,7 @@ export async function registerRoutes(
 
   await seedDefaultUsers();
   await seedDefaultCompanies();
+  await seedDefaultActivities();
 
   await db.execute(`CREATE TABLE IF NOT EXISTS app_data (
     key TEXT PRIMARY KEY,
@@ -160,6 +266,174 @@ export async function registerRoutes(
       await db.delete(appData).where(eq(appData.key, req.params.key));
       res.json({ success: true });
     } catch (err: any) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ═══ Business Activities CRUD + Members ═══════════════════════════════
+  async function isAdminOrManager(req: any): Promise<boolean> {
+    const actorId = (req.header("x-user-id") || "").trim();
+    if (!actorId) return false;
+    const [u] = await db.select().from(users).where(eq(users.id, actorId));
+    if (!u) return false;
+    const r = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
+    return r.has("admin") || r.has("manager");
+  }
+
+  app.get("/api/activities", async (req, res) => {
+    try {
+      const userId = (req.query.userId as string) || null;
+      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : null;
+      const conds: any[] = [];
+      if (companyId) conds.push(eq(businessActivities.companyId, companyId));
+      const rows = conds.length
+        ? await db.select().from(businessActivities).where(and(...conds))
+        : await db.select().from(businessActivities);
+      const memberRows = await db.select().from(activityMembers);
+      const memberMap: Record<string, string[]> = {};
+      for (const m of memberRows) {
+        (memberMap[m.activityId] ||= []).push(m.userId);
+      }
+      let result = rows.map((a) => ({ ...a, userIds: memberMap[a.id] || [] }));
+      if (userId) {
+        result = result.filter((a) => (memberMap[a.id] || []).includes(userId));
+      }
+      res.json(result);
+    } catch (err: any) {
+      console.error("List activities error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/activities", async (req, res) => {
+    try {
+      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+      const d = req.body || {};
+      if (!d.nameAr || !d.nameEn || !d.companyId) {
+        return res.status(400).json({ error: "nameAr, nameEn and companyId are required" });
+      }
+      const id: string = d.id || `act_${Date.now()}_c${d.companyId}`;
+      const [row] = await db.insert(businessActivities).values({
+        id,
+        companyId: parseInt(String(d.companyId)),
+        nameAr: d.nameAr, nameEn: d.nameEn,
+        color: d.color || "blue",
+        icon: d.icon || "Layers",
+        modules: Array.isArray(d.modules) ? d.modules : [],
+        active: d.active ?? true,
+        companyNameAr: d.companyNameAr || null,
+        companyNameEn: d.companyNameEn || null,
+        companyLogoUrl: d.companyLogoUrl || null,
+      }).returning();
+      res.json(row);
+    } catch (err: any) {
+      console.error("Create activity error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/activities/:id", async (req, res) => {
+    try {
+      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+      const d = req.body || {};
+      const [existing] = await db.select().from(businessActivities).where(eq(businessActivities.id, req.params.id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      const [row] = await db.update(businessActivities).set({
+        nameAr: d.nameAr ?? existing.nameAr,
+        nameEn: d.nameEn ?? existing.nameEn,
+        color: d.color ?? existing.color,
+        icon: d.icon ?? existing.icon,
+        modules: Array.isArray(d.modules) ? d.modules : existing.modules,
+        active: d.active ?? existing.active,
+        companyId: d.companyId != null ? parseInt(String(d.companyId)) : existing.companyId,
+        companyNameAr: d.companyNameAr ?? existing.companyNameAr,
+        companyNameEn: d.companyNameEn ?? existing.companyNameEn,
+        companyLogoUrl: d.companyLogoUrl ?? existing.companyLogoUrl,
+      }).where(eq(businessActivities.id, req.params.id)).returning();
+      res.json(row);
+    } catch (err: any) {
+      console.error("Update activity error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/activities/:id", async (req, res) => {
+    try {
+      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+      await db.delete(businessActivities).where(eq(businessActivities.id, req.params.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete activity error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // Bulk replace members for an activity
+  app.put("/api/activities/:id/members", async (req, res) => {
+    try {
+      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+      const userIds: string[] = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+      const activityId = req.params.id;
+      await db.delete(activityMembers).where(eq(activityMembers.activityId, activityId));
+      for (const uid of userIds) {
+        try {
+          await db.insert(activityMembers).values({ activityId, userId: uid }).onConflictDoNothing();
+        } catch { /* skip invalid users */ }
+      }
+      res.json({ success: true, count: userIds.length });
+    } catch (err: any) {
+      console.error("Set activity members error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/activities/:id/members", async (req, res) => {
+    try {
+      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+      const userId: string = req.body?.userId;
+      if (!userId) return res.status(400).json({ error: "userId required" });
+      await db.insert(activityMembers).values({ activityId: req.params.id, userId }).onConflictDoNothing();
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Add activity member error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/activities/:id/members/:userId", async (req, res) => {
+    try {
+      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+      await db.delete(activityMembers).where(
+        and(eq(activityMembers.activityId, req.params.id), eq(activityMembers.userId, req.params.userId))
+      );
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Remove activity member error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // Persist last selected activity per user
+  app.patch("/api/users/:id/last-activity", async (req, res) => {
+    try {
+      const id = req.params.id;
+      const actorId = (req.header("x-user-id") || "").trim();
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      if (!actor) return res.status(401).json({ error: "Unauthorized" });
+      const actorRoles = new Set<string>([
+        actor.role || "",
+        ...(Array.isArray((actor as any).roles) ? ((actor as any).roles as string[]) : []),
+      ]);
+      const isPrivileged = actorRoles.has("admin") || actorRoles.has("manager");
+      if (actorId !== id && !isPrivileged) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const { activityId } = req.body || {};
+      await db.update(users).set({ lastActivityId: activityId || null }).where(eq(users.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Update last activity error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
