@@ -80,7 +80,7 @@ export function CustomersList({
   const { t, dir } = useLanguage();
   const { toast } = useToast();
   const { currentUser } = useActiveRole();
-  const { activeActivity, getActivityUserIds } = useBusinessActivity();
+  const { activeActivity, activities, getActivityUserIds } = useBusinessActivity();
   const isAdmin = currentUser?.role === "admin" || (currentUser?.roles ?? []).includes("admin");
   const isManager = currentUser?.role === "manager" || (currentUser?.roles ?? []).includes("manager");
   const canSeeAll = isAdmin || isManager;
@@ -99,6 +99,7 @@ export function CustomersList({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [assignTarget, setAssignTarget] = useState<DbContact | null>(null);
   const [assignTo, setAssignTo] = useState<string>("");
+  const [assignActivity, setAssignActivity] = useState<string>("");
   const [form, setForm] = useState({
     nameAr: "", nameEn: "", organization: "", position: "",
     email: "", phone: "", city: "", address: "", source: "active", notes: "",
@@ -282,22 +283,38 @@ export function CustomersList({
   const openAssignDialog = (c: DbContact) => {
     setAssignTarget(c);
     setAssignTo(c.assignedTo || "");
+    setAssignActivity(c.activityId || activeActivity?.id || "");
   };
+
+  // Users that belong to a given activity (for the dialog dropdown)
+  const usersForActivity = useMemo(() => {
+    if (!assignActivity) return [] as SimpleUser[];
+    const ids = new Set(getActivityUserIds(assignActivity));
+    return users.filter(u => {
+      if (!ids.has(u.id)) return false;
+      const roles = new Set<string>([u.role || "", ...(u.roles || [])]);
+      if (roles.has("client") || roles.has("viewer")) return false;
+      return true;
+    });
+  }, [assignActivity, users, getActivityUserIds]);
 
   const handleAssign = async () => {
     if (!assignTarget) return;
+    const activityChanged = isAdmin && assignActivity && assignActivity !== assignTarget.activityId;
     if (!assignTo) {
       toast({ title: isRtl ? "اختر موظفاً" : "Choose an employee", variant: "destructive" });
       return;
     }
     try {
+      const body: any = { assignedTo: assignTo };
+      if (activityChanged) body.activityId = assignActivity;
       const res = await fetch(`/api/customers/${assignTarget.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "x-user-id": currentUser?.id || "",
         },
-        body: JSON.stringify({ assignedTo: assignTo }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("assign failed");
       const targetUser = userById(assignTo);
@@ -667,32 +684,57 @@ export function CustomersList({
           <DialogHeader>
             <DialogTitle>{isRtl ? "نقل / إسناد العميل" : "Transfer / Assign Customer"}</DialogTitle>
             <DialogDescription>
-              {assignTarget && (isRtl
-                ? `اختر الموظف المسؤول عن متابعة العميل "${assignTarget.nameAr || assignTarget.nameEn}".`
-                : `Choose the employee responsible for "${assignTarget.nameEn || assignTarget.nameAr}".`)}
+              {assignTarget && (isAdmin
+                ? (isRtl
+                    ? `بصفتك مدير النظام يمكنك تغيير النشاط والموظف المسؤول عن العميل "${assignTarget.nameAr || assignTarget.nameEn}".`
+                    : `As system admin you can change the activity and the responsible employee for "${assignTarget.nameEn || assignTarget.nameAr}".`)
+                : (isRtl
+                    ? `اختر الموظف المسؤول عن متابعة العميل "${assignTarget.nameAr || assignTarget.nameEn}".`
+                    : `Choose the employee responsible for "${assignTarget.nameEn || assignTarget.nameAr}".`))}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2 space-y-2">
-            <Label htmlFor="assign-to">{isRtl ? "الموظف المسؤول" : "Responsible employee"}</Label>
-            <select
-              id="assign-to"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={assignTo}
-              onChange={(e) => setAssignTo(e.target.value)}
-              data-testid="select-assign-to"
-            >
-              <option value="">{isRtl ? "— اختر موظفاً —" : "— Choose —"}</option>
-              {assignableUsers.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name} {u.role ? `(${u.role})` : ""}
-                </option>
-              ))}
-            </select>
-            {assignableUsers.length === 0 && (
-              <p className="text-xs text-amber-600">
-                {isRtl ? "لا يوجد موظفون مرتبطون بهذا النشاط." : "No employees assigned to this activity."}
-              </p>
+          <div className="py-2 space-y-3">
+            {isAdmin && (
+              <div className="space-y-1.5">
+                <Label htmlFor="assign-activity">{isRtl ? "النشاط التجاري" : "Business activity"}</Label>
+                <select
+                  id="assign-activity"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={assignActivity}
+                  onChange={(e) => { setAssignActivity(e.target.value); setAssignTo(""); }}
+                  data-testid="select-assign-activity"
+                >
+                  <option value="">{isRtl ? "— اختر نشاطاً —" : "— Choose —"}</option>
+                  {activities.filter(a => a.active).map(a => (
+                    <option key={a.id} value={a.id}>
+                      {isRtl ? a.nameAr : a.nameEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
+            <div className="space-y-1.5">
+              <Label htmlFor="assign-to">{isRtl ? "الموظف المسؤول" : "Responsible employee"}</Label>
+              <select
+                id="assign-to"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={assignTo}
+                onChange={(e) => setAssignTo(e.target.value)}
+                data-testid="select-assign-to"
+              >
+                <option value="">{isRtl ? "— اختر موظفاً —" : "— Choose —"}</option>
+                {(isAdmin ? usersForActivity : assignableUsers).map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} {u.role ? `(${u.role})` : ""}
+                  </option>
+                ))}
+              </select>
+              {(isAdmin ? usersForActivity : assignableUsers).length === 0 && (
+                <p className="text-xs text-amber-600">
+                  {isRtl ? "لا يوجد موظفون مرتبطون بهذا النشاط." : "No employees assigned to this activity."}
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignTarget(null)} data-testid="button-cancel-assign">
