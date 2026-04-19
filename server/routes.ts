@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts } from "@shared/schema";
+import { appData, companies, branches, contacts, deals } from "@shared/schema";
 import { and, desc } from "drizzle-orm";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -383,10 +383,91 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      await db.delete(deals).where(eq(deals.contactId, id));
       await db.delete(contacts).where(eq(contacts.id, id));
       res.json({ success: true });
     } catch (err: any) {
       console.error("Delete customer error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ═══ Deals (CRM Pipeline) CRUD ════════════════════════════════════════
+  app.get("/api/deals", async (_req, res) => {
+    try {
+      const rows = await db.select().from(deals).orderBy(desc(deals.createdAt));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("Get deals error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/deals", async (req, res) => {
+    try {
+      const d = req.body || {};
+      if (!d.titleEn && !d.titleAr) {
+        return res.status(400).json({ error: "Title is required" });
+      }
+      const result = await db.insert(deals).values({
+        companyId: d.companyId ?? null,
+        contactId: d.contactId ?? null,
+        titleAr: d.titleAr || d.titleEn || null,
+        titleEn: d.titleEn || d.titleAr || null,
+        value: d.value != null ? String(d.value) : "0",
+        currency: d.currency || "SAR",
+        expectedClose: d.expectedClose || null,
+        notes: d.notes || null,
+        nextAction: d.nextAction || null,
+        stage: d.stage || "new",
+        priority: d.priority || "medium",
+        status: d.status || "open",
+        source: d.source || null,
+        createdBy: d.createdBy || null,
+      }).returning();
+      res.json(result[0]);
+    } catch (err: any) {
+      console.error("Create deal error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/deals/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const d = req.body || {};
+      const [existing] = await db.select().from(deals).where(eq(deals.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      const result = await db.update(deals).set({
+        contactId: d.contactId ?? existing.contactId,
+        titleAr: d.titleAr ?? existing.titleAr,
+        titleEn: d.titleEn ?? existing.titleEn,
+        value: d.value != null ? String(d.value) : existing.value,
+        currency: d.currency ?? existing.currency,
+        expectedClose: d.expectedClose ?? existing.expectedClose,
+        notes: d.notes ?? existing.notes,
+        nextAction: d.nextAction ?? existing.nextAction,
+        stage: d.stage ?? existing.stage,
+        priority: d.priority ?? existing.priority,
+        status: d.status ?? existing.status,
+        updatedAt: new Date(),
+      }).where(eq(deals.id, id)).returning();
+      res.json(result[0]);
+    } catch (err: any) {
+      console.error("Update deal error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/deals/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      await db.delete(deals).where(eq(deals.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete deal error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
