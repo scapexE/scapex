@@ -1,0 +1,132 @@
+root@srv1495061:/var/www/scapex# cd /var/www/scapex
+
+# 1) نظّف pm2 ومسح ملفات السجل القديمة
+pm2 delete scapex
+pm2 flush
+
+# 2) تأكد أن DATABASE_URL يُحمَّل من .env عند التشغيل
+set -a; source .env; set +a
+echo "DB_URL_TEST: ${DATABASE_URL:0:40}..."
+PGPASSWORD='Scape@ERP2025' psql -h localhost -U postgres -d scapeerp -c "SELECT 1;" || echo "❌ DB غير متاح"
+
+# 3) أعد البناء من نسخة نظيفة
+rm -rf dist node_modules/.cache
+npm install --include=dev
+npm run build
+ls -la dist/public/index.html dist/index.cjs
+
+# 4) شغّل بـ pm2 مع تمرير المتغيّرات
+pm2 start dist/index.cjs --name scapex --cwd /var/www/scapex --update-env
+pm2 save
+sleep 4
+
+# 5) اختبر الاستجابة محلياً
+curl -sf http://127.0.0.1:5000/api/customers && echo " ✅ يعمل" || echo " ❌ ما زال معطّلاً"
+pm2 logs scapex --lines 30 --nostream
+[PM2] Applying action deleteProcessId on app [scapex](ids: [ 0 ])
+[PM2] [scapex](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[PM2] Flushing /root/.pm2/pm2.log
+[PM2] Logs flushed
+DB_URL_TEST: postgresql://postgres:Scape%40ERP2025@lo...
+ ?column? 
+----------
+        1
+(1 row)
+
+
+up to date, audited 459 packages in 2s
+
+76 packages are looking for funding
+  run `npm fund` for details
+
+12 vulnerabilities (1 low, 5 moderate, 6 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+Version bumped to V1.0.5
+building client...
+vite v7.3.1 building client environment for production...
+✓ 2572 modules transformed.
+rendering chunks (1)...[meta-images] no Replit deployment domain found, skipping meta tag updates
+../dist/public/index.html                     1.75 kB │ gzip:   0.76 kB
+../dist/public/assets/index-DdOW51aV.css    229.38 kB │ gzip:  30.76 kB
+../dist/public/assets/index-ji7dmqAR.js   1,740.43 kB │ gzip: 469.12 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 6.65s
+building server...
+
+  dist/index.cjs  1.0mb ⚠️
+
+⚡ Done in 105ms
+-rw-r--r-- 1 root root 1086884 Apr 19 22:37 dist/index.cjs
+-rw-r--r-- 1 root root    1753 Apr 19 22:37 dist/public/index.html
+[PM2] Starting /var/www/scapex/dist/index.cjs in fork_mode (1 instance)
+[PM2] Done.
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ scapex             │ fork     │ 0    │ online    │ 0%       │ 7.8mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+[{"id":1,"companyId":null,"nameAr":"سكيب","nameEn":"Scape","email":"scape.eng@gmail.com","phone":"0565659333","mobile":"0565659333","organization":"مقاولات","position":"عبدالرحمن","type":"customer","source":"lead","address":"المدينة","city":"المدينة المنورة","notes":null,"tags":[],"isActive":true,"activityId":null,"assignedTo":null,"createdBy":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","createdAt":"2026-04-19T21:38:55.859Z","updatedAt":"2026-04-19T21:38:55.859Z"}] ✅ يعمل
+[TAILING] Tailing last 30 lines for [scapex] process (change the value with --lines option)
+/root/.pm2/logs/scapex-error.log last 30 lines:
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | error: password authentication failed for user "postgres"
+0|scapex   |     at /var/www/scapex/dist/index.cjs:59:14227
+0|scapex   |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:65:31413
+0|scapex   |     at async sw (/var/www/scapex/dist/index.cjs:65:131347)
+0|scapex   |     at async vw (/var/www/scapex/dist/index.cjs:86:5115)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:90:15536 {
+0|scapex   |   length: 104,
+0|scapex   |   severity: 'FATAL',
+0|scapex   |   code: '28P01',
+0|scapex   |   detail: undefined,
+0|scapex   |   hint: undefined,
+0|scapex   |   position: undefined,
+0|scapex   |   internalPosition: undefined,
+0|scapex   |   internalQuery: undefined,
+0|scapex   |   where: undefined,
+0|scapex   |   schema: undefined,
+0|scapex   |   table: undefined,
+0|scapex   |   column: undefined,
+0|scapex   |   dataType: undefined,
+0|scapex   |   constraint: undefined,
+0|scapex   |   file: 'auth.c',
+0|scapex   |   line: '343',
+0|scapex   |   routine: 'auth_failed'
+0|scapex   | }
+
+/root/.pm2/logs/scapex-out.log last 30 lines:
+0|scapex   | ادات الشركة","timestamp":"2026-04-01T16:21:10.095Z"},{"id":"mng7xlearwe7ua","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-01T15:46:27.346Z"},{"id":"mng7p17u4mkrxo","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:39:47.946Z"},{"id":"mng7nmqy54gr5s","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:38:42.538Z"},{"id":"mng7hdrfbp3yll","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:33:50.955Z"},{"id":"mng7e2d7o4eliy","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:31:16.219Z"},{"id":"mn3qo7ebijduf5","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-03-23T22:10:01.715Z"},{"id":"mn3edoyfsexpz5","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-03-23T16:25:55.863Z"}],"scapex_about_settings":{"email1":"info@scape.sa","email2":"support@scape.sa","phone1":"0565659333","phone2":"","address":"المملكة العربية السعودية، المدينة المنورة\nطريق الملك عبدالله، برج الراجحي\nالطابق 2، مكتب 202","website":"www.scape.sa","branches":[{"id":"br-1775338487918-vn9s","city":"jeddah","phone":"","nameAr":"مكتب جدة","nameEn":"jeddah office","address":"","manager":"محمد عيسى","isActive":true}],"crNumber":"1010234567","whatsapp":"0565659333","addressEn":"Kingdom of Saudi Arabia, Madinah, \nKing Abdullah Road, Al Rajhi Tower, \n2nd Floor, Office 202","vatNumber":"300012345600003","linkedinUrl":"https://linkedin.com/company/scapex","companyNameAr":"شركة سكيب للاستشارات الهندسية","companyNameEn":"Scape Engineering Consultants","descriptionAr":"سكيبكس هو نظام متكامل لإدارة موارد المؤسسات (ERP) مصمم خصيصاً للسوق السعودي. يوفر النظام 22 وحدة عمل تغطي جميع احتياجات الشركات من إدارة العملاء والمبيعات والمشتريات والمحاسبة والموارد البشرية والمشاريع الهندسية والسلامة المهنية وغيرها. يتميز بدعم كامل للغتين العربية والإنجليزية مع واجهة حديثة ونظام صلاحيات متقدم.","descriptionEn":"Scapex is a comprehensive Enterprise Resource Planning (ERP) system designed specifically for the Saudi market. The platform provides 22 business modules covering all enterprise needs including CRM, Sales, Purchasing, Accounting, HR, Engineering Projects, HSE, and more. It features full Arabic/English bilingual support with a modern interface and advanced role-based access control.","twitterHandle":"@scape_sa","workingHoursAr":"الأحد – الخميس: 10:00 ص – 6:00 م","workingHoursEn":"Sun – Thu: 10:00 AM – 6:00 PM"}}
+0|scapex   | 10:12:06 PM [express] GET /api/deals 304 in 2ms :: [{"id":1,"companyId":null,"contactId":1,"stageId":null,"titleAr":"اشراف على مشروع","titleEn":"اشراف على مشروع","value":"5000.00","currency":"SAR","probability":0,"expectedClose":null,"assignedTo":null,"source":null,"notes":null,"status":"open","stage":"new","priority":"high","nextAction":null,"lostReason":null,"createdBy":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","createdAt":"2026-04-19T21:47:10.148Z","updatedAt":"2026-04-19T21:47:25.625Z"}]
+0|scapex   | 10:12:06 PM [express] GET /api/customers 304 in 3ms :: [{"id":1,"companyId":null,"nameAr":"سكيب","nameEn":"Scape","email":"scape.eng@gmail.com","phone":"0565659333","mobile":"0565659333","organization":"مقاولات","position":"عبدالرحمن","type":"customer","source":"lead","address":"المدينة","city":"المدينة المنورة","notes":null,"tags":[],"isActive":true,"createdBy":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","createdAt":"2026-04-19T21:38:55.859Z","updatedAt":"2026-04-19T21:38:55.859Z"}]
+0|scapex   | 🚀 Webhook وصل من GitHub
+0|scapex   | 10:16:30 PM [express] serving on port 5000
+0|scapex   | 10:16:55 PM [express] serving on port 5000
+0|scapex   | 10:37:15 PM [express] serving on port 5000
+0|scapex   | 10:37:18 PM [express] GET /api/customers 200 in 6ms :: [{"id":1,"companyId":null,"nameAr":"سكيب","nameEn":"Scape","email":"scape.eng@gmail.com","phone":"0565659333","mobile":"0565659333","organization":"مقاولات","position":"عبدالرحمن","type":"customer","source":"lead","address":"المدينة","city":"المدينة المنورة","notes":null,"tags":[],"isActive":true,"activityId":null,"assignedTo":null,"createdBy":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","createdAt":"2026-04-19T21:38:55.859Z","updatedAt":"2026-04-19T21:38:55.859Z"}]
+
+root@srv1495061:/var/www/scapex# 
