@@ -66,8 +66,9 @@ const formatDate = (s: string | null, isRtl: boolean) => {
   } catch { return s; }
 };
 
-export function PipelineBoard({ onCreateProposal }: {
+export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   onCreateProposal?: (data: ProposalPrefill) => void;
+  openAddDialogSignal?: number;
 }) {
   const { t, dir } = useLanguage();
   const { toast } = useToast();
@@ -114,6 +115,17 @@ export function PipelineBoard({ onCreateProposal }: {
   }, [toast, isRtl]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    if (openAddDialogSignal !== undefined && openAddDialogSignal > 0) {
+      setAddStage("new");
+      setForm({
+        titleAr: "", titleEn: "", contactId: "", value: "",
+        priority: "medium", nextAction: "", expectedClose: "", notes: "",
+      });
+      setAddOpen(true);
+    }
+  }, [openAddDialogSignal]);
 
   const customerById = (id: number | null) => id ? customers.find(c => c.id === id) : null;
   const dealClientName = (d: DbDeal) => {

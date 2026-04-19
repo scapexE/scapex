@@ -15,15 +15,15 @@ export default function CRMModule() {
   const isRtl = dir === "rtl";
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("pipeline");
-  const [addCustomerSignal, setAddCustomerSignal] = useState(0);
+  const [addLeadSignal, setAddLeadSignal] = useState(0);
 
   const handleNewProposal = () => {
     navigate("/smart-proposal");
   };
 
   const handleNewLead = () => {
-    setActiveTab("customers");
-    setAddCustomerSignal((n) => n + 1);
+    setActiveTab("pipeline");
+    setAddLeadSignal((n) => n + 1);
   };
 
   return (
@@ -46,7 +46,7 @@ export default function CRMModule() {
           </div>
         </div>
 
-        <Tabs defaultValue="pipeline" className="flex-1 flex flex-col min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-full sm:w-auto self-start border-border/50 bg-secondary/50">
             <TabsTrigger value="pipeline" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('crm.tab.pipeline')}</TabsTrigger>
             <TabsTrigger value="customers" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('crm.tab.customers')}</TabsTrigger>
@@ -55,7 +55,7 @@ export default function CRMModule() {
 
           <div className="flex-1 mt-4 overflow-hidden relative">
             <TabsContent value="pipeline" className="h-full m-0 data-[state=active]:flex flex-col">
-              <PipelineBoard onCreateProposal={(data: ProposalPrefill) => {
+              <PipelineBoard openAddDialogSignal={addLeadSignal} onCreateProposal={(data: ProposalPrefill) => {
                 try {
                   dbSetItem("scapex_proposal_prefill", JSON.stringify({
                     clientName:    data.clientName,
