@@ -1,0 +1,61 @@
+/root/.pm2/logs/scapex-out.log last 50 lines:
+0|scapex   | e":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-16T07:50:45.463Z"},{"id":"mo1482rbpoi0s9","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-16T06:45:47.639Z"},{"id":"mnyr5u8aujzm32","action":"logout","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged out","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل خروج","timestamp":"2026-04-14T15:04:35.914Z"},{"id":"mnyr31v3pesvdn","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-14T15:02:25.839Z"},{"id":"mnkupsyh1r8cpc","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-04T21:35:19.769Z"},{"id":"mnkumecjhnzk3a","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-04T21:32:40.867Z"},{"id":"mnkulptbjpn1hg","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-04T21:32:09.071Z"},{"id":"mnku2zos5jirjp","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-04T21:17:35.404Z"},{"id":"mnhlb1t1cl84si","action":"login","module":"auth","userId":"6c169973-75de-4b48-beba-eafc9e2b575b","details":"User مجتبى محمد  logged in","userName":"مجتبى محمد ","userRole":"engineer","detailsAr":"المستخدم مجتبى محمد  سجّل دخول","timestamp":"2026-04-02T14:48:36.325Z"},{"id":"mnhkrnqvhhc5qd","action":"sign","module":"proposals","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"First party signed proposal PRO-2026-0003","userName":"عبدالرحمن","userRole":"admin","detailsAr":"الطرف الأول وقّع على عرض السعر PRO-2026-0003","timestamp":"2026-04-02T14:33:31.639Z"},{"id":"mnhkjqkie2qhbc","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-02T14:27:22.050Z"},{"id":"mngb66u124s19x","action":"sign","module":"proposals","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"First party signed proposal PRO-2026-0002","userName":"عبدالرحمن","userRole":"admin","detailsAr":"الطرف الأول وقّع على عرض السعر PRO-2026-0002","timestamp":"2026-04-01T17:17:07.225Z"},{"id":"mngb2vx2vhabih","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T17:14:33.110Z"},{"id":"mngb2hsckiew7r","action":"logout","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن خليفه logged out","userName":"عبدالرحمن خليفه","userRole":"admin","detailsAr":"المستخدم عبدالرحمن خليفه سجّل خروج","timestamp":"2026-04-01T17:14:14.796Z"},{"id":"mng968gfldpbco","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-01T16:21:10.095Z"},{"id":"mng7xlearwe7ua","action":"update","module":"company_settings","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"Updated company settings","userName":"عبدالرحمن","userRole":"admin","detailsAr":"تم تحديث إعدادات الشركة","timestamp":"2026-04-01T15:46:27.346Z"},{"id":"mng7p17u4mkrxo","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:39:47.946Z"},{"id":"mng7nmqy54gr5s","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:38:42.538Z"},{"id":"mng7hdrfbp3yll","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:33:50.955Z"},{"id":"mng7e2d7o4eliy","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-04-01T15:31:16.219Z"},{"id":"mn3qo7ebijduf5","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-03-23T22:10:01.715Z"},{"id":"mn3edoyfsexpz5","action":"login","module":"auth","userId":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","details":"User عبدالرحمن logged in","userName":"عبدالرحمن","userRole":"admin","detailsAr":"المستخدم عبدالرحمن سجّل دخول","timestamp":"2026-03-23T16:25:55.863Z"}],"scapex_about_settings":{"email1":"info@scape.sa","email2":"support@scape.sa","phone1":"0565659333","phone2":"","address":"المملكة العربية السعودية، المدينة المنورة\nطريق الملك عبدالله، برج الراجحي\nالطابق 2، مكتب 202","website":"www.scape.sa","branches":[{"id":"br-1775338487918-vn9s","city":"jeddah","phone":"","nameAr":"مكتب جدة","nameEn":"jeddah office","address":"","manager":"محمد عيسى","isActive":true}],"crNumber":"1010234567","whatsapp":"0565659333","addressEn":"Kingdom of Saudi Arabia, Madinah, \nKing Abdullah Road, Al Rajhi Tower, \n2nd Floor, Office 202","vatNumber":"300012345600003","linkedinUrl":"https://linkedin.com/company/scapex","companyNameAr":"شركة سكيب للاستشارات الهندسية","companyNameEn":"Scape Engineering Consultants","descriptionAr":"سكيبكس هو نظام متكامل لإدارة موارد المؤسسات (ERP) مصمم خصيصاً للسوق السعودي. يوفر النظام 22 وحدة عمل تغطي جميع احتياجات الشركات من إدارة العملاء والمبيعات والمشتريات والمحاسبة والموارد البشرية والمشاريع الهندسية والسلامة المهنية وغيرها. يتميز بدعم كامل للغتين العربية والإنجليزية مع واجهة حديثة ونظام صلاحيات متقدم.","descriptionEn":"Scapex is a comprehensive Enterprise Resource Planning (ERP) system designed specifically for the Saudi market. The platform provides 22 business modules covering all enterprise needs including CRM, Sales, Purchasing, Accounting, HR, Engineering Projects, HSE, and more. It features full Arabic/English bilingual support with a modern interface and advanced role-based access control.","twitterHandle":"@scape_sa","workingHoursAr":"الأحد – الخميس: 10:00 ص – 6:00 م","workingHoursEn":"Sun – Thu: 10:00 AM – 6:00 PM"}}
+0|scapex   | 10:12:06 PM [express] GET /api/deals 304 in 2ms :: [{"id":1,"companyId":null,"contactId":1,"stageId":null,"titleAr":"اشراف على مشروع","titleEn":"اشراف على مشروع","value":"5000.00","currency":"SAR","probability":0,"expectedClose":null,"assignedTo":null,"source":null,"notes":null,"status":"open","stage":"new","priority":"high","nextAction":null,"lostReason":null,"createdBy":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","createdAt":"2026-04-19T21:47:10.148Z","updatedAt":"2026-04-19T21:47:25.625Z"}]
+0|scapex   | 10:12:06 PM [express] GET /api/customers 304 in 3ms :: [{"id":1,"companyId":null,"nameAr":"سكيب","nameEn":"Scape","email":"scape.eng@gmail.com","phone":"0565659333","mobile":"0565659333","organization":"مقاولات","position":"عبدالرحمن","type":"customer","source":"lead","address":"المدينة","city":"المدينة المنورة","notes":null,"tags":[],"isActive":true,"createdBy":"0dbd1490-2202-4322-9cb9-45aa3ca76f6d","createdAt":"2026-04-19T21:38:55.859Z","updatedAt":"2026-04-19T21:38:55.859Z"}]
+0|scapex   | 🚀 Webhook وصل من GitHub
+0|scapex   | 10:16:30 PM [express] serving on port 5000
+0|scapex   | 10:16:55 PM [express] serving on port 5000
+
+/root/.pm2/logs/scapex-error.log last 50 lines:
+0|scapex   |     '/var/www/scapex/client/src/components/ui/label.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/scroll-area.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/collapsible.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/dropdown-menu.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/sidebar.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/item.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/chart.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/aspect-ratio.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/signature-pad.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/avatar.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/popover.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/calendar.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/kbd.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/input.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/radio-group.tsx',
+0|scapex   |     '/var/www/scapex/client/src/components/ui/input-group.tsx',
+0|scapex   |     ... 58 more items
+0|scapex   |   ]
+0|scapex   | }
+0|scapex   | 
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | Error: ENOENT: no such file or directory, stat '/var/www/scapex/dist/public/index.html'
+0|scapex   | error: password authentication failed for user "postgres"
+0|scapex   |     at /var/www/scapex/dist/index.cjs:59:14227
+0|scapex   |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:65:31413
+0|scapex   |     at async sw (/var/www/scapex/dist/index.cjs:65:131347)
+0|scapex   |     at async vw (/var/www/scapex/dist/index.cjs:86:5115)
+0|scapex   |     at async /var/www/scapex/dist/index.cjs:90:15536 {
+0|scapex   |   length: 104,
+0|scapex   |   severity: 'FATAL',
+0|scapex   |   code: '28P01',
+0|scapex   |   detail: undefined,
+0|scapex   |   hint: undefined,
+0|scapex   |   position: undefined,
+0|scapex   |   internalPosition: undefined,
+0|scapex   |   internalQuery: undefined,
+0|scapex   |   where: undefined,
+0|scapex   |   schema: undefined,
+0|scapex   |   table: undefined,
+0|scapex   |   column: undefined,
+0|scapex   |   dataType: undefined,
+0|scapex   |   constraint: undefined,
+0|scapex   |   file: 'auth.c',
+0|scapex   |   line: '343',
+0|scapex   |   routine: 'auth_failed'
+0|scapex   | }
+
+root@srv1495061:/var/www/scapex# 
