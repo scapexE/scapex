@@ -51,8 +51,8 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
   const [projects, setProjects] = useState<Project[]>([]);
   const [apiProjects, setApiProjects] = useState<ApiProject[]>([]);
   const [stagesByProject, setStagesByProject] = useState<Record<number, ApiStage[]>>({});
-  const [customersList, setCustomersList] = useState<any[]>([]);
-  const [usersList, setUsersList] = useState<any[]>([]);
+  const [customersList, setCustomersList] = useState<Array<{ id: number; nameAr?: string | null; nameEn?: string | null; }>>([]);
+  const [usersList, setUsersList] = useState<Array<{ id: string; name?: string | null; firstName?: string | null; lastName?: string | null; }>>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [surveyCount, setSurveyCount] = useState(0);
   const { activeActivity, isPrivileged } = useActivityScope();

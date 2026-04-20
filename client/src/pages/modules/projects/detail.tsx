@@ -19,7 +19,10 @@ import { cn } from "@/lib/utils";
 import { scopedFetch } from "@/lib/queryClient";
 import {
   getProject, updateProject, listStages, createStage, updateStage, deleteStage,
-  type ApiProject, type ApiStage, type ProjectStatus, type StageStatus,
+  listProjectDocuments, createProjectDocument, deleteProjectDocument,
+  listProjectInvoices,
+  type ApiProject, type ApiStage, type ApiProjectDocument, type ApiProjectInvoice,
+  type ProjectStatus, type StageStatus,
   PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN,
   STAGE_STATUS_LABELS_AR, STAGE_STATUS_LABELS_EN,
 } from "@/lib/projectsApi";
@@ -267,35 +270,11 @@ export default function ProjectDetailPage() {
           </TabsContent>
 
           <TabsContent value="documents" className="m-0">
-            <Card className="border-border/50">
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" />{isRtl ? "مستندات المشروع" : "Project documents"}</CardTitle></CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-muted-foreground text-sm" data-testid="text-documents-empty">
-                  {isRtl
-                    ? "لم يتم ربط أي مستندات بهذا المشروع بعد. سيتم تفعيل الربط مع وحدة إدارة المستندات (DMS) في تحديث قريب."
-                    : "No documents linked to this project yet. Linking with the Document Management (DMS) module is coming in a future update."}
-                </div>
-              </CardContent>
-            </Card>
+            <ProjectDocumentsTab projectId={project.id} isRtl={isRtl} userName={userName} />
           </TabsContent>
 
           <TabsContent value="payments" className="m-0">
-            <Card className="border-border/50">
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><CreditCard className="w-4 h-4" />{isRtl ? "المدفوعات والفواتير" : "Payments & invoices"}</CardTitle></CardHeader>
-              <CardContent>
-                {project.budget && (
-                  <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
-                    <div className="border border-border/50 rounded-lg p-3"><div className="text-muted-foreground text-xs">{isRtl ? "الميزانية" : "Budget"}</div><div className="font-semibold text-lg" data-testid="text-budget">{project.budget}</div></div>
-                    <div className="border border-border/50 rounded-lg p-3"><div className="text-muted-foreground text-xs">{isRtl ? "المصروف" : "Spent"}</div><div className="font-semibold text-lg" data-testid="text-spent">{project.spent ?? "0.00"}</div></div>
-                  </div>
-                )}
-                <div className="text-center py-8 text-muted-foreground text-sm" data-testid="text-payments-empty">
-                  {isRtl
-                    ? "لا توجد فواتير مرتبطة بعد. سيتم عرض الفواتير المرتبطة بهذا المشروع من وحدة الفواتير قريباً."
-                    : "No invoices linked yet. Linked invoices from the Invoices module will appear here in a future update."}
-                </div>
-              </CardContent>
-            </Card>
+            <ProjectPaymentsTab project={project} isRtl={isRtl} />
           </TabsContent>
 
           <TabsContent value="history" className="m-0">
@@ -348,6 +327,187 @@ export default function ProjectDetailPage() {
         />
       )}
     </MainLayout>
+  );
+}
+
+function ProjectDocumentsTab({ projectId, isRtl, userName }: {
+  projectId: number; isRtl: boolean; userName: (id: string | null | undefined) => string | null;
+}) {
+  const { toast } = useToast();
+  const [docs, setDocs] = useState<ApiProjectDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ titleAr: "", titleEn: "", fileUrl: "", description: "", type: "" });
+  const [saving, setSaving] = useState(false);
+
+  const reload = async () => {
+    setLoading(true);
+    try { setDocs(await listProjectDocuments(projectId)); }
+    catch (e) { setDocs([]); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [projectId]);
+
+  const submit = async () => {
+    if (!form.titleAr && !form.titleEn) {
+      toast({ title: isRtl ? "العنوان مطلوب" : "Title is required", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await createProjectDocument(projectId, {
+        titleAr: form.titleAr || form.titleEn,
+        titleEn: form.titleEn || form.titleAr,
+        type: form.type || null,
+        fileUrl: form.fileUrl || null,
+        description: form.description || null,
+      });
+      setForm({ titleAr: "", titleEn: "", fileUrl: "", description: "", type: "" });
+      setShowAdd(false);
+      reload();
+    } catch (err) {
+      toast({ title: isRtl ? "تعذّر الحفظ" : "Failed", description: (err as Error).message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" />{isRtl ? "مستندات المشروع" : "Project documents"}</CardTitle>
+        <Button size="sm" onClick={() => setShowAdd(true)} data-testid="button-add-document">
+          <Plus className="w-4 h-4 mr-1 rtl:ml-1 rtl:mr-0" />{isRtl ? "ربط مستند" : "Link document"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">{isRtl ? "جارٍ التحميل..." : "Loading..."}</div>
+        ) : docs.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm" data-testid="text-documents-empty">
+            {isRtl ? "لا توجد مستندات. أضف مستنداً للبدء." : "No documents yet. Add one to get started."}
+          </div>
+        ) : (
+          <div className="space-y-2" data-testid="list-documents">
+            {docs.map(d => (
+              <div key={d.id} className="flex items-center justify-between border border-border/50 rounded-lg p-3 hover-elevate" data-testid={`row-document-${d.id}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm truncate">{isRtl ? (d.titleAr || d.titleEn) : (d.titleEn || d.titleAr)}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                    {d.type && <span className="uppercase tracking-wide">{d.type}</span>}
+                    {d.uploadedBy && <span>· {userName(d.uploadedBy)}</span>}
+                    {d.createdAt && <span>· {new Date(d.createdAt).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {d.fileUrl && (
+                    <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline" data-testid={`link-document-${d.id}`}>
+                      {isRtl ? "فتح" : "Open"}
+                    </a>
+                  )}
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"
+                    onClick={async () => {
+                      if (!confirm(isRtl ? "حذف؟" : "Delete?")) return;
+                      await deleteProjectDocument(d.id);
+                      setDocs(prev => prev.filter(x => x.id !== d.id));
+                    }} data-testid={`button-delete-document-${d.id}`}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{isRtl ? "ربط مستند" : "Link document"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label>{isRtl ? "العنوان (عربي)" : "Title (Arabic)"}</Label>
+              <Input value={form.titleAr} onChange={e => setForm({ ...form, titleAr: e.target.value })} data-testid="input-doc-titleAr" /></div>
+            <div className="col-span-2"><Label>{isRtl ? "العنوان (إنجليزي)" : "Title (English)"}</Label>
+              <Input value={form.titleEn} onChange={e => setForm({ ...form, titleEn: e.target.value })} data-testid="input-doc-titleEn" /></div>
+            <div><Label>{isRtl ? "النوع" : "Type"}</Label>
+              <Input value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} placeholder="contract / drawing / report" data-testid="input-doc-type" /></div>
+            <div><Label>{isRtl ? "الرابط" : "URL"}</Label>
+              <Input value={form.fileUrl} onChange={e => setForm({ ...form, fileUrl: e.target.value })} placeholder="https://..." data-testid="input-doc-url" /></div>
+            <div className="col-span-2"><Label>{isRtl ? "وصف" : "Description"}</Label>
+              <Textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} data-testid="input-doc-desc" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAdd(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={submit} disabled={saving} data-testid="button-save-document">
+              {saving ? (isRtl ? "جارٍ الحفظ..." : "Saving...") : (isRtl ? "حفظ" : "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function ProjectPaymentsTab({ project, isRtl }: { project: ApiProject; isRtl: boolean }) {
+  const [invoices, setInvoices] = useState<ApiProjectInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setLoading(true);
+    listProjectInvoices(project.id).then(setInvoices).catch(() => setInvoices([])).finally(() => setLoading(false));
+  }, [project.id]);
+
+  const totals = useMemo(() => {
+    const billed = invoices.reduce((s, i) => s + Number(i.total ?? 0), 0);
+    const paid = invoices.reduce((s, i) => s + Number(i.paidAmount ?? 0), 0);
+    return { billed, paid, outstanding: billed - paid };
+  }, [invoices]);
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader><CardTitle className="text-base flex items-center gap-2"><CreditCard className="w-4 h-4" />{isRtl ? "المدفوعات والفواتير" : "Payments & invoices"}</CardTitle></CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm mb-4">
+          <Stat label={isRtl ? "الميزانية" : "Budget"} value={project.budget ?? "—"} testid="text-budget" />
+          <Stat label={isRtl ? "المصروف" : "Spent"} value={project.spent ?? "0.00"} testid="text-spent" />
+          <Stat label={isRtl ? "المُفوتر" : "Billed"} value={totals.billed.toFixed(2)} testid="text-billed" />
+          <Stat label={isRtl ? "المسدد" : "Paid"} value={totals.paid.toFixed(2)} testid="text-paid" />
+        </div>
+        {loading ? (
+          <div className="text-center py-6 text-muted-foreground text-sm">{isRtl ? "جارٍ التحميل..." : "Loading..."}</div>
+        ) : invoices.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm" data-testid="text-payments-empty">
+            {isRtl
+              ? "لا توجد فواتير مرتبطة بهذا العميل/العقد بعد."
+              : "No invoices linked to this client/contract yet."}
+          </div>
+        ) : (
+          <div className="space-y-2" data-testid="list-invoices">
+            {invoices.map(i => (
+              <div key={i.id} className="flex items-center justify-between border border-border/50 rounded-lg p-3" data-testid={`row-invoice-${i.id}`}>
+                <div>
+                  <div className="font-medium text-sm">{i.invoiceNumber}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {i.issueDate && <span>{new Date(i.issueDate).toLocaleDateString()}</span>}
+                    {i.status && <Badge variant="outline" className="ml-2 rtl:mr-2 rtl:ml-0 text-[10px]">{i.status}</Badge>}
+                  </div>
+                </div>
+                <div className="text-end">
+                  <div className="font-semibold text-sm tabular-nums">{Number(i.total ?? 0).toFixed(2)} {i.currency || ""}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {isRtl ? "مدفوع" : "Paid"}: <span className="tabular-nums">{Number(i.paidAmount ?? 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Stat({ label, value, testid }: { label: string; value: string | number; testid?: string }) {
+  return (
+    <div className="border border-border/50 rounded-lg p-3">
+      <div className="text-muted-foreground text-xs">{label}</div>
+      <div className="font-semibold text-lg tabular-nums" data-testid={testid}>{value}</div>
+    </div>
   );
 }
 

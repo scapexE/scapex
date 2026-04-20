@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 interface SimpleCustomer { id: number; nameAr?: string | null; nameEn?: string | null; }
-interface SimpleUser { id: string; name?: string; firstName?: string; lastName?: string; }
+interface SimpleUser { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; }
 
 export function ProjectsList() {
   const { dir } = useLanguage();

@@ -142,6 +142,54 @@ export const STAGE_STATUS_LABELS_EN: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+// ─────── Project documents (DMS link) ────────────────────────────
+export interface ApiProjectDocument {
+  id: number;
+  projectId: number | null;
+  titleAr: string;
+  titleEn: string | null;
+  type: string | null;
+  fileUrl: string | null;
+  description: string | null;
+  uploadedBy: string | null;
+  createdAt: string | null;
+}
+
+export async function listProjectDocuments(projectId: number) {
+  const r = await scopedFetch(`/api/projects/${projectId}/documents`);
+  if (!r.ok) throw new Error(`Failed to load documents: ${r.status}`);
+  return (await r.json()) as ApiProjectDocument[];
+}
+export async function createProjectDocument(projectId: number, body: Partial<ApiProjectDocument>) {
+  const r = await apiRequest("POST", `/api/projects/${projectId}/documents`, body);
+  return (await r.json()) as ApiProjectDocument;
+}
+export async function deleteProjectDocument(id: number) {
+  const r = await apiRequest("DELETE", `/api/project-documents/${id}`);
+  return r.ok;
+}
+
+// ─────── Project invoices ────────────────────────────────────────
+export interface ApiProjectInvoice {
+  id: number;
+  invoiceNumber: string;
+  type: string | null;
+  status: string | null;
+  issueDate: string | null;
+  dueDate: string | null;
+  subtotal: string | null;
+  vatAmount: string | null;
+  total: string | null;
+  paidAmount: string | null;
+  currency: string | null;
+}
+
+export async function listProjectInvoices(projectId: number) {
+  const r = await scopedFetch(`/api/projects/${projectId}/invoices`);
+  if (!r.ok) throw new Error(`Failed to load invoices: ${r.status}`);
+  return (await r.json()) as ApiProjectInvoice[];
+}
+
 /** Default stage template applied to new projects when no custom stages provided. */
 export const DEFAULT_PROJECT_STAGES: Array<{ titleAr: string; titleEn: string }> = [
   { titleAr: "عرض السعر", titleEn: "Proposal" },

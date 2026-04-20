@@ -20,8 +20,8 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones } from "@shared/schema";
-import { and, desc, inArray } from "drizzle-orm";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, notifications } from "@shared/schema";
+import { and, desc, inArray, or } from "drizzle-orm";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -928,8 +928,16 @@ export async function registerRoutes(
     if (!scope.ok) return { ok: false as const, status: scope.status, error: scope.error };
     const [row] = await db.select().from(projects).where(eq(projects.id, id));
     if (!row) return { ok: false as const, status: 404, error: "Not found" };
-    if (!scope.isPrivileged && row.activityId && !(scope.allowedIds || []).includes(row.activityId)) {
-      return { ok: false as const, status: 403, error: "Forbidden: project is in a different activity" };
+    // Hardened scope: a non-privileged user MUST belong to the project's
+    // activity. We also explicitly deny rows whose activityId is null so
+    // legacy/unscoped projects don't leak across the tenant boundary.
+    if (!scope.isPrivileged) {
+      if (!row.activityId) {
+        return { ok: false as const, status: 403, error: "Forbidden: project has no activity scope" };
+      }
+      if (!(scope.allowedIds || []).includes(row.activityId)) {
+        return { ok: false as const, status: 403, error: "Forbidden: project is in a different activity" };
+      }
     }
     return { ok: true as const, row, scope };
   }
@@ -943,8 +951,16 @@ export async function registerRoutes(
       const managerId = (req.query.managerId as string) || null;
       const conds: any[] = [];
       if (scope.activityId) conds.push(eq(projects.activityId, scope.activityId));
-      else if (!scope.isPrivileged && scope.allowedIds && scope.allowedIds.length) {
-        conds.push(inArray(projects.activityId, scope.allowedIds));
+      else if (!scope.isPrivileged) {
+        // Non-privileged callers without a chosen activity see only projects
+        // whose activityId is one they explicitly belong to. Null activityId
+        // rows are excluded (hardened scope).
+        if (scope.allowedIds && scope.allowedIds.length) {
+          conds.push(inArray(projects.activityId, scope.allowedIds));
+        } else {
+          // No allowed activities → cannot see anything.
+          return res.json([]);
+        }
       }
       if (status) conds.push(eq(projects.status, status));
       if (contactId && !isNaN(contactId)) conds.push(eq(projects.contactId, contactId));
@@ -1072,7 +1088,10 @@ export async function registerRoutes(
       const r = await loadScopedProject(req, req.params.id);
       if (!r.ok) return res.status(r.status).json({ error: r.error });
       if (!r.scope.isPrivileged) return res.status(403).json({ error: "Forbidden" });
+      // Cascade-clean child rows that hold FKs to projects (no ON DELETE
+      // CASCADE in schema yet): stages and project documents.
       await db.delete(projectMilestones).where(eq(projectMilestones.projectId, r.row.id));
+      await db.delete(documents).where(eq(documents.projectId, r.row.id));
       await db.delete(projects).where(eq(projects.id, r.row.id));
       res.json({ success: true });
     } catch (err: any) {
@@ -1115,6 +1134,7 @@ export async function registerRoutes(
         projectId: r.row.id,
         titleAr: d.titleAr || d.titleEn,
         titleEn: d.titleEn || d.titleAr || null,
+        // (notification fired below after the row is created)
         descriptionAr: d.descriptionAr || null,
         descriptionEn: d.descriptionEn || null,
         assignedTo: d.assignedTo || null,
@@ -1131,6 +1151,21 @@ export async function registerRoutes(
         // filter works if anyone queries them directly later on.
         activityId: r.row.activityId,
       }).returning();
+      // Notify the assignee, if any, that they've been assigned to this stage.
+      if (result[0].assignedTo) {
+        const projectName = r.row.nameAr || r.row.nameEn || `#${r.row.id}`;
+        const stageName = result[0].titleAr || result[0].titleEn || `#${result[0].id}`;
+        await db.insert(notifications).values({
+          companyId: r.row.companyId ?? null,
+          userId: result[0].assignedTo,
+          titleAr: "تم تعيينك لمرحلة جديدة",
+          titleEn: "You were assigned a new stage",
+          message: `${stageName} — ${projectName}`,
+          type: "info",
+          module: "projects",
+          entityId: String(result[0].id),
+        }).catch(e => console.error("notify assign create:", e));
+      }
       res.json(result[0]);
     } catch (err: any) {
       console.error("Create stage error:", err);
@@ -1158,6 +1193,7 @@ export async function registerRoutes(
       const d = req.body || {};
       // Auto-stamp completedAt when status flips to "completed"
       const becameComplete = d.status === "completed" && stage.status !== "completed";
+      const reassignedTo = (d.assignedTo !== undefined && d.assignedTo !== stage.assignedTo) ? d.assignedTo : null;
       const upd = await db.update(projectMilestones).set({
         titleAr: d.titleAr ?? stage.titleAr,
         titleEn: d.titleEn ?? stage.titleEn,
@@ -1175,6 +1211,35 @@ export async function registerRoutes(
         sortOrder: d.sortOrder ?? stage.sortOrder,
         completedAt: becameComplete ? new Date() : stage.completedAt,
       }).where(eq(projectMilestones.id, sid)).returning();
+      // Notification triggers (best-effort; never fail the response).
+      try {
+        const projectName = r.row.nameAr || r.row.nameEn || `#${r.row.id}`;
+        const stageName = upd[0].titleAr || upd[0].titleEn || `#${upd[0].id}`;
+        if (reassignedTo) {
+          await db.insert(notifications).values({
+            companyId: r.row.companyId ?? null,
+            userId: reassignedTo,
+            titleAr: "تم تعيينك لمرحلة",
+            titleEn: "You were assigned to a stage",
+            message: `${stageName} — ${projectName}`,
+            type: "info",
+            module: "projects",
+            entityId: String(upd[0].id),
+          });
+        }
+        if (becameComplete && r.row.managerId && r.row.managerId !== r.scope.actor.id) {
+          await db.insert(notifications).values({
+            companyId: r.row.companyId ?? null,
+            userId: r.row.managerId,
+            titleAr: "اكتملت مرحلة في مشروعك",
+            titleEn: "A stage in your project was completed",
+            message: `${stageName} — ${projectName}`,
+            type: "success",
+            module: "projects",
+            entityId: String(upd[0].id),
+          });
+        }
+      } catch (e) { console.error("notify stage update:", e); }
       res.json(upd[0]);
     } catch (err: any) {
       console.error("Update stage error:", err);
@@ -1202,6 +1267,122 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (err: any) {
       console.error("Delete stage error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ─────── Project documents (real DMS link, not a stub) ────────
+  app.get("/api/projects/:id/documents", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const rows = await db.select().from(documents)
+        .where(eq(documents.projectId, r.row.id))
+        .orderBy(desc(documents.createdAt));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("List project documents error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/projects/:id/documents", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      // Anyone scoped to the project may attach documents (project members
+      // need to upload contracts, drawings, etc.).
+      const d = req.body || {};
+      if (!d.titleAr && !d.titleEn) return res.status(400).json({ error: "Title is required" });
+      const result = await db.insert(documents).values({
+        projectId: r.row.id,
+        companyId: r.row.companyId ?? null,
+        titleAr: d.titleAr || d.titleEn,
+        titleEn: d.titleEn || null,
+        type: d.type || null,
+        fileUrl: d.fileUrl || null,
+        description: d.description || null,
+        uploadedBy: r.scope.actor.id,
+        activityId: r.row.activityId,
+      }).returning();
+      res.status(201).json(result[0]);
+    } catch (err: any) {
+      console.error("Create project document error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/project-documents/:id", async (req, res) => {
+    try {
+      const did = parseInt(req.params.id);
+      if (isNaN(did)) return res.status(400).json({ error: "Invalid id" });
+      const [doc] = await db.select().from(documents).where(eq(documents.id, did));
+      if (!doc) return res.status(404).json({ error: "Not found" });
+      if (!doc.projectId) return res.status(400).json({ error: "Not a project document" });
+      const r = await loadScopedProject(req, String(doc.projectId));
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const actorId = r.scope.actor.id;
+      const allowed = r.scope.isPrivileged || doc.uploadedBy === actorId
+        || r.row.managerId === actorId || r.row.createdBy === actorId;
+      if (!allowed) return res.status(403).json({ error: "Forbidden" });
+      await db.delete(documents).where(eq(documents.id, did));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete project document error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ─────── Project invoices (real link via shared contact) ──────
+  app.get("/api/projects/:id/invoices", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      // Project ↔ invoice linkage: invoices share the same contactId, OR
+      // share the same contractId. Activity scope is implicit (the project
+      // and its invoices both carry activityId).
+      const conds: any[] = [];
+      if (r.row.contactId) conds.push(eq(invoices.contactId, r.row.contactId));
+      if (r.row.contractId) conds.push(eq(invoices.contractId, r.row.contractId));
+      if (!conds.length) return res.json([]);
+      const rows = await db.select().from(invoices)
+        .where(conds.length === 1 ? conds[0] : or(...conds))
+        .orderBy(desc(invoices.issueDate));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("List project invoices error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ─────── Notifications (basic) ────────────────────────────────
+  app.get("/api/notifications", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const rows = await db.select().from(notifications)
+        .where(eq(notifications.userId, scope.actor.id))
+        .orderBy(desc(notifications.createdAt))
+        .limit(50);
+      res.json(rows);
+    } catch (err: any) {
+      console.error("List notifications error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const [n] = await db.select().from(notifications).where(eq(notifications.id, id));
+      if (!n || n.userId !== scope.actor.id) return res.status(404).json({ error: "Not found" });
+      await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Mark notification read error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
