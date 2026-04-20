@@ -248,6 +248,7 @@ export const proposals = pgTable("proposals", {
   approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const proposalItems = pgTable("proposal_items", {
@@ -285,6 +286,7 @@ export const contracts = pgTable("contracts", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const contractItems = pgTable("contract_items", {
@@ -322,6 +324,7 @@ export const vendors = pgTable("vendors", {
   isActive: boolean("is_active").default(true),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const purchaseOrders = pgTable("purchase_orders", {
@@ -342,6 +345,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const purchaseOrderItems = pgTable("purchase_order_items", {
@@ -370,6 +374,7 @@ export const warehouses = pgTable("warehouses", {
   managerId: varchar("manager_id").references(() => users.id),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const inventoryItems = pgTable("inventory_items", {
@@ -390,6 +395,7 @@ export const inventoryItems = pgTable("inventory_items", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const stockMovements = pgTable("stock_movements", {
@@ -403,6 +409,7 @@ export const stockMovements = pgTable("stock_movements", {
   notes: text("notes"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -421,6 +428,7 @@ export const chartOfAccounts = pgTable("chart_of_accounts", {
   currency: varchar("currency", { length: 5 }).default("SAR"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const fiscalPeriods = pgTable("fiscal_periods", {
@@ -449,6 +457,7 @@ export const journalEntries = pgTable("journal_entries", {
   createdBy: varchar("created_by").references(() => users.id),
   approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const journalEntryLines = pgTable("journal_entry_lines", {
@@ -483,6 +492,7 @@ export const invoices = pgTable("invoices", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const invoiceItems = pgTable("invoice_items", {
@@ -511,6 +521,7 @@ export const payments = pgTable("payments", {
   notes: text("notes"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -527,6 +538,7 @@ export const departments = pgTable("departments", {
   parentId: integer("parent_id"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const positions = pgTable("positions", {
@@ -574,6 +586,7 @@ export const employees = pgTable("employees", {
   profilePhoto: text("profile_photo"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const employeeDocuments = pgTable("employee_documents", {
@@ -619,6 +632,7 @@ export const payrollBatches = pgTable("payroll_batches", {
   paidAt: timestamp("paid_at"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const payrollItems = pgTable("payroll_items", {
@@ -664,6 +678,7 @@ export const attendanceRecords = pgTable("attendance_records", {
   location: text("location"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const leaveTypes = pgTable("leave_types", {
@@ -689,6 +704,7 @@ export const leaveRequests = pgTable("leave_requests", {
   approvedBy: varchar("approved_by").references(() => users.id),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -721,6 +737,7 @@ export const projects = pgTable("projects", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const projectTasks = pgTable("project_tasks", {
@@ -789,6 +806,7 @@ export const drawings = pgTable("drawings", {
   approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const drawingVersions = pgTable("drawing_versions", {
@@ -846,6 +864,7 @@ export const permits = pgTable("permits", {
   notes: text("notes"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -871,6 +890,7 @@ export const incidents = pgTable("incidents", {
   investigatedBy: varchar("investigated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const inspections = pgTable("inspections", {
@@ -889,6 +909,7 @@ export const inspections = pgTable("inspections", {
   recommendations: text("recommendations"),
   inspectorId: varchar("inspector_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const safetyTrainings = pgTable("safety_trainings", {
@@ -906,6 +927,7 @@ export const safetyTrainings = pgTable("safety_trainings", {
   status: text("status").default("scheduled"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -945,6 +967,7 @@ export const assets = pgTable("assets", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const maintenanceRecords = pgTable("maintenance_records", {
@@ -995,6 +1018,7 @@ export const documents = pgTable("documents", {
   uploadedBy: varchar("uploaded_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const documentVersions = pgTable("document_versions", {
@@ -1047,6 +1071,7 @@ export const approvalRequests = pgTable("approval_requests", {
   requestedAt: timestamp("requested_at").defaultNow(),
   completedAt: timestamp("completed_at"),
   notes: text("notes"),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const approvalActions = pgTable("approval_actions", {
@@ -1091,6 +1116,7 @@ export const services = pgTable("services", {
   tags: jsonb("tags").default([]),
   isActive: boolean("is_active").default(true),
   sortOrder: integer("sort_order").default(0),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

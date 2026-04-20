@@ -590,12 +590,56 @@ export async function registerRoutes(
   });
 
   // ═══ Customers (CRM) CRUD ═══════════════════════════════════════════════
+  // ═══ Activity-scope helpers ═══════════════════════════════════════════
+  // Identify the calling user from the x-user-id header (also used by other routes).
+  async function identifyActor(req: any): Promise<{ id: string; roles: Set<string> } | null> {
+    const actorId = (req.header("x-user-id") || "").trim();
+    if (!actorId) return null;
+    const [row] = await db.select().from(users).where(eq(users.id, actorId));
+    if (!row) return null;
+    const r = new Set<string>([
+      row.role || "",
+      ...(Array.isArray((row as any).roles) ? ((row as any).roles as string[]) : []),
+    ]);
+    return { id: actorId, roles: r };
+  }
+  // Activity scope decision used by every list endpoint that owns module data.
+  // Returns the activityId(s) the request is allowed to read, or a 401/403 sentinel.
+  async function resolveActivityScope(req: any): Promise<
+    | { ok: true; actor: { id: string; roles: Set<string> }; isPrivileged: boolean; activityId: string | null; allowedIds: string[] | null }
+    | { ok: false; status: number; error: string }
+  > {
+    const actor = await identifyActor(req);
+    if (!actor) return { ok: false, status: 401, error: "Unauthorized" };
+    const isPrivileged = actor.roles.has("admin") || actor.roles.has("manager");
+    const headerActivity = (req.header("x-activity-id") || "").trim() || null;
+    const queryActivity = (req.query.activityId as string) || null;
+    const requested = headerActivity || queryActivity || null;
+    // Non-privileged users MUST scope by an activity, and must be a member of it.
+    const memberRows = await db.select().from(activityMembers).where(eq(activityMembers.userId, actor.id));
+    const allowedIds = isPrivileged ? null : memberRows.map((m) => m.activityId);
+    if (!isPrivileged) {
+      if (!requested) {
+        return { ok: false, status: 400, error: "activityId is required" };
+      }
+      if (!(allowedIds || []).includes(requested)) {
+        return { ok: false, status: 403, error: "Forbidden: activity not in your scope" };
+      }
+    }
+    return { ok: true, actor, isPrivileged, activityId: requested, allowedIds };
+  }
+
   app.get("/api/customers", async (req, res) => {
     try {
-      const activityId = (req.query.activityId as string) || null;
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const assignedTo = (req.query.assignedTo as string) || null;
       const conds: any[] = [eq(contacts.type, "customer")];
-      if (activityId) conds.push(eq(contacts.activityId, activityId));
+      if (scope.activityId) conds.push(eq(contacts.activityId, scope.activityId));
+      else if (!scope.isPrivileged && scope.allowedIds && scope.allowedIds.length) {
+        // Defence-in-depth: should never hit because scope was rejected, but constrain anyway
+        conds.push(inArray(contacts.activityId, scope.allowedIds));
+      }
       if (assignedTo) conds.push(eq(contacts.assignedTo, assignedTo));
       const where = conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.createdAt));
@@ -608,10 +652,17 @@ export async function registerRoutes(
 
   app.post("/api/customers", async (req, res) => {
     try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const d = req.body || {};
       if (!d.nameEn && !d.nameAr) {
         return res.status(400).json({ error: "Name is required" });
       }
+      // Force activityId to the request scope (header) for non-privileged users.
+      // Privileged callers may pick the activity explicitly via body.activityId.
+      const writeActivityId = scope.isPrivileged
+        ? (d.activityId || scope.activityId || null)
+        : scope.activityId;
       const result = await db.insert(contacts).values({
         companyId: d.companyId ?? null,
         nameAr: d.nameAr || d.nameEn || null,
@@ -628,9 +679,9 @@ export async function registerRoutes(
         notes: d.notes || null,
         tags: Array.isArray(d.tags) ? d.tags : [],
         isActive: d.isActive ?? true,
-        activityId: d.activityId || null,
-        assignedTo: d.assignedTo || d.createdBy || null,
-        createdBy: d.createdBy || null,
+        activityId: writeActivityId,
+        assignedTo: d.assignedTo || d.createdBy || scope.actor.id,
+        createdBy: d.createdBy || scope.actor.id,
       }).returning();
       res.json(result[0]);
     } catch (err: any) {
@@ -647,16 +698,15 @@ export async function registerRoutes(
       const [existing] = await db.select().from(contacts).where(eq(contacts.id, id));
       if (!existing) return res.status(404).json({ error: "Not found" });
 
-      // Authorization: derive actor from x-user-id header
-      const actorId = (req.header("x-user-id") || "").trim();
-      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
-      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
-      if (!actor) return res.status(401).json({ error: "Unknown user" });
-      const actorRoles = new Set<string>([
-        actor.role || "",
-        ...(Array.isArray((actor as any).roles) ? (actor as any).roles as string[] : []),
-      ]);
-      const isPrivileged = actorRoles.has("admin") || actorRoles.has("manager");
+      // Authorization + activity scope (membership for the *record's* activity)
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const actorId = scope.actor.id;
+      const isPrivileged = scope.isPrivileged;
+      // Cross-activity guard: non-privileged callers must be a member of the record's activity.
+      if (!isPrivileged && existing.activityId && !(scope.allowedIds || []).includes(existing.activityId)) {
+        return res.status(403).json({ error: "Forbidden: record is in a different activity" });
+      }
       const isOwner = existing.assignedTo === actorId || existing.createdBy === actorId;
 
       // Reassignment-only flow: only assignedTo provided
@@ -698,6 +748,19 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const [existing] = await db.select().from(contacts).where(eq(contacts.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      // Cross-activity guard
+      if (!scope.isPrivileged && existing.activityId && !(scope.allowedIds || []).includes(existing.activityId)) {
+        return res.status(403).json({ error: "Forbidden: record is in a different activity" });
+      }
+      // Only privileged or owner may delete
+      const isOwner = existing.assignedTo === scope.actor.id || existing.createdBy === scope.actor.id;
+      if (!scope.isPrivileged && !isOwner) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       await db.delete(deals).where(eq(deals.contactId, id));
       await db.delete(contacts).where(eq(contacts.id, id));
       res.json({ success: true });
@@ -708,25 +771,19 @@ export async function registerRoutes(
   });
 
   // ═══ Deals (CRM Pipeline) CRUD ════════════════════════════════════════
-  // Helper: identify actor + roles from x-user-id header
-  async function getActor(req: any): Promise<{ id: string; roles: Set<string> } | null> {
-    const actorId = (req.header("x-user-id") || "").trim();
-    if (!actorId) return null;
-    const [actor] = await db.select().from(users).where(eq(users.id, actorId));
-    if (!actor) return null;
-    const roles = new Set<string>([
-      actor.role || "",
-      ...(Array.isArray((actor as any).roles) ? (actor as any).roles as string[] : []),
-    ]);
-    return { id: actorId, roles };
-  }
+  // Backwards-compatible alias for legacy callers in this file.
+  const getActor = identifyActor;
 
   app.get("/api/deals", async (req, res) => {
     try {
-      const activityId = (req.query.activityId as string) || null;
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const assignedTo = (req.query.assignedTo as string) || null;
       const conds: any[] = [];
-      if (activityId) conds.push(eq(deals.activityId, activityId));
+      if (scope.activityId) conds.push(eq(deals.activityId, scope.activityId));
+      else if (!scope.isPrivileged && scope.allowedIds && scope.allowedIds.length) {
+        conds.push(inArray(deals.activityId, scope.allowedIds));
+      }
       if (assignedTo) conds.push(eq(deals.assignedTo, assignedTo));
       const q = db.select().from(deals);
       const rows = conds.length
@@ -741,10 +798,15 @@ export async function registerRoutes(
 
   app.post("/api/deals", async (req, res) => {
     try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const d = req.body || {};
       if (!d.titleEn && !d.titleAr) {
         return res.status(400).json({ error: "Title is required" });
       }
+      const writeActivityId = scope.isPrivileged
+        ? (d.activityId || scope.activityId || null)
+        : scope.activityId;
       const result = await db.insert(deals).values({
         companyId: d.companyId ?? null,
         contactId: d.contactId ?? null,
@@ -759,9 +821,9 @@ export async function registerRoutes(
         priority: d.priority || "medium",
         status: d.status || "open",
         source: d.source || null,
-        activityId: d.activityId || null,
-        assignedTo: d.assignedTo || d.createdBy || null,
-        createdBy: d.createdBy || null,
+        activityId: writeActivityId,
+        assignedTo: d.assignedTo || d.createdBy || scope.actor.id,
+        createdBy: d.createdBy || scope.actor.id,
       }).returning();
       res.json(result[0]);
     } catch (err: any) {
@@ -778,10 +840,14 @@ export async function registerRoutes(
       const [existing] = await db.select().from(deals).where(eq(deals.id, id));
       if (!existing) return res.status(404).json({ error: "Not found" });
 
-      const actor = await getActor(req);
-      if (!actor) return res.status(401).json({ error: "Unauthorized" });
-      const isPrivileged = actor.roles.has("admin") || actor.roles.has("manager");
-      const isOwner = existing.assignedTo === actor.id || existing.createdBy === actor.id;
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const isPrivileged = scope.isPrivileged;
+      // Cross-activity guard
+      if (!isPrivileged && existing.activityId && !(scope.allowedIds || []).includes(existing.activityId)) {
+        return res.status(403).json({ error: "Forbidden: record is in a different activity" });
+      }
+      const isOwner = existing.assignedTo === scope.actor.id || existing.createdBy === scope.actor.id;
       if (!isPrivileged && !isOwner) {
         return res.status(403).json({ error: "Forbidden" });
       }
@@ -813,11 +879,13 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-      const actor = await getActor(req);
-      if (!actor) return res.status(401).json({ error: "Unauthorized" });
-      if (!actor.roles.has("admin") && !actor.roles.has("manager")) {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      if (!scope.isPrivileged) {
         return res.status(403).json({ error: "Forbidden" });
       }
+      const [existing] = await db.select().from(deals).where(eq(deals.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
       await db.delete(deals).where(eq(deals.id, id));
       res.json({ success: true });
     } catch (err: any) {

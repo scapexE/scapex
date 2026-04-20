@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { type SystemUser } from "@/lib/permissions";
+import { setRequestScope } from "@/lib/queryClient";
 
 export type ActivityColor =
   | "blue" | "emerald" | "amber" | "violet" | "cyan" | "rose" | "orange" | "teal"
@@ -116,6 +117,12 @@ export function BusinessActivityProvider({
     const found = (storedId && list.find((a) => a.id === storedId)) || list[0] || null;
     setActiveActivityState(found);
   }, [loading, activities, userActivities, currentUser]);
+
+  // Keep the global fetch scope in sync so every API request carries x-user-id + x-activity-id.
+  // We set it during render (not inside an effect) so the first useQuery fired by children
+  // already has the headers in place — avoiding a race where the initial fetch goes out
+  // un-scoped and is rejected by resolveActivityScope.
+  setRequestScope({ userId: currentUser?.id ?? null, activityId: activeActivity?.id ?? null });
 
   const setActiveActivity = useCallback((a: BusinessActivity | null) => {
     setActiveActivityState(a);
