@@ -48,13 +48,20 @@ async function main() {
       );
       let updated = 0;
       if (hasCompany.rows[0]?.exists) {
+        // Deterministic pick: the oldest active activity for the row's company.
+        // Without this the join is non-deterministic when a company owns several
+        // active activities, which would scatter legacy rows arbitrarily.
         const r1 = await pool.query(
           `update ${table} t
-             set activity_id = ba.id
-             from business_activities ba
+             set activity_id = picked.id
+             from (
+               select distinct on (company_id) company_id, id
+                 from business_activities
+                where active = true
+                order by company_id, created_at asc, id asc
+             ) picked
             where t.activity_id is null
-              and ba.active = true
-              and ba.company_id = t.company_id`,
+              and picked.company_id = t.company_id`,
         );
         updated += r1.rowCount || 0;
       }

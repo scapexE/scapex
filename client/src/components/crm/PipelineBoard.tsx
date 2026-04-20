@@ -118,16 +118,22 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   ];
 
   const fetchData = useCallback(async () => {
-    if (!activeActivity) {
+    // Privileged users (admin/manager) may view "All Activities" — fetch
+    // without activityId; non-privileged users without an activity get
+    // empty (the banner explains what to do).
+    const isPriv = isAdmin || isManager;
+    if (!activeActivity && !isPriv) {
       setDeals([]); setCustomers([]); setLoading(false);
       return;
     }
     try {
       setLoading(true);
-      const params = new URLSearchParams({ activityId: activeActivity.id });
+      const params = new URLSearchParams();
+      if (activeActivity?.id) params.set("activityId", activeActivity.id);
+      const qs = params.toString() ? `?${params.toString()}` : "";
       const [dr, cr, ur] = await Promise.all([
-        scopedFetch(`/api/deals?${params.toString()}`).then(r => r.json()),
-        scopedFetch(`/api/customers?${params.toString()}`).then(r => r.json()),
+        scopedFetch(`/api/deals${qs}`).then(r => r.json()),
+        scopedFetch(`/api/customers${qs}`).then(r => r.json()),
         scopedFetch("/api/users").then(r => r.json()),
       ]);
       setDeals(Array.isArray(dr) ? dr : []);

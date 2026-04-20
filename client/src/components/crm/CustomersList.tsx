@@ -109,16 +109,23 @@ export function CustomersList({
   useEffect(() => { seedDemoSurveys(); }, []);
 
   const fetchData = useCallback(async () => {
-    if (!activeActivity) {
+    // Privileged users (admin/manager) may view "All Activities" — when no
+    // activity is selected we still fetch (server returns the unfiltered set).
+    // Non-privileged users with no activity get an empty list (the banner
+    // tells them what to do).
+    const isPriv = isAdmin || isManager;
+    if (!activeActivity && !isPriv) {
       setRows([]);
       setLoading(false);
       return;
     }
     try {
       setLoading(true);
-      const params = new URLSearchParams({ activityId: activeActivity.id });
+      const params = new URLSearchParams();
+      if (activeActivity?.id) params.set("activityId", activeActivity.id);
+      const url = params.toString() ? `/api/customers?${params.toString()}` : "/api/customers";
       const [r, u] = await Promise.all([
-        scopedFetch(`/api/customers?${params.toString()}`).then(x => x.json()),
+        scopedFetch(url).then(x => x.json()),
         scopedFetch("/api/users").then(x => x.json()),
       ]);
       setRows(Array.isArray(r) ? r : []);
