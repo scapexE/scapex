@@ -150,40 +150,64 @@ export function ActivitySwitcher() {
 
           {isAdmin && userActivities.length > 0 && <div className="h-px bg-sidebar-border/50 mx-2.5" />}
 
-          {/* Activity list */}
-          {userActivities.map((activity) => {
-            const c = ACTIVITY_COLOR_MAP[activity.color as ActivityColor];
-            const isSelected = activeActivity?.id === activity.id;
-            return (
-              <button
-                key={activity.id}
-                data-testid={`activity-option-${activity.id}`}
-                onClick={() => { setActiveActivity(activity); setOpen(false); }}
-                className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2 text-right transition-colors",
-                  isSelected ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"
-                )}
-              >
-                <div className={cn("w-6 h-6 rounded-md flex items-center justify-center shrink-0", c.badge)}>
-                  <ActivityIcon name={activity.icon} className={cn("w-3.5 h-3.5", c.text)} />
+          {/* Activity list — grouped by company so the same activity name
+              showing under two companies isn't perceived as a duplicate.
+              Grouping key is companyId (stable) — display label is the
+              localized company name; two companies with identical display
+              names will still get their own group. */}
+          {(() => {
+            type Group = { id: string; label: string; items: typeof userActivities };
+            const groupMap = new Map<string, Group>();
+            for (const a of userActivities) {
+              const id = a.companyId == null ? "__none__" : `c:${a.companyId}`;
+              const label = (isRtl ? (a.companyNameAr || a.companyNameEn) : (a.companyNameEn || a.companyNameAr)) || (isRtl ? "بدون شركة" : "Unassigned");
+              if (!groupMap.has(id)) groupMap.set(id, { id, label, items: [] });
+              groupMap.get(id)!.items.push(a);
+            }
+            // Deterministic order: groups by label, items by localized name.
+            const collator = new Intl.Collator(isRtl ? "ar" : "en", { sensitivity: "base" });
+            const groups = Array.from(groupMap.values()).sort((x, y) => collator.compare(x.label, y.label));
+            for (const g of groups) {
+              g.items.sort((p, q) => collator.compare(isRtl ? p.nameAr : p.nameEn, isRtl ? q.nameAr : q.nameEn));
+            }
+            return groups.map((group, gi) => (
+              <div key={group.id} role="group" aria-label={group.label}>
+                {gi > 0 && <div className="h-px bg-sidebar-border/40 mx-2.5" />}
+                <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/50 truncate">
+                  {group.label}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className={cn(
-                    "text-xs font-medium truncate",
-                    isSelected ? c.text : "text-sidebar-foreground/80"
-                  )}>
-                    {isRtl ? activity.nameAr : activity.nameEn}
-                  </p>
-                  {(activity.companyNameAr || activity.companyNameEn) && (
-                    <p className="text-[10px] text-sidebar-foreground/40 truncate">
-                      {isRtl ? (activity.companyNameAr || activity.companyNameEn) : (activity.companyNameEn || activity.companyNameAr)}
-                    </p>
-                  )}
-                </div>
-                {isSelected && <Check className={cn("w-3.5 h-3.5 shrink-0", c.text)} />}
-              </button>
-            );
-          })}
+                {group.items.map((activity) => {
+                  const c = ACTIVITY_COLOR_MAP[activity.color as ActivityColor];
+                  const isSelected = activeActivity?.id === activity.id;
+                  return (
+                    <button
+                      key={activity.id}
+                      data-testid={`activity-option-${activity.id}`}
+                      aria-label={`${isRtl ? activity.nameAr : activity.nameEn} — ${group.label}`}
+                      onClick={() => { setActiveActivity(activity); setOpen(false); }}
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-3 py-2 text-right transition-colors",
+                        isSelected ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"
+                      )}
+                    >
+                      <div className={cn("w-6 h-6 rounded-md flex items-center justify-center shrink-0", c.badge)}>
+                        <ActivityIcon name={activity.icon} className={cn("w-3.5 h-3.5", c.text)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "text-xs font-medium truncate",
+                          isSelected ? c.text : "text-sidebar-foreground/80"
+                        )}>
+                          {isRtl ? activity.nameAr : activity.nameEn}
+                        </p>
+                      </div>
+                      {isSelected && <Check className={cn("w-3.5 h-3.5 shrink-0", c.text)} />}
+                    </button>
+                  );
+                })}
+              </div>
+            ));
+          })()}
         </div>
       )}
     </div>

@@ -1,16 +1,11 @@
-import { dbGetItem } from "@/lib/dbStorage";
 import { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { RoleSwitcherBar } from "./RoleSwitcherBar";
-import { ActiveRoleProvider } from "@/contexts/ActiveRoleContext";
-import { BusinessActivityProvider } from "@/contexts/BusinessActivityContext";
-import { SettingsProvider } from "@/contexts/SettingsContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
-import type { SystemUser } from "@/lib/permissions";
 
 // Updates browser tab title based on active activity's company name or global settings
 function DocumentTitleUpdater() {
@@ -47,30 +42,28 @@ function DocumentTitleUpdater() {
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const { dir } = useLanguage();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
 
+  // Providers (Settings/BusinessActivity/ActiveRole) live at the App root
+  // so any page can call useActivityScope() in its function body before
+  // MainLayout mounts. MainLayout just consumes them here.
   return (
-    <SettingsProvider>
-      <BusinessActivityProvider currentUser={currentUser}>
-        <ActiveRoleProvider>
-          <DocumentTitleUpdater />
-          <div className="min-h-screen bg-background flex w-full overflow-hidden" dir={dir}>
-            <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-            <div className={cn(
-              "flex flex-col flex-1 min-w-0 transition-all duration-300 w-full",
-              dir === "rtl" ? "md:mr-72" : "md:ml-72"
-            )}>
-              <Header onMenuClick={() => setIsSidebarOpen(true)} />
-              <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
-                <div className="mx-auto w-full max-w-7xl">
-                  <RoleSwitcherBar />
-                  {children}
-                </div>
-              </main>
+    <>
+      <DocumentTitleUpdater />
+      <div className="min-h-screen bg-background flex w-full overflow-hidden" dir={dir}>
+        <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        <div className={cn(
+          "flex flex-col flex-1 min-w-0 transition-all duration-300 w-full",
+          dir === "rtl" ? "md:mr-72" : "md:ml-72"
+        )}>
+          <Header onMenuClick={() => setIsSidebarOpen(true)} />
+          <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+            <div className="mx-auto w-full max-w-7xl">
+              <RoleSwitcherBar />
+              {children}
             </div>
-          </div>
-        </ActiveRoleProvider>
-      </BusinessActivityProvider>
-    </SettingsProvider>
+          </main>
+        </div>
+      </div>
+    </>
   );
 }

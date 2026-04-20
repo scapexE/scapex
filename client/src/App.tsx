@@ -12,6 +12,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "next-themes";
+import { BusinessActivityProvider } from "@/contexts/BusinessActivityContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
+import { ActiveRoleProvider } from "@/contexts/ActiveRoleContext";
+import { dbGetItem } from "@/lib/dbStorage";
+import type { SystemUser } from "@/lib/permissions";
 import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import CRMModule from "@/pages/modules/crm/index";
@@ -127,13 +132,27 @@ function App() {
     );
   }
 
+  // currentUser is read here so BusinessActivityProvider lives at the app
+  // root — pages that call useActivityScope() in their function body
+  // (e.g. /crm, /projects) need it available BEFORE MainLayout renders.
+  // We re-read on every render so login/logout takes effect immediately.
+  const currentUser: SystemUser | null = (() => {
+    try { return JSON.parse(dbGetItem("user") || "null"); } catch { return null; }
+  })();
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <LanguageProvider>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
-            <Toaster />
-            <Router />
+            <SettingsProvider>
+              <BusinessActivityProvider currentUser={currentUser}>
+                <ActiveRoleProvider>
+                  <Toaster />
+                  <Router />
+                </ActiveRoleProvider>
+              </BusinessActivityProvider>
+            </SettingsProvider>
           </TooltipProvider>
         </QueryClientProvider>
       </LanguageProvider>
