@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, FileText } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState } from "react";
+import { useActivityScope, ActivityRequiredAlert } from "@/hooks/useActivityScope";
 
 export default function CRMModule() {
   const { t, dir } = useLanguage();
@@ -16,12 +17,16 @@ export default function CRMModule() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("pipeline");
   const [addLeadSignal, setAddLeadSignal] = useState(0);
+  // Activity scope: blocks data entry when no activity is selected.
+  const { activityId, isPrivileged } = useActivityScope();
+  const blockingForCreate = !activityId; // even admins must pick one to create scoped rows
 
   const handleNewProposal = () => {
     navigate("/smart-proposal");
   };
 
   const handleNewLead = () => {
+    if (blockingForCreate) return;
     setActiveTab("pipeline");
     setAddLeadSignal((n) => n + 1);
   };
@@ -39,12 +44,18 @@ export default function CRMModule() {
               <FileText className="w-4 h-4" />
               {isRtl ? "إنشاء عرض سعر" : "Create Proposal"}
             </Button>
-            <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={handleNewLead} data-testid="button-new-lead">
+            <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={handleNewLead} disabled={blockingForCreate} data-testid="button-new-lead">
               <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {t('crm.new_lead')}
             </Button>
           </div>
         </div>
+
+        {blockingForCreate && (
+          <div className="shrink-0">
+            <ActivityRequiredAlert blocking={!isPrivileged} />
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-full sm:w-auto self-start border-border/50 bg-secondary/50">

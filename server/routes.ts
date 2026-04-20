@@ -658,11 +658,16 @@ export async function registerRoutes(
       if (!d.nameEn && !d.nameAr) {
         return res.status(400).json({ error: "Name is required" });
       }
-      // Force activityId to the request scope (header) for non-privileged users.
-      // Privileged callers may pick the activity explicitly via body.activityId.
+      // Force activityId to the request scope. Privileged callers may pick the activity
+      // explicitly via body.activityId, but it is REQUIRED — we will not create
+      // unscoped (NULL) records, otherwise the row is invisible to non-privileged users
+      // and breaks tenant isolation.
       const writeActivityId = scope.isPrivileged
         ? (d.activityId || scope.activityId || null)
         : scope.activityId;
+      if (!writeActivityId) {
+        return res.status(400).json({ error: "activityId is required to create a customer" });
+      }
       const result = await db.insert(contacts).values({
         companyId: d.companyId ?? null,
         nameAr: d.nameAr || d.nameEn || null,
@@ -719,6 +724,15 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Forbidden" });
       }
 
+      // Activity transfer is admin/manager-only. A non-privileged caller cannot
+      // move a record into another activity by sending body.activityId.
+      let nextActivityId = existing.activityId;
+      if ("activityId" in d && d.activityId !== undefined && d.activityId !== existing.activityId) {
+        if (!isPrivileged) {
+          return res.status(403).json({ error: "Forbidden: only admin/manager may transfer activity" });
+        }
+        nextActivityId = d.activityId;
+      }
       const result = await db.update(contacts).set({
         nameAr: d.nameAr ?? existing.nameAr,
         nameEn: d.nameEn ?? existing.nameEn,
@@ -733,7 +747,7 @@ export async function registerRoutes(
         notes: d.notes ?? existing.notes,
         tags: d.tags ?? existing.tags,
         isActive: d.isActive ?? existing.isActive,
-        activityId: d.activityId ?? existing.activityId,
+        activityId: nextActivityId,
         assignedTo: d.assignedTo ?? existing.assignedTo,
         updatedAt: new Date(),
       }).where(eq(contacts.id, id)).returning();
@@ -807,6 +821,9 @@ export async function registerRoutes(
       const writeActivityId = scope.isPrivileged
         ? (d.activityId || scope.activityId || null)
         : scope.activityId;
+      if (!writeActivityId) {
+        return res.status(400).json({ error: "activityId is required to create a deal" });
+      }
       const result = await db.insert(deals).values({
         companyId: d.companyId ?? null,
         contactId: d.contactId ?? null,
@@ -852,6 +869,14 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Forbidden" });
       }
 
+      // Activity transfer is admin/manager-only.
+      let nextActivityId = existing.activityId;
+      if ("activityId" in d && d.activityId !== undefined && d.activityId !== existing.activityId) {
+        if (!isPrivileged) {
+          return res.status(403).json({ error: "Forbidden: only admin/manager may transfer activity" });
+        }
+        nextActivityId = d.activityId;
+      }
       const result = await db.update(deals).set({
         contactId: d.contactId ?? existing.contactId,
         titleAr: d.titleAr ?? existing.titleAr,
@@ -864,7 +889,7 @@ export async function registerRoutes(
         stage: d.stage ?? existing.stage,
         priority: d.priority ?? existing.priority,
         status: d.status ?? existing.status,
-        activityId: d.activityId ?? existing.activityId,
+        activityId: nextActivityId,
         assignedTo: d.assignedTo ?? existing.assignedTo,
         updatedAt: new Date(),
       }).where(eq(deals.id, id)).returning();
