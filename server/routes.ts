@@ -1341,12 +1341,19 @@ export async function registerRoutes(
       // Project ↔ invoice linkage: invoices share the same contactId, OR
       // share the same contractId. Activity scope is implicit (the project
       // and its invoices both carry activityId).
-      const conds: any[] = [];
-      if (r.row.contactId) conds.push(eq(invoices.contactId, r.row.contactId));
-      if (r.row.contractId) conds.push(eq(invoices.contractId, r.row.contractId));
-      if (!conds.length) return res.json([]);
+      const linkConds: any[] = [];
+      if (r.row.contactId) linkConds.push(eq(invoices.contactId, r.row.contactId));
+      if (r.row.contractId) linkConds.push(eq(invoices.contractId, r.row.contractId));
+      if (!linkConds.length) return res.json([]);
+      // CRITICAL: also constrain by the project's activityId so invoices
+      // belonging to a different tenant/activity don't leak through a
+      // shared contact id. (Invoices are activity-scoped in the schema.)
+      const linkClause = linkConds.length === 1 ? linkConds[0] : or(...linkConds);
+      const whereClause = r.row.activityId
+        ? and(eq(invoices.activityId, r.row.activityId), linkClause)
+        : linkClause;
       const rows = await db.select().from(invoices)
-        .where(conds.length === 1 ? conds[0] : or(...conds))
+        .where(whereClause)
         .orderBy(desc(invoices.issueDate));
       res.json(rows);
     } catch (err: any) {
@@ -1360,6 +1367,42 @@ export async function registerRoutes(
     try {
       const scope = await resolveActivityScope(req);
       if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      // Best-effort: synthesize "due soon" notifications on demand for any
+      // stage assigned to this user that is due within the next 3 days
+      // (and not yet completed). We dedupe by (userId, module=projects,
+      // entityId, type=due_soon) so the same stage isn't spammed.
+      try {
+        const now = new Date();
+        const threeDays = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+        const dueRows = await db.select().from(projectMilestones)
+          .where(eq(projectMilestones.assignedTo, scope.actor.id));
+        for (const s of dueRows) {
+          if (s.status === "completed" || s.status === "cancelled") continue;
+          const due = s.expectedEnd || s.dueDate;
+          if (!due) continue;
+          const dueDate = new Date(due as any);
+          if (dueDate > threeDays || dueDate < new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)) continue;
+          const existing = await db.select().from(notifications)
+            .where(and(
+              eq(notifications.userId, scope.actor.id),
+              eq(notifications.module, "projects"),
+              eq(notifications.entityId, String(s.id)),
+              eq(notifications.type, "due_soon"),
+            ));
+          if (existing.length) continue;
+          const overdue = dueDate < now;
+          await db.insert(notifications).values({
+            userId: scope.actor.id,
+            titleAr: overdue ? "مرحلة متأخرة" : "مرحلة قاربت على الاستحقاق",
+            titleEn: overdue ? "Stage overdue" : "Stage due soon",
+            message: `${s.titleAr || s.titleEn} — ${dueDate.toLocaleDateString()}`,
+            type: "due_soon",
+            module: "projects",
+            entityId: String(s.id),
+          });
+        }
+      } catch (e) { console.error("notify due-soon scan:", e); }
+
       const rows = await db.select().from(notifications)
         .where(eq(notifications.userId, scope.actor.id))
         .orderBy(desc(notifications.createdAt))
