@@ -218,6 +218,14 @@ export async function registerRoutes(
   // This guard keeps the two strictly isolated so a logged-in customer cannot
   // probe internal endpoints with their own token, and an anonymous caller
   // cannot hit /api/portal/* without a portal token.
+  // Pre-login / bootstrap endpoints that legitimately have no staff identity yet.
+  const STAFF_AUTH_PUBLIC = new Set<string>([
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/send-code",
+    "/api/auth/verify-code",
+    "/api/auth/forgot",
+  ]);
   app.use((req, res, next) => {
     if (!req.path.startsWith("/api/")) return next();
     const isPortalPath = req.path.startsWith("/api/portal/");
@@ -231,12 +239,25 @@ export async function registerRoutes(
       return next();
     }
 
-    // Non-portal /api/* — block portal tokens entirely so a customer cannot
-    // pivot from their own session into staff APIs. Per-route handlers retain
-    // their existing auth checks (x-user-id etc.) for staff identity.
+    // Non-portal /api/* — block portal tokens so a customer cannot pivot from
+    // their own session into staff APIs.
     if (portalDecoded) {
       console.warn(`[guard] portal token blocked from ${req.method} ${req.path}`);
       return res.status(403).json({ error: "Portal users cannot access internal APIs" });
+    }
+
+    // Require a staff identity header on all internal /api/* routes (except
+    // pre-login endpoints). The client wraps window.fetch in main.tsx so
+    // every internal call carries `x-user-id` automatically once a user is
+    // logged in. This prevents anonymous callers from probing internal APIs.
+    if (STAFF_AUTH_PUBLIC.has(req.path)) return next();
+    // /api/app-data is read-only key/value bootstrap data fetched before login
+    // (logos, theme, default lists). Allow GETs through without staff auth;
+    // mutations still require it.
+    if (req.method === "GET" && req.path.startsWith("/api/app-data")) return next();
+    const staffId = (req.header("x-user-id") || "").trim();
+    if (!staffId) {
+      return res.status(401).json({ error: "Staff authentication required" });
     }
     return next();
   });
@@ -1960,14 +1981,15 @@ export async function registerRoutes(
           const [proj] = await db.select().from(projects).where(eq(projects.id, pid));
           if (proj?.managerId) {
             await db.insert(notifications).values({
+              companyId: proj.companyId ?? null,
               userId: proj.managerId,
               type: "portal_request",
               titleAr: "طلب جديد من العميل",
               titleEn: "New customer request",
-              messageAr: String(subject).slice(0, 200),
-              messageEn: String(subject).slice(0, 200),
-              link: `/projects/${pid}`,
-            } as any);
+              message: String(subject).slice(0, 200),
+              module: "portal",
+              entityId: String(row.id),
+            });
           }
         }
       } catch (e) { /* ignore notify failures */ }
