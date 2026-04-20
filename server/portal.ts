@@ -23,14 +23,18 @@ function b64urlDecode(s: string): Buffer {
   return Buffer.from(s, "base64");
 }
 
-export function signPortalToken(contactId: number): string {
-  const payload = JSON.stringify({ cid: contactId, exp: Date.now() + TOKEN_TTL_MS });
-  const body = b64url(payload);
+export function signPortalToken(contactId: number, opts?: { impersonator?: string }): string {
+  // `imp` (when present) is the staff user id who issued the impersonation
+  // token so the portal handlers can recognise admin-preview sessions.
+  const ttl = opts?.impersonator ? 60 * 60 * 1000 : TOKEN_TTL_MS; // impersonation lasts 1h.
+  const payload: any = { cid: contactId, exp: Date.now() + ttl };
+  if (opts?.impersonator) payload.imp = opts.impersonator;
+  const body = b64url(JSON.stringify(payload));
   const sig = b64url(crypto.createHmac("sha256", SECRET).update(body).digest());
   return `${body}.${sig}`;
 }
 
-export function verifyPortalToken(token: string): { contactId: number } | null {
+export function verifyPortalToken(token: string): { contactId: number; impersonator?: string } | null {
   if (!token || typeof token !== "string" || !token.includes(".")) return null;
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
@@ -43,7 +47,7 @@ export function verifyPortalToken(token: string): { contactId: number } | null {
     const payload = JSON.parse(b64urlDecode(body).toString("utf8"));
     if (typeof payload?.cid !== "number") return null;
     if (typeof payload?.exp !== "number" || Date.now() > payload.exp) return null;
-    return { contactId: payload.cid };
+    return { contactId: payload.cid, impersonator: typeof payload.imp === "string" ? payload.imp : undefined };
   } catch { return null; }
 }
 

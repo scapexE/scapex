@@ -1793,7 +1793,14 @@ export async function registerRoutes(
     const decoded = token ? verifyPortalToken(token) : null;
     if (!decoded) { res.status(401).json({ error: "Portal session required" }); return null; }
     const [contact] = await db.select().from(contacts).where(eq(contacts.id, decoded.contactId));
-    if (!contact || !contact.portalEnabled) {
+    if (!contact) {
+      res.status(401).json({ error: "Portal access disabled" });
+      return null;
+    }
+    // Real customer sessions require portalEnabled=true. Admin/manager preview
+    // sessions (token carries `imp` claim) bypass that check so staff can
+    // inspect what a customer would see even before activation.
+    if (!contact.portalEnabled && !decoded.impersonator) {
       res.status(401).json({ error: "Portal access disabled" });
       return null;
     }
@@ -2099,6 +2106,39 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (err: any) {
       console.error("Portal disable error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // Admin-only impersonation: returns a short-lived portal token + contact info
+  // so privileged users can preview the customer portal exactly as the customer
+  // would see it. The token's `imp` claim records the issuing staff id.
+  app.post("/api/customers/:id/portal/impersonate", async (req, res) => {
+    try {
+      const actor = await requirePrivileged(req, res);
+      if (!actor) return;
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const [c] = await db.select().from(contacts).where(eq(contacts.id, id));
+      if (!c) return res.status(404).json({ error: "Not found" });
+      const token = signPortalToken(c.id, { impersonator: actor.id });
+      console.warn(`[portal] impersonation issued: staff=${actor.id} contact=${c.id}`);
+      res.json({
+        token,
+        contact: {
+          id: c.id,
+          name: c.nameAr || c.nameEn || `#${c.id}`,
+          nameAr: c.nameAr,
+          nameEn: c.nameEn,
+          email: c.email,
+          phone: c.phone,
+          companyId: c.companyId,
+          activityId: c.activityId,
+          impersonator: true,
+        },
+      });
+    } catch (err: any) {
+      console.error("Portal impersonate error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });

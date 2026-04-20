@@ -698,6 +698,20 @@ function PortalAdminPanel({ customerId, isRtl }: { customerId: string; isRtl: bo
     } finally { setBusy(false); }
   };
 
+  const previewAsCustomer = async () => {
+    setBusy(true);
+    try {
+      const r = await scopedFetch(`/api/customers/${customerId}/portal/impersonate`, { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { flash("err", j.error || t("فشلت العملية", "Failed")); return; }
+      try {
+        localStorage.setItem("scapex_portal_token", j.token);
+        localStorage.setItem("scapex_portal_contact", JSON.stringify(j.contact));
+      } catch {}
+      window.open("/portal", "_blank", "noopener");
+    } finally { setBusy(false); }
+  };
+
   if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">{t("جارِ التحميل...", "Loading...")}</div>;
 
   return (
@@ -718,6 +732,24 @@ function PortalAdminPanel({ customerId, isRtl }: { customerId: string; isRtl: bo
           {status?.portalEnabled ? "ON" : "OFF"}
         </span>
       </div>
+
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={previewAsCustomer}
+        disabled={busy}
+        className="w-full gap-2"
+        data-testid="button-portal-preview"
+      >
+        <ExternalLink className="w-4 h-4" />
+        {t("معاينة بوابة العميل (دخول كعميل)", "Preview customer portal (sign in as customer)")}
+      </Button>
+      <p className="text-[11px] text-muted-foreground -mt-2 px-1">
+        {t(
+          "تفتح البوابة في نافذة جديدة بصلاحية مؤقتة لمدة ساعة لأغراض المراجعة.",
+          "Opens the portal in a new tab with a temporary 1-hour preview session.",
+        )}
+      </p>
 
       {msg && (
         <div className={cn("text-sm rounded-lg px-3 py-2", msg.type === "ok"
