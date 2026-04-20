@@ -204,6 +204,9 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
               {isRtl ? "الاستطلاعات" : "Surveys"}
               {surveyCount > 0 && <Badge variant="secondary" className="ms-1.5 text-[10px] h-4 px-1">{surveyCount}</Badge>}
             </TabsTrigger>
+            <TabsTrigger value="portal" className="text-xs data-[state=active]:bg-background" data-testid="tab-portal">
+              {isRtl ? "بوابة العميل" : "Portal"}
+            </TabsTrigger>
             <TabsTrigger value="finance" className="text-xs data-[state=active]:bg-background">
               {isRtl ? "المالية" : "Finance"}
             </TabsTrigger>
@@ -493,6 +496,13 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
             />
           </TabsContent>
 
+          {/* ── Portal management ── */}
+          <TabsContent value="portal" className="flex-1 min-h-0 m-0 mt-3">
+            <ScrollArea className="h-full px-6 pb-4">
+              <PortalAdminPanel customerId={customer.id} isRtl={isRtl} />
+            </ScrollArea>
+          </TabsContent>
+
           {/* ── Finance ── */}
           <TabsContent value="finance" className="flex-1 min-h-0 m-0 mt-3">
             <ScrollArea className="h-full px-6 pb-4">
@@ -614,6 +624,144 @@ function FinanceBox({ label, value, color, icon }: {
       <div className={cn("mb-2", iconColors[color])}>{icon}</div>
       <p className="font-bold text-lg">{value}</p>
       <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+// ── Portal admin panel ──────────────────────────────────────────────────────
+function PortalAdminPanel({ customerId, isRtl }: { customerId: string; isRtl: boolean }) {
+  const t = (a: string, e: string) => (isRtl ? a : e);
+  const [status, setStatus] = useState<{ portalEnabled: boolean; nationalId: string | null; hasPassword: boolean; lastLogin: string | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [nationalId, setNationalId] = useState("");
+  const [password, setPassword] = useState("");
+  const [resetPwd, setResetPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await scopedFetch(`/api/customers/${customerId}/portal/status`);
+      if (r.ok) {
+        const j = await r.json();
+        setStatus(j);
+        setNationalId(j.nationalId || "");
+      } else { setStatus(null); }
+    } catch { setStatus(null); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [customerId]);
+
+  const flash = (type: "ok" | "err", text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
+
+  const enable = async () => {
+    if (!nationalId.trim()) { flash("err", t("رقم الهوية مطلوب", "National ID is required")); return; }
+    if (password.length < 6) { flash("err", t("كلمة المرور يجب ألا تقل عن 6 أحرف", "Password must be at least 6 characters")); return; }
+    setBusy(true);
+    try {
+      const r = await scopedFetch(`/api/customers/${customerId}/portal/enable`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nationalId: nationalId.trim(), password }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { flash("err", j.error || t("فشلت العملية", "Failed")); return; }
+      setPassword("");
+      flash("ok", t("تم تفعيل البوابة بنجاح", "Portal enabled successfully"));
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  const reset = async () => {
+    if (resetPwd.length < 6) { flash("err", t("كلمة المرور يجب ألا تقل عن 6 أحرف", "Password must be at least 6 characters")); return; }
+    setBusy(true);
+    try {
+      const r = await scopedFetch(`/api/customers/${customerId}/portal/reset`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: resetPwd }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { flash("err", j.error || t("فشلت العملية", "Failed")); return; }
+      setResetPwd("");
+      flash("ok", t("تم إعادة تعيين كلمة المرور", "Password reset"));
+    } finally { setBusy(false); }
+  };
+
+  const disable = async () => {
+    setBusy(true);
+    try {
+      const r = await scopedFetch(`/api/customers/${customerId}/portal/disable`, { method: "POST" });
+      if (!r.ok) { flash("err", t("فشلت العملية", "Failed")); return; }
+      flash("ok", t("تم تعطيل البوابة", "Portal disabled"));
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">{t("جارِ التحميل...", "Loading...")}</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/40 text-sm">
+        <Shield className="w-4 h-4 text-muted-foreground" />
+        <div className="flex-1">
+          <p className="font-medium">{t("حالة بوابة العميل", "Customer portal status")}</p>
+          <p className="text-xs text-muted-foreground">
+            {status?.portalEnabled
+              ? t("مُفعّل — العميل يستطيع تسجيل الدخول", "Enabled — customer can sign in")
+              : t("غير مُفعّل", "Disabled")}
+            {status?.lastLogin && ` • ${t("آخر دخول", "Last login")}: ${new Date(status.lastLogin).toLocaleString()}`}
+          </p>
+        </div>
+        <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full",
+          status?.portalEnabled ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300")}>
+          {status?.portalEnabled ? "ON" : "OFF"}
+        </span>
+      </div>
+
+      {msg && (
+        <div className={cn("text-sm rounded-lg px-3 py-2", msg.type === "ok"
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+          : "bg-destructive/10 text-destructive")} data-testid="text-portal-admin-msg">
+          {msg.text}
+        </div>
+      )}
+
+      <div className="space-y-3 p-4 rounded-lg border border-border/50">
+        <h4 className="text-sm font-semibold">{status?.portalEnabled ? t("تحديث بيانات الدخول", "Update access") : t("تفعيل البوابة", "Enable portal")}</h4>
+        <div>
+          <label className="text-xs font-medium block mb-1">{t("رقم الهوية الوطنية", "National ID")}</label>
+          <input value={nationalId} onChange={(e) => setNationalId(e.target.value)} dir="ltr"
+            className="w-full h-10 rounded-lg border border-input bg-secondary/30 text-sm px-3"
+            data-testid="input-portal-admin-national-id" />
+        </div>
+        <div>
+          <label className="text-xs font-medium block mb-1">{t("كلمة المرور", "Password")}</label>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••"
+            className="w-full h-10 rounded-lg border border-input bg-secondary/30 text-sm px-3"
+            data-testid="input-portal-admin-password" />
+        </div>
+        <Button size="sm" onClick={enable} disabled={busy} data-testid="button-portal-enable">
+          {status?.portalEnabled ? t("تحديث", "Update") : t("تفعيل البوابة", "Enable portal")}
+        </Button>
+      </div>
+
+      {status?.portalEnabled && (
+        <div className="space-y-3 p-4 rounded-lg border border-border/50">
+          <h4 className="text-sm font-semibold">{t("إعادة تعيين كلمة المرور", "Reset password")}</h4>
+          <input type="password" value={resetPwd} onChange={(e) => setResetPwd(e.target.value)} placeholder={t("كلمة مرور جديدة", "New password")}
+            className="w-full h-10 rounded-lg border border-input bg-secondary/30 text-sm px-3"
+            data-testid="input-portal-reset-password" />
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={reset} disabled={busy} data-testid="button-portal-reset">
+              {t("إعادة تعيين", "Reset password")}
+            </Button>
+            <Button size="sm" variant="outline" className="text-destructive" onClick={disable} disabled={busy} data-testid="button-portal-disable">
+              {t("تعطيل البوابة", "Disable portal")}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

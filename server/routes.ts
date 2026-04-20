@@ -20,7 +20,9 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, notifications } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, notifications, portalRequests } from "@shared/schema";
+import { hashPassword, verifyPassword as verifyPwd } from "./auth";
+import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -1706,6 +1708,346 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (err: any) {
       console.error("Delete user error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CUSTOMER PORTAL — login by national_id, see ONLY own projects/docs.
+  // Uses HMAC-signed token (Authorization: Bearer ...). Separate session
+  // from staff (x-user-id) so portal users cannot reach internal /api/*.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async function requirePortalContact(req: any, res: any) {
+    const token = readPortalToken(req);
+    const decoded = token ? verifyPortalToken(token) : null;
+    if (!decoded) { res.status(401).json({ error: "Portal session required" }); return null; }
+    const [contact] = await db.select().from(contacts).where(eq(contacts.id, decoded.contactId));
+    if (!contact || !contact.portalEnabled) {
+      res.status(401).json({ error: "Portal access disabled" });
+      return null;
+    }
+    return contact;
+  }
+
+  function sanitizeContact(c: any) {
+    return {
+      id: c.id,
+      nameAr: c.nameAr, nameEn: c.nameEn,
+      email: c.email, phone: c.phone, mobile: c.mobile,
+      organization: c.organization,
+      city: c.city, address: c.address,
+      activityId: c.activityId,
+    };
+  }
+
+  function sanitizeAssignee(u: any | null) {
+    if (!u) return null;
+    const name = (u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim()) || "—";
+    return { id: u.id, name };
+  }
+
+  app.post("/api/portal/login", async (req, res) => {
+    try {
+      const { nationalId, password } = req.body || {};
+      if (!nationalId || !password) return res.status(400).json({ error: "nationalId and password are required" });
+      const rows = await db.select().from(contacts).where(eq(contacts.nationalId, String(nationalId).trim()));
+      const candidates = rows.filter((c) => c.portalEnabled && c.portalPasswordHash);
+      const matches: any[] = [];
+      for (const c of candidates) {
+        if (await verifyPwd(String(password), c.portalPasswordHash as string)) matches.push(c);
+      }
+      if (matches.length === 0) {
+        console.warn(`[portal] failed login nationalId=${nationalId}`);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      if (matches.length > 1) {
+        // Ambiguous: same nationalId+password matches multiple tenants. Refuse rather
+        // than risk picking the wrong contact.
+        console.warn(`[portal] ambiguous login nationalId=${nationalId} matches=${matches.length}`);
+        return res.status(409).json({ error: "Ambiguous account — contact your administrator" });
+      }
+      const matched = matches[0];
+      await db.update(contacts).set({ portalLastLogin: new Date() }).where(eq(contacts.id, matched.id));
+      const token = signPortalToken(matched.id);
+      res.json({ token, contact: sanitizeContact(matched) });
+    } catch (err: any) {
+      console.error("Portal login error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/me", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    res.json({ contact: sanitizeContact(me) });
+  });
+
+  app.post("/api/portal/logout", async (_req, res) => {
+    // Stateless tokens: client just discards it.
+    res.json({ success: true });
+  });
+
+  app.get("/api/portal/projects", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const rows = await db.select().from(projects).where(eq(projects.contactId, me.id));
+      res.json(rows.map((p) => ({
+        id: p.id, projectCode: p.projectCode,
+        nameAr: p.nameAr, nameEn: p.nameEn,
+        status: p.status, priority: p.priority,
+        startDate: p.startDate, endDate: p.endDate,
+        progress: p.progress, city: p.city, location: p.location,
+        description: p.description,
+      })));
+    } catch (err: any) {
+      console.error("Portal projects error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // Helper: confirm a project belongs to the logged-in contact.
+  async function ensureOwnedProject(req: any, res: any, contactId: number): Promise<any | null> {
+    const pid = parseInt(req.params.id);
+    if (isNaN(pid)) { res.status(400).json({ error: "Invalid id" }); return null; }
+    const [proj] = await db.select().from(projects).where(eq(projects.id, pid));
+    if (!proj || proj.contactId !== contactId) {
+      console.warn(`[portal] forbidden project access contact=${contactId} pid=${pid}`);
+      res.status(404).json({ error: "Not found" });
+      return null;
+    }
+    return proj;
+  }
+
+  app.get("/api/portal/projects/:id", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    const proj = await ensureOwnedProject(req, res, me.id);
+    if (!proj) return;
+    res.json({
+      id: proj.id, projectCode: proj.projectCode,
+      nameAr: proj.nameAr, nameEn: proj.nameEn,
+      description: proj.description,
+      status: proj.status, priority: proj.priority,
+      startDate: proj.startDate, endDate: proj.endDate,
+      progress: proj.progress, city: proj.city, location: proj.location,
+    });
+  });
+
+  app.get("/api/portal/projects/:id/stages", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    const proj = await ensureOwnedProject(req, res, me.id);
+    if (!proj) return;
+    try {
+      const stages = await db.select().from(projectMilestones).where(eq(projectMilestones.projectId, proj.id));
+      const userIds = Array.from(new Set(stages.map((s) => s.assignedTo).filter(Boolean) as string[]));
+      const assignees = userIds.length
+        ? await db.select().from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(assignees.map((u) => [u.id, u]));
+      res.json(stages.map((s) => ({
+        id: s.id,
+        titleAr: s.titleAr, titleEn: s.titleEn,
+        status: s.status, progress: s.progress,
+        expectedStart: s.expectedStart, expectedEnd: s.expectedEnd,
+        actualStart: s.actualStart, actualEnd: s.actualEnd,
+        sortOrder: s.sortOrder,
+        assignee: sanitizeAssignee(s.assignedTo ? userMap.get(s.assignedTo) : null),
+      })));
+    } catch (err: any) {
+      console.error("Portal stages error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/projects/:id/documents", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    const proj = await ensureOwnedProject(req, res, me.id);
+    if (!proj) return;
+    try {
+      // Only show documents flagged for client visibility.
+      const docs = await db.select().from(documents).where(eq(documents.projectId, proj.id));
+      const visible = docs.filter((d) => d.accessLevel === "client" || d.accessLevel === "public");
+      res.json(visible.map((d) => ({
+        id: d.id, titleAr: d.titleAr, titleEn: d.titleEn,
+        type: d.type, fileUrl: d.fileUrl, mimeType: d.mimeType,
+        fileSize: d.fileSize, version: d.version,
+        createdAt: d.createdAt,
+      })));
+    } catch (err: any) {
+      console.error("Portal docs error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/projects/:id/invoices", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    const proj = await ensureOwnedProject(req, res, me.id);
+    if (!proj) return;
+    try {
+      const inv = await db.select().from(invoices).where(eq(invoices.projectId, proj.id));
+      res.json(inv.map((i) => ({
+        id: i.id, invoiceNumber: i.invoiceNumber,
+        issueDate: i.issueDate, dueDate: i.dueDate,
+        total: i.total, paidAmount: i.paidAmount,
+        currency: i.currency, status: i.status,
+      })));
+    } catch (err: any) {
+      console.error("Portal invoices error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/portal/requests", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const { projectId, subject, message } = req.body || {};
+      if (!subject || !message) return res.status(400).json({ error: "subject and message are required" });
+      let pid: number | null = null;
+      if (projectId !== undefined && projectId !== null && projectId !== "") {
+        const n = Number(projectId);
+        if (!Number.isFinite(n)) return res.status(400).json({ error: "Invalid projectId" });
+        const [proj] = await db.select().from(projects).where(eq(projects.id, n));
+        if (!proj || proj.contactId !== me.id) {
+          return res.status(403).json({ error: "Project not in your scope" });
+        }
+        pid = n;
+      }
+      const [row] = await db.insert(portalRequests).values({
+        contactId: me.id,
+        projectId: pid,
+        subject: String(subject).slice(0, 200),
+        message: String(message).slice(0, 4000),
+      }).returning();
+      // Notify the project manager (or admins) — best-effort.
+      try {
+        if (pid) {
+          const [proj] = await db.select().from(projects).where(eq(projects.id, pid));
+          if (proj?.managerId) {
+            await db.insert(notifications).values({
+              userId: proj.managerId,
+              type: "portal_request",
+              titleAr: "طلب جديد من العميل",
+              titleEn: "New customer request",
+              messageAr: String(subject).slice(0, 200),
+              messageEn: String(subject).slice(0, 200),
+              link: `/projects/${pid}`,
+            } as any);
+          }
+        }
+      } catch (e) { /* ignore notify failures */ }
+      res.json({ id: row.id, success: true });
+    } catch (err: any) {
+      console.error("Portal request error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/requests", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const rows = await db.select().from(portalRequests).where(eq(portalRequests.contactId, me.id)).orderBy(desc(portalRequests.createdAt));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("Portal list requests error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ─── Admin endpoints to enable/disable/reset a contact's portal ──────────
+  async function requirePrivileged(req: any, res: any) {
+    const actor = await identifyActor(req);
+    if (!actor) { res.status(401).json({ error: "Unauthorized" }); return null; }
+    const isPriv = actor.roles.has("admin") || actor.roles.has("manager");
+    if (!isPriv) { res.status(403).json({ error: "Admin only" }); return null; }
+    return actor;
+  }
+
+  app.post("/api/customers/:id/portal/enable", async (req, res) => {
+    try {
+      const actor = await requirePrivileged(req, res);
+      if (!actor) return;
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const { nationalId, password } = req.body || {};
+      const [c] = await db.select().from(contacts).where(eq(contacts.id, id));
+      if (!c) return res.status(404).json({ error: "Not found" });
+      const nid = (nationalId ?? c.nationalId ?? "").toString().trim();
+      if (!nid) return res.status(400).json({ error: "nationalId is required" });
+      if (!password || String(password).length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+      // Uniqueness within the same activity.
+      const conflict = await db.select().from(contacts).where(eq(contacts.nationalId, nid));
+      const dup = conflict.find((x) => x.id !== id && x.activityId === c.activityId);
+      if (dup) return res.status(409).json({ error: "National ID already used in this activity" });
+      const hash = await hashPassword(String(password));
+      await db.update(contacts).set({
+        nationalId: nid,
+        portalEnabled: true,
+        portalPasswordHash: hash,
+        updatedAt: new Date(),
+      }).where(eq(contacts.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Portal enable error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/customers/:id/portal/reset", async (req, res) => {
+    try {
+      const actor = await requirePrivileged(req, res);
+      if (!actor) return;
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const { password } = req.body || {};
+      if (!password || String(password).length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+      const [c] = await db.select().from(contacts).where(eq(contacts.id, id));
+      if (!c) return res.status(404).json({ error: "Not found" });
+      const hash = await hashPassword(String(password));
+      await db.update(contacts).set({ portalPasswordHash: hash, updatedAt: new Date() }).where(eq(contacts.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Portal reset error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/customers/:id/portal/disable", async (req, res) => {
+    try {
+      const actor = await requirePrivileged(req, res);
+      if (!actor) return;
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      await db.update(contacts).set({ portalEnabled: false, updatedAt: new Date() }).where(eq(contacts.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Portal disable error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/customers/:id/portal/status", async (req, res) => {
+    try {
+      const actor = await requirePrivileged(req, res);
+      if (!actor) return;
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const [c] = await db.select().from(contacts).where(eq(contacts.id, id));
+      if (!c) return res.status(404).json({ error: "Not found" });
+      res.json({
+        portalEnabled: !!c.portalEnabled,
+        nationalId: c.nationalId || null,
+        hasPassword: !!c.portalPasswordHash,
+        lastLogin: c.portalLastLogin || null,
+      });
+    } catch (err: any) {
+      console.error("Portal status error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });

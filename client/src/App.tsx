@@ -84,6 +84,8 @@ function Router() {
       {/* System & Portals */}
       <Route path="/dms" component={DMSModule} />
       <Route path="/client-portal" component={ClientPortalModule} />
+      <Route path="/portal" component={ClientPortalModule} />
+      <Route path="/client" component={ClientPortalModule} />
       <Route path="/company-settings" component={CompanySettingsModule} />
       <Route path="/about" component={AboutModule} />
       <ProtectedRoute path="/audit-log" component={AuditLogModule} page="audit_log" />

@@ -161,6 +161,22 @@ export const contacts = pgTable("contacts", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  // Customer-portal fields
+  nationalId: varchar("national_id", { length: 20 }),
+  portalEnabled: boolean("portal_enabled").default(false),
+  portalPasswordHash: text("portal_password_hash"),
+  portalLastLogin: timestamp("portal_last_login"),
+});
+
+// Customer portal "contact us" requests submitted from the portal.
+export const portalRequests = pgTable("portal_requests", {
+  id: serial("id").primaryKey(),
+  contactId: integer("contact_id").notNull().references(() => contacts.id),
+  projectId: integer("project_id").references(() => projects.id),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  status: text("status").default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const pipelineStages = pgTable("pipeline_stages", {
