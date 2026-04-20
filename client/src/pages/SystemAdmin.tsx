@@ -1080,7 +1080,12 @@ export default function SystemAdmin() {
   const { t } = useLanguage();
   const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
 
-  if (currentUser?.role !== "admin") {
+  const userRoles = new Set<string>([
+    currentUser?.role || "",
+    ...(Array.isArray(currentUser?.roles) ? currentUser!.roles! : []),
+  ]);
+  const canManage = userRoles.has("admin") || userRoles.has("manager");
+  if (!canManage) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-64">

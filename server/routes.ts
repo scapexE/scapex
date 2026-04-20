@@ -209,15 +209,16 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  await seedDefaultUsers();
-  await seedDefaultCompanies();
-  await seedDefaultActivities();
-
+  // app_data must exist before seedDefaultActivities reads legacy entries from it
   await db.execute(`CREATE TABLE IF NOT EXISTS app_data (
     key TEXT PRIMARY KEY,
     value JSONB NOT NULL,
     updated_at TIMESTAMP DEFAULT NOW()
   )`);
+
+  await seedDefaultUsers();
+  await seedDefaultCompanies();
+  await seedDefaultActivities();
 
   app.get("/api/app-data", async (_req, res) => {
     try {
