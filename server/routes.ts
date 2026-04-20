@@ -977,6 +977,12 @@ export async function registerRoutes(
       if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const d = req.body || {};
       if (!d.nameAr && !d.nameEn) return res.status(400).json({ error: "Name is required" });
+      // A project MUST be linked to a client (contactId) OR carry a free-text
+      // clientName. Otherwise the record is orphaned (no one to bill, no CRM
+      // tab to surface it on). This mirrors the UI's mandatory client field.
+      if (!d.contactId && !(d.clientName && String(d.clientName).trim())) {
+        return res.status(400).json({ error: "Client is required (contactId or clientName)" });
+      }
       // Activity is REQUIRED to keep tenant isolation. Privileged callers may pick.
       const writeActivityId = scope.isPrivileged
         ? (d.activityId || scope.activityId || null)
@@ -1018,6 +1024,15 @@ export async function registerRoutes(
       const r = await loadScopedProject(req, req.params.id);
       if (!r.ok) return res.status(r.status).json({ error: r.error });
       const d = req.body || {};
+      // Mutation authorization: privileged users (admin/manager) may always
+      // edit. Otherwise the actor must be the project's manager OR the user
+      // who created it. Pure activity-membership is NOT enough; we don't want
+      // every member of an activity to be able to edit every project.
+      const actorId = r.scope.actor.id;
+      const isOwner = r.row.managerId === actorId || r.row.createdBy === actorId;
+      if (!r.scope.isPrivileged && !isOwner) {
+        return res.status(403).json({ error: "Forbidden: only the project manager, creator, or admin/manager may edit" });
+      }
       // Activity transfer is admin/manager-only.
       let nextActivityId = r.row.activityId;
       if ("activityId" in d && d.activityId !== undefined && d.activityId !== r.row.activityId) {
@@ -1087,6 +1102,13 @@ export async function registerRoutes(
     try {
       const r = await loadScopedProject(req, req.params.id);
       if (!r.ok) return res.status(r.status).json({ error: r.error });
+      // Only privileged users or the project's manager/creator may add stages.
+      const actorId = r.scope.actor.id;
+      const canAddStage =
+        r.scope.isPrivileged ||
+        r.row.managerId === actorId ||
+        r.row.createdBy === actorId;
+      if (!canAddStage) return res.status(403).json({ error: "Forbidden: only project manager/creator may add stages" });
       const d = req.body || {};
       if (!d.titleAr && !d.titleEn) return res.status(400).json({ error: "Title is required" });
       const result = await db.insert(projectMilestones).values({
@@ -1124,6 +1146,15 @@ export async function registerRoutes(
       if (!stage) return res.status(404).json({ error: "Not found" });
       const r = await loadScopedProject(req, String(stage.projectId));
       if (!r.ok) return res.status(r.status).json({ error: r.error });
+      // Mutation authorization: privileged users always; otherwise the actor
+      // must be the stage assignee, the project manager, or the creator.
+      const actorId = r.scope.actor.id;
+      const isAllowed =
+        r.scope.isPrivileged ||
+        stage.assignedTo === actorId ||
+        r.row.managerId === actorId ||
+        r.row.createdBy === actorId;
+      if (!isAllowed) return res.status(403).json({ error: "Forbidden: not assigned to this stage" });
       const d = req.body || {};
       // Auto-stamp completedAt when status flips to "completed"
       const becameComplete = d.status === "completed" && stage.status !== "completed";
@@ -1159,6 +1190,14 @@ export async function registerRoutes(
       if (!stage) return res.status(404).json({ error: "Not found" });
       const r = await loadScopedProject(req, String(stage.projectId));
       if (!r.ok) return res.status(r.status).json({ error: r.error });
+      // Stage deletion is restricted to privileged users or the project
+      // manager/creator. Mere assignees can mark a stage done but not erase it.
+      const actorId = r.scope.actor.id;
+      const allowedDelete =
+        r.scope.isPrivileged ||
+        r.row.managerId === actorId ||
+        r.row.createdBy === actorId;
+      if (!allowedDelete) return res.status(403).json({ error: "Forbidden" });
       await db.delete(projectMilestones).where(eq(projectMilestones.id, sid));
       res.json({ success: true });
     } catch (err: any) {

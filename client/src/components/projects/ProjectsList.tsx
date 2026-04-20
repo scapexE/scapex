@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
-  listProjects, createProject, type ApiProject,
+  listProjects, createProject, type ApiProject, type ProjectStatus,
   PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN, DEFAULT_PROJECT_STAGES,
   createStage,
 } from "@/lib/projectsApi";
@@ -48,6 +48,8 @@ export function ProjectsList() {
   const [users, setUsers] = useState<SimpleUser[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -73,14 +75,18 @@ export function ProjectsList() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return projects;
-    return projects.filter(p =>
-      (p.nameAr || "").toLowerCase().includes(q) ||
-      (p.nameEn || "").toLowerCase().includes(q) ||
-      (p.clientName || "").toLowerCase().includes(q) ||
-      (p.projectCode || "").toLowerCase().includes(q),
-    );
-  }, [projects, search]);
+    return projects.filter(p => {
+      if (clientFilter !== "all" && String(p.contactId ?? "") !== clientFilter) return false;
+      if (assigneeFilter !== "all" && (p.managerId ?? "") !== assigneeFilter) return false;
+      if (!q) return true;
+      return (
+        (p.nameAr || "").toLowerCase().includes(q) ||
+        (p.nameEn || "").toLowerCase().includes(q) ||
+        (p.clientName || "").toLowerCase().includes(q) ||
+        (p.projectCode || "").toLowerCase().includes(q)
+      );
+    });
+  }, [projects, search, clientFilter, assigneeFilter]);
 
   const activeCount = projects.filter(p => p.status === "active" || p.status === "planning").length;
 
@@ -101,7 +107,7 @@ export function ProjectsList() {
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-40" data-testid="select-status-filter">
+              <SelectTrigger className="h-9 w-36" data-testid="select-status-filter">
                 <Filter className="h-4 w-4 mr-1 rtl:ml-1 rtl:mr-0" />
                 <SelectValue />
               </SelectTrigger>
@@ -110,6 +116,32 @@ export function ProjectsList() {
                 {Object.keys(PROJECT_STATUS_LABELS_AR).map(s => (
                   <SelectItem key={s} value={s}>
                     {isRtl ? PROJECT_STATUS_LABELS_AR[s] : PROJECT_STATUS_LABELS_EN[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="h-9 w-44" data-testid="select-client-filter">
+                <SelectValue placeholder={isRtl ? "العميل" : "Client"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{isRtl ? "كل العملاء" : "All clients"}</SelectItem>
+                {customers.map(c => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {isRtl ? (c.nameAr || c.nameEn || `#${c.id}`) : (c.nameEn || c.nameAr || `#${c.id}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+              <SelectTrigger className="h-9 w-44" data-testid="select-assignee-filter">
+                <SelectValue placeholder={isRtl ? "الموظف المسؤول" : "Manager"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{isRtl ? "كل الموظفين" : "All managers"}</SelectItem>
+                {users.map(u => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.id}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -268,21 +300,21 @@ export function CreateProjectDialog({
     }
     setSaving(true);
     try {
-      const payload: any = {
+      const matched = customers.find(c => String(c.id) === form.contactId);
+      const inferredClientName: string | null = form.clientName
+        || (matched ? (isRtl ? (matched.nameAr || matched.nameEn || null) : (matched.nameEn || matched.nameAr || null)) : null);
+      const payload: Partial<ApiProject> = {
         nameAr: form.nameAr || form.nameEn,
         nameEn: form.nameEn || form.nameAr,
         description: form.description || null,
         contactId: form.contactId ? Number(form.contactId) : null,
-        clientName: form.clientName || (() => {
-          const c = customers.find(c => String(c.id) === form.contactId);
-          return c ? (isRtl ? (c.nameAr || c.nameEn) : (c.nameEn || c.nameAr)) : null;
-        })(),
+        clientName: inferredClientName,
         managerId: form.managerId || null,
         startDate: form.startDate || null,
         endDate: form.endDate || null,
-        budget: form.budget ? Number(form.budget) : null,
+        budget: form.budget ? String(form.budget) : null,
         location: form.location || null,
-        status: "planning",
+        status: "planning" as ProjectStatus,
       };
       const created = await createProject(payload);
       // Seed default stages so users immediately see the lifecycle.

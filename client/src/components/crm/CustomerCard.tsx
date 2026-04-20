@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { getProposals, getContracts, STATUS_META, SERVICE_META, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
-import { listProjects, type ApiProject, PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN } from "@/lib/projectsApi";
+import { listProjects, listStages, type ApiProject, type ApiStage, PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN, STAGE_STATUS_LABELS_AR, STAGE_STATUS_LABELS_EN } from "@/lib/projectsApi";
 import { CreateProjectDialog } from "@/components/projects/ProjectsList";
 import { useActivityScope } from "@/hooks/useActivityScope";
 import { scopedFetch } from "@/lib/queryClient";
@@ -50,6 +50,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [apiProjects, setApiProjects] = useState<ApiProject[]>([]);
+  const [stagesByProject, setStagesByProject] = useState<Record<number, ApiStage[]>>({});
   const [customersList, setCustomersList] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -71,7 +72,17 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
     // DB-backed projects scoped to this contact id (when the customer comes from /api/customers)
     const contactId = Number(customer.id);
     if (Number.isFinite(contactId)) {
-      listProjects({ contactId }).then(setApiProjects).catch(() => setApiProjects([]));
+      listProjects({ contactId }).then(async (rows) => {
+        setApiProjects(rows);
+        // Pull stages for each project so the customer card can show progress per stage.
+        const entries = await Promise.all(
+          rows.map(async (p): Promise<[number, ApiStage[]]> => {
+            try { return [p.id, await listStages(p.id)]; }
+            catch { return [p.id, []]; }
+          })
+        );
+        setStagesByProject(Object.fromEntries(entries));
+      }).catch(() => { setApiProjects([]); setStagesByProject({}); });
     } else {
       setApiProjects([]);
     }
@@ -364,6 +375,33 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                         <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                           {p.startDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {p.startDate}</span>}
                           {p.endDate && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {p.endDate}</span>}
+                        </div>
+                      )}
+                      {(stagesByProject[p.id]?.length ?? 0) > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border/40">
+                          <div className="text-xs text-muted-foreground mb-1.5">{isRtl ? "المراحل" : "Stages"}</div>
+                          <div className="flex flex-wrap gap-1.5" data-testid={`list-customer-project-stages-${p.id}`}>
+                            {stagesByProject[p.id].map(s => {
+                              const cls =
+                                s.status === "completed" ? "bg-emerald-100 text-emerald-700" :
+                                s.status === "in_progress" ? "bg-blue-100 text-blue-700" :
+                                s.status === "blocked" ? "bg-amber-100 text-amber-700" :
+                                s.status === "cancelled" ? "bg-red-100 text-red-700" :
+                                "bg-slate-100 text-slate-700";
+                              const title = isRtl ? (s.titleAr || s.titleEn) : (s.titleEn || s.titleAr);
+                              const statusLabel = isRtl ? (STAGE_STATUS_LABELS_AR[s.status] ?? s.status) : (STAGE_STATUS_LABELS_EN[s.status] ?? s.status);
+                              return (
+                                <span
+                                  key={s.id}
+                                  className={cn("px-2 py-0.5 rounded-md text-[11px] font-medium", cls)}
+                                  title={`${title} — ${statusLabel} (${s.progress ?? 0}%)`}
+                                  data-testid={`tag-customer-project-stage-${s.id}`}
+                                >
+                                  {title} · {s.progress ?? 0}%
+                                </span>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>

@@ -19,10 +19,11 @@ import { cn } from "@/lib/utils";
 import { scopedFetch } from "@/lib/queryClient";
 import {
   getProject, updateProject, listStages, createStage, updateStage, deleteStage,
-  type ApiProject, type ApiStage,
+  type ApiProject, type ApiStage, type ProjectStatus, type StageStatus,
   PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN,
   STAGE_STATUS_LABELS_AR, STAGE_STATUS_LABELS_EN,
 } from "@/lib/projectsApi";
+import { FileText, CreditCard, History as HistoryIcon } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
@@ -175,6 +176,9 @@ export default function ProjectDetailPage() {
           <TabsList className="self-start">
             <TabsTrigger value="stages" data-testid="tab-stages">{isRtl ? "المراحل" : "Stages"}</TabsTrigger>
             <TabsTrigger value="info" data-testid="tab-info">{isRtl ? "المعلومات" : "Information"}</TabsTrigger>
+            <TabsTrigger value="documents" data-testid="tab-documents">{isRtl ? "المستندات" : "Documents"}</TabsTrigger>
+            <TabsTrigger value="payments" data-testid="tab-payments">{isRtl ? "المدفوعات" : "Payments"}</TabsTrigger>
+            <TabsTrigger value="history" data-testid="tab-history">{isRtl ? "السجل" : "History"}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="stages" className="m-0">
@@ -209,7 +213,7 @@ export default function ProjectDetailPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Select value={s.status} onValueChange={(v) => handleStageChange(s.id, { status: v as any })}>
+                            <Select value={s.status} onValueChange={(v) => handleStageChange(s.id, { status: v as StageStatus })}>
                               <SelectTrigger className="h-8 w-36" data-testid={`select-stage-status-${s.id}`}><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {Object.keys(STAGE_STATUS_LABELS_AR).map(k => (
@@ -261,6 +265,63 @@ export default function ProjectDetailPage() {
           <TabsContent value="info" className="m-0">
             <ProjectInfoEditor project={project} users={users} isPrivileged={isPrivileged} onSave={handleSaveProject} saving={saving} />
           </TabsContent>
+
+          <TabsContent value="documents" className="m-0">
+            <Card className="border-border/50">
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" />{isRtl ? "مستندات المشروع" : "Project documents"}</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-center py-12 text-muted-foreground text-sm" data-testid="text-documents-empty">
+                  {isRtl
+                    ? "لم يتم ربط أي مستندات بهذا المشروع بعد. سيتم تفعيل الربط مع وحدة إدارة المستندات (DMS) في تحديث قريب."
+                    : "No documents linked to this project yet. Linking with the Document Management (DMS) module is coming in a future update."}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payments" className="m-0">
+            <Card className="border-border/50">
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><CreditCard className="w-4 h-4" />{isRtl ? "المدفوعات والفواتير" : "Payments & invoices"}</CardTitle></CardHeader>
+              <CardContent>
+                {project.budget && (
+                  <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+                    <div className="border border-border/50 rounded-lg p-3"><div className="text-muted-foreground text-xs">{isRtl ? "الميزانية" : "Budget"}</div><div className="font-semibold text-lg" data-testid="text-budget">{project.budget}</div></div>
+                    <div className="border border-border/50 rounded-lg p-3"><div className="text-muted-foreground text-xs">{isRtl ? "المصروف" : "Spent"}</div><div className="font-semibold text-lg" data-testid="text-spent">{project.spent ?? "0.00"}</div></div>
+                  </div>
+                )}
+                <div className="text-center py-8 text-muted-foreground text-sm" data-testid="text-payments-empty">
+                  {isRtl
+                    ? "لا توجد فواتير مرتبطة بعد. سيتم عرض الفواتير المرتبطة بهذا المشروع من وحدة الفواتير قريباً."
+                    : "No invoices linked yet. Linked invoices from the Invoices module will appear here in a future update."}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="history" className="m-0">
+            <Card className="border-border/50">
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><HistoryIcon className="w-4 h-4" />{isRtl ? "سجل المشروع" : "Project history"}</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm" data-testid="list-history">
+                  <HistoryRow label={isRtl ? "تم إنشاء المشروع" : "Project created"} when={project.createdAt} who={userName(project.createdBy)} />
+                  {project.updatedAt && project.updatedAt !== project.createdAt && (
+                    <HistoryRow label={isRtl ? "آخر تحديث" : "Last updated"} when={project.updatedAt} who={null} />
+                  )}
+                  {stages.filter(s => s.completedAt).map(s => (
+                    <HistoryRow
+                      key={`done-${s.id}`}
+                      label={`${isRtl ? "اكتملت المرحلة" : "Stage completed"}: ${isRtl ? (s.titleAr || s.titleEn) : (s.titleEn || s.titleAr)}`}
+                      when={s.completedAt!}
+                      who={userName(s.assignedTo)}
+                    />
+                  ))}
+                </div>
+                <div className="mt-4 text-xs text-muted-foreground">
+                  {isRtl ? "سجل تدقيق تفصيلي لكل التغييرات سيتوفر لاحقاً." : "A detailed audit log of every change is planned for a future update."}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -287,6 +348,18 @@ export default function ProjectDetailPage() {
         />
       )}
     </MainLayout>
+  );
+}
+
+function HistoryRow({ label, when, who }: { label: string; when: string; who: string | null }) {
+  return (
+    <div className="flex items-center justify-between border-b border-border/30 pb-2 text-xs">
+      <div>
+        <div className="font-medium text-foreground">{label}</div>
+        {who && <div className="text-muted-foreground mt-0.5">{who}</div>}
+      </div>
+      <div className="text-muted-foreground tabular-nums">{new Date(when).toLocaleString()}</div>
+    </div>
   );
 }
 
@@ -343,7 +416,7 @@ function ProjectInfoEditor({
         </div>
         <div>
           <Label>{isRtl ? "الحالة" : "Status"}</Label>
-          <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as any })}>
+          <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as ProjectStatus })}>
             <SelectTrigger data-testid="select-edit-status"><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.keys(PROJECT_STATUS_LABELS_AR).map(k => (
@@ -373,12 +446,22 @@ function ProjectInfoEditor({
           <Textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid="input-edit-notes" />
         </div>
         <div className="col-span-2 flex justify-end">
-          <Button onClick={() => onSave({
-            nameAr: form.nameAr, nameEn: form.nameEn, description: form.description,
-            clientName: form.clientName, location: form.location, managerId: form.managerId || null,
-            status: form.status, startDate: form.startDate || null, endDate: form.endDate || null,
-            budget: form.budget || null, notes: form.notes,
-          } as any)} disabled={saving} data-testid="button-save-project">
+          <Button onClick={() => {
+            const patch: Partial<ApiProject> = {
+              nameAr: form.nameAr,
+              nameEn: form.nameEn,
+              description: form.description || null,
+              clientName: form.clientName || null,
+              location: form.location || null,
+              managerId: form.managerId || null,
+              status: form.status,
+              startDate: form.startDate || null,
+              endDate: form.endDate || null,
+              budget: form.budget ? String(form.budget) : null,
+              notes: form.notes || null,
+            };
+            onSave(patch);
+          }} disabled={saving} data-testid="button-save-project">
             <Save className="w-4 h-4 mr-1 rtl:ml-1 rtl:mr-0" />{saving ? (isRtl ? "جارٍ الحفظ..." : "Saving...") : (isRtl ? "حفظ" : "Save")}
           </Button>
         </div>
@@ -440,7 +523,7 @@ function StageDialog({
         assignedTo: form.assignedTo || null,
         expectedStart: form.expectedStart || null,
         expectedEnd: form.expectedEnd || null,
-        status: form.status as any,
+        status: form.status as StageStatus,
         progress: form.progress,
         notes: form.notes || null,
       });
@@ -477,7 +560,7 @@ function StageDialog({
           </div>
           <div>
             <Label>{isRtl ? "الحالة" : "Status"}</Label>
-            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as any })}>
+            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as StageStatus })}>
               <SelectTrigger data-testid="select-stage-dialog-status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.keys(STAGE_STATUS_LABELS_AR).map(k => (
