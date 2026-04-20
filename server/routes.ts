@@ -27,26 +27,32 @@ import { and, desc, inArray, or } from "drizzle-orm";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
-// Default activity catalog (mirror of client/src/lib/activities.ts DEFAULT_ACTIVITIES)
-const DEFAULT_ACTIVITY_CATALOG: Array<{
-  id: string; nameAr: string; nameEn: string; color: string; icon: string; modules: string[];
-}> = [
-  { id: "act_eng_consulting",    nameAr: "استشارات هندسية",  nameEn: "Engineering Consultancy",      color: "blue",    icon: "HardHat",     modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"] },
-  { id: "act_env_consulting",    nameAr: "استشارات بيئية",   nameEn: "Environmental Consultancy",    color: "emerald", icon: "Leaf",        modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"] },
-  { id: "act_safety_consulting", nameAr: "استشارات سلامة",   nameEn: "Safety Consultancy",           color: "amber",   icon: "ShieldAlert", modules: ["dashboard","crm","sales","accounting","projects","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"] },
-  { id: "act_safety_services",   nameAr: "خدمات سلامة",      nameEn: "Safety Services",              color: "orange",  icon: "Flame",       modules: ["dashboard","crm","sales","accounting","purchases","equipment","smart_proposal","hse","attendance","mobile_app","hr","payroll","dms"] },
-  { id: "act_contracting",       nameAr: "مقاولات",           nameEn: "Contracting",                  color: "violet",  icon: "Building2",   modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"] },
-  { id: "act_metal_recycling",   nameAr: "تدوير المعادن",    nameEn: "Metal Recycling",              color: "teal",    icon: "RefreshCcw",  modules: ["dashboard","crm","sales","accounting","purchases","inventory","equipment","smart_proposal","hr","payroll","attendance","hse","dms","bi"] },
-];
+import { seedDefaultActivities as seedActivitiesShared, seedDefaultCompanies as seedCompaniesShared, seedDefaultCatalogs, DEFAULT_ACTIVITY_CATALOG } from "./seed";
 
+// Wrapper that adds the legacy app_data migration step on top of the shared
+// seed (the rebuild script doesn't need this — only the running server does
+// when migrating an old install). After the legacy migration we always
+// delegate to `seedActivitiesShared` so any catalogue items the legacy data
+// didn't cover still get created and admins/managers get auto-assigned.
 async function seedDefaultActivities() {
   try {
     const existing = await db.select().from(businessActivities);
-    if (existing.length > 0) return;
+    if (existing.length > 0) {
+      // Already populated — make sure the catalog is still in sync
+      // (delegated routine is itself idempotent and short-circuits).
+      await seedActivitiesShared();
+      return;
+    }
 
     // 1) First check legacy app_data for previously-saved activities
     const legacy = await db.select().from(appData).where(eq(appData.key, "scapex_activities"));
     const legacyAsg = await db.select().from(appData).where(eq(appData.key, "scapex_activity_assignments"));
+
+    // If there's no legacy data at all, skip straight to the shared seed.
+    if (!(legacy.length > 0 && Array.isArray((legacy[0] as any).value))) {
+      await seedActivitiesShared();
+      return;
+    }
 
     const cos = await db.select().from(companies);
     const insertedActivityIds = new Set<string>();
@@ -89,50 +95,24 @@ async function seedDefaultActivities() {
       }
     }
 
-    // 2) Otherwise (or in addition) seed defaults: create one activity per company × catalog item the company needs
-    for (const company of cos) {
-      const catalogIds: string[] = Array.isArray((company.settings as any)?.activityIds) && (company.settings as any).activityIds.length > 0
-        ? (company.settings as any).activityIds
-        : DEFAULT_ACTIVITY_CATALOG.map((c) => c.id);
-      for (const catId of catalogIds) {
-        const cat = DEFAULT_ACTIVITY_CATALOG.find((x) => x.id === catId);
-        if (!cat) continue;
-        const targetId = `${cat.id}_c${company.id}`;
-        if (insertedActivityIds.has(targetId)) continue;
-        await db.insert(businessActivities).values({
-          id: targetId,
-          companyId: company.id,
-          nameAr: cat.nameAr, nameEn: cat.nameEn,
-          color: cat.color, icon: cat.icon, modules: cat.modules,
-          active: true,
-          companyNameAr: company.nameAr,
-          companyNameEn: company.nameEn,
-          companyLogoUrl: company.logoUrl,
-        }).onConflictDoNothing();
-        insertedActivityIds.add(targetId);
-      }
-    }
+    // 2) Now delegate to the shared reconciler to fill in any catalog items
+    //    the legacy data didn't cover and to apply admin/manager memberships.
+    //    The shared routine is idempotent (uses ON CONFLICT DO NOTHING), so
+    //    it leaves the migrated rows untouched.
+    await seedActivitiesShared();
 
-    // 3) Auto-assign admins/managers to all activities for visibility
-    const allUsers = await db.select().from(users);
-    const allActivities = await db.select().from(businessActivities);
-    for (const u of allUsers) {
-      const userRoles = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
-      if (!userRoles.has("admin") && !userRoles.has("manager")) continue;
-      for (const a of allActivities) {
-        try {
-          await db.insert(activityMembers).values({ activityId: a.id, userId: u.id }).onConflictDoNothing();
-        } catch { /* ignore */ }
-      }
-    }
-
-    console.log("✅ Default business activities seeded");
+    console.log("✅ Default business activities seeded (legacy migration + reconcile)");
   } catch (err) {
     console.error("Seed activities error:", err);
   }
 }
 
+// Wrapper preserved for the boot path (delegates to shared seed module).
 async function seedDefaultCompanies() {
+  return seedCompaniesShared();
+}
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _legacySeedDefaultCompaniesInline_unused() {
   try {
     const existing = await db.select().from(companies);
     if (existing.length > 0) return;
@@ -291,6 +271,7 @@ export async function registerRoutes(
   await seedDefaultUsers();
   await seedDefaultCompanies();
   await seedDefaultActivities();
+  await seedDefaultCatalogs();
 
   app.get("/api/app-data", async (_req, res) => {
     try {
