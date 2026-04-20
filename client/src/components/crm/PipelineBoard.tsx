@@ -263,10 +263,6 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   };
 
   const handleSave = async () => {
-    if (!activeActivity) {
-      toast({ title: isRtl ? "اختر نشاطاً أولاً" : "Select an activity first", variant: "destructive" });
-      return;
-    }
     if (!form.titleAr.trim() && !form.titleEn.trim()) {
       toast({ title: isRtl ? "عنوان الفرصة مطلوب" : "Title is required", variant: "destructive" });
       return;
@@ -283,7 +279,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
         expectedClose: form.expectedClose || null,
         notes: form.notes,
         stage: addStage,
-        activityId: activeActivity.id,
+        ...(activeActivity ? { activityId: activeActivity.id } : {}),
         createdBy: currentUser?.id || null,
         assignedTo: currentUser?.id || null,
       });
@@ -339,11 +335,6 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {!activeActivity && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-3 rounded-md mb-4 text-sm">
-          {isRtl ? "اختر نشاطاً تجارياً من الأعلى لعرض صفقاته." : "Select a business activity to view its leads."}
-        </div>
-      )}
       <div className="flex flex-col sm:flex-row items-center justify-between pb-4 shrink-0 gap-3">
         <div className="flex items-center gap-2 w-full max-w-md">
           <div className="relative w-full">

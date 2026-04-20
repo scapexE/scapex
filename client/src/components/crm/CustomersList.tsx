@@ -240,10 +240,6 @@ export function CustomersList({
   });
 
   const handleSave = async () => {
-    if (!activeActivity) {
-      toast({ title: isRtl ? "اختر نشاطاً أولاً" : "Select an activity first", variant: "destructive" });
-      return;
-    }
     if (!form.nameAr.trim() && !form.nameEn.trim()) {
       toast({ title: isRtl ? "الاسم مطلوب" : "Name is required", variant: "destructive" });
       return;
@@ -252,7 +248,9 @@ export function CustomersList({
       setSaving(true);
       const res = await apiRequest("POST", "/api/customers", {
         ...form,
-        activityId: activeActivity.id,
+        // activityId omitted intentionally — the server will scope to the
+        // caller's active or first-assigned activity (see resolveActivityScope).
+        ...(activeActivity ? { activityId: activeActivity.id } : {}),
         createdBy: currentUser?.id || null,
         assignedTo: currentUser?.id || null,
       });
@@ -338,11 +336,6 @@ export function CustomersList({
 
   return (
     <>
-      {!activeActivity && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-3 rounded-md mb-4 text-sm">
-          {isRtl ? "اختر نشاطاً تجارياً من الأعلى لعرض عملائه." : "Select a business activity to view its customers."}
-        </div>
-      )}
       <Card className="flex-1 border-border/50 shadow-sm overflow-hidden flex flex-col h-full relative">
         <CardHeader className="p-4 border-b border-border/50 bg-card">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">

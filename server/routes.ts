@@ -600,7 +600,7 @@ export async function registerRoutes(
   }
   // Activity scope decision used by every list endpoint that owns module data.
   // Returns the activityId(s) the request is allowed to read, or a 401/403 sentinel.
-  async function resolveActivityScope(req: any): Promise<
+  async function resolveActivityScope(req: any, opts?: { forWrite?: boolean }): Promise<
     | { ok: true; actor: { id: string; roles: Set<string> }; isPrivileged: boolean; activityId: string | null; allowedIds: string[] | null }
     | { ok: false; status: number; error: string }
   > {
@@ -610,18 +610,30 @@ export async function registerRoutes(
     const headerActivity = (req.header("x-activity-id") || "").trim() || null;
     const queryActivity = (req.query.activityId as string) || null;
     const requested = headerActivity || queryActivity || null;
-    // Non-privileged users MUST scope by an activity, and must be a member of it.
     const memberRows = await db.select().from(activityMembers).where(eq(activityMembers.userId, actor.id));
     const allowedIds = isPrivileged ? null : memberRows.map((m) => m.activityId);
+    let effectiveActivity: string | null = requested;
     if (!isPrivileged) {
-      if (!requested) {
-        return { ok: false, status: 400, error: "activityId is required" };
-      }
-      if (!(allowedIds || []).includes(requested)) {
+      if (!effectiveActivity) {
+        // Friction-removal fallback: if the caller has exactly one assigned
+        // activity, use it silently. If they have several, refuse writes
+        // (to avoid putting a record in the wrong bucket) but allow reads
+        // (the route will scope across all allowedIds — see callers).
+        if (!allowedIds || allowedIds.length === 0) {
+          return { ok: false, status: 403, error: "No activities assigned to this user" };
+        }
+        if (allowedIds.length === 1) {
+          effectiveActivity = allowedIds[0];
+        } else if (opts?.forWrite) {
+          return { ok: false, status: 400, error: "activityId is required" };
+        }
+        // For reads with multiple allowed activities and no explicit pick,
+        // leave activityId null — the caller will fall back to allowedIds.
+      } else if (!(allowedIds || []).includes(effectiveActivity)) {
         return { ok: false, status: 403, error: "Forbidden: activity not in your scope" };
       }
     }
-    return { ok: true, actor, isPrivileged, activityId: requested, allowedIds };
+    return { ok: true, actor, isPrivileged, activityId: effectiveActivity, allowedIds };
   }
 
   app.get("/api/customers", async (req, res) => {
@@ -647,7 +659,7 @@ export async function registerRoutes(
 
   app.post("/api/customers", async (req, res) => {
     try {
-      const scope = await resolveActivityScope(req);
+      const scope = await resolveActivityScope(req, { forWrite: true });
       if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const d = req.body || {};
       if (!d.nameEn && !d.nameAr) {
@@ -807,7 +819,7 @@ export async function registerRoutes(
 
   app.post("/api/deals", async (req, res) => {
     try {
-      const scope = await resolveActivityScope(req);
+      const scope = await resolveActivityScope(req, { forWrite: true });
       if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const d = req.body || {};
       if (!d.titleEn && !d.titleAr) {
@@ -984,7 +996,7 @@ export async function registerRoutes(
 
   app.post("/api/projects", async (req, res) => {
     try {
-      const scope = await resolveActivityScope(req);
+      const scope = await resolveActivityScope(req, { forWrite: true });
       if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const d = req.body || {};
       if (!d.nameAr && !d.nameEn) return res.status(400).json({ error: "Name is required" });

@@ -196,8 +196,16 @@ export async function seedDefaultActivities(): Promise<void> {
   let memberships = 0;
   for (const u of allUsers) {
     const userRoles = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
-    if (!userRoles.has("admin") && !userRoles.has("manager")) continue;
-    for (const a of allActivities) {
+    if (userRoles.has("client") || userRoles.has("viewer")) continue;
+    const isPrivileged = userRoles.has("admin") || userRoles.has("manager");
+    // Tenant isolation: a non-privileged user only gets auto-membership in
+    // activities that belong to their own company. Users with no companyId
+    // (seeded test sub-users / system users) get broad assignment so they can
+    // exercise the platform out of the box.
+    const scoped = (isPrivileged || !u.companyId)
+      ? allActivities
+      : allActivities.filter((a) => a.companyId === u.companyId);
+    for (const a of scoped) {
       const r = await db.insert(activityMembers)
         .values({ activityId: a.id, userId: u.id })
         .onConflictDoNothing()
