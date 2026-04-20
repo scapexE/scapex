@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
+import { scopedFetch, apiRequest } from "@/lib/queryClient";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,8 +118,8 @@ export function CustomersList({
       setLoading(true);
       const params = new URLSearchParams({ activityId: activeActivity.id });
       const [r, u] = await Promise.all([
-        fetch(`/api/customers?${params.toString()}`).then(x => x.json()),
-        fetch("/api/users").then(x => x.json()),
+        scopedFetch(`/api/customers?${params.toString()}`).then(x => x.json()),
+        scopedFetch("/api/users").then(x => x.json()),
       ]);
       setRows(Array.isArray(r) ? r : []);
       setUsers(Array.isArray(u) ? u : []);
@@ -242,15 +243,11 @@ export function CustomersList({
     }
     try {
       setSaving(true);
-      const res = await fetch("/api/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          activityId: activeActivity.id,
-          createdBy: currentUser?.id || null,
-          assignedTo: currentUser?.id || null,
-        }),
+      const res = await apiRequest("POST", "/api/customers", {
+        ...form,
+        activityId: activeActivity.id,
+        createdBy: currentUser?.id || null,
+        assignedTo: currentUser?.id || null,
       });
       if (!res.ok) throw new Error("save failed");
       toast({ title: isRtl ? "تم إضافة العميل وإسناده لك" : "Customer added and assigned to you" });
@@ -267,10 +264,7 @@ export function CustomersList({
   const confirmDelete = async () => {
     if (!deleteId) return;
     try {
-      const res = await fetch(`/api/customers/${deleteId}`, {
-        method: "DELETE",
-        headers: { "x-user-id": currentUser?.id || "" },
-      });
+      const res = await apiRequest("DELETE", `/api/customers/${deleteId}`);
       if (!res.ok) throw new Error("delete failed");
       toast({ title: isRtl ? "تم حذف العميل" : "Customer deleted" });
       setSelectedIds(prev => prev.filter(id => id !== deleteId));
@@ -321,14 +315,7 @@ export function CustomersList({
     try {
       const body: any = { assignedTo: assignTo };
       if (activityChanged) body.activityId = assignActivity;
-      const res = await fetch(`/api/customers/${assignTarget.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": currentUser?.id || "",
-        },
-        body: JSON.stringify(body),
-      });
+      const res = await apiRequest("PATCH", `/api/customers/${assignTarget.id}`, body);
       if (!res.ok) throw new Error("assign failed");
       const targetUser = userById(assignTo);
       toast({

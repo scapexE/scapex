@@ -20,6 +20,7 @@ import {
   Clock, Calendar, AlertCircle, FileText, Mail, UserCog, User as UserIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { scopedFetch, apiRequest } from "@/lib/queryClient";
 
 interface DbDeal {
   id: number;
@@ -125,9 +126,9 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
       setLoading(true);
       const params = new URLSearchParams({ activityId: activeActivity.id });
       const [dr, cr, ur] = await Promise.all([
-        fetch(`/api/deals?${params.toString()}`).then(r => r.json()),
-        fetch(`/api/customers?${params.toString()}`).then(r => r.json()),
-        fetch("/api/users").then(r => r.json()),
+        scopedFetch(`/api/deals?${params.toString()}`).then(r => r.json()),
+        scopedFetch(`/api/customers?${params.toString()}`).then(r => r.json()),
+        scopedFetch("/api/users").then(r => r.json()),
       ]);
       setDeals(Array.isArray(dr) ? dr : []);
       setCustomers(Array.isArray(cr) ? cr : []);
@@ -220,11 +221,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
     if (!dealId) return;
     setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: stageId } : d));
     try {
-      const res = await fetch(`/api/deals/${dealId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "x-user-id": currentUser?.id || "" },
-        body: JSON.stringify({ stage: stageId }),
-      });
+      const res = await apiRequest("PATCH", `/api/deals/${dealId}`, { stage: stageId });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || `HTTP ${res.status}`);
@@ -270,23 +267,19 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
     }
     try {
       setSaving(true);
-      const res = await fetch("/api/deals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          titleAr: form.titleAr,
-          titleEn: form.titleEn,
-          contactId: form.contactId ? parseInt(form.contactId) : null,
-          value: form.value || "0",
-          priority: form.priority,
-          nextAction: form.nextAction,
-          expectedClose: form.expectedClose || null,
-          notes: form.notes,
-          stage: addStage,
-          activityId: activeActivity.id,
-          createdBy: currentUser?.id || null,
-          assignedTo: currentUser?.id || null,
-        }),
+      const res = await apiRequest("POST", "/api/deals", {
+        titleAr: form.titleAr,
+        titleEn: form.titleEn,
+        contactId: form.contactId ? parseInt(form.contactId) : null,
+        value: form.value || "0",
+        priority: form.priority,
+        nextAction: form.nextAction,
+        expectedClose: form.expectedClose || null,
+        notes: form.notes,
+        stage: addStage,
+        activityId: activeActivity.id,
+        createdBy: currentUser?.id || null,
+        assignedTo: currentUser?.id || null,
       });
       if (!res.ok) throw new Error("save failed");
       toast({ title: isRtl ? "تم إضافة الفرصة وإسنادها لك" : "Lead added and assigned to you" });
@@ -302,10 +295,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   const confirmDelete = async () => {
     if (!deleteId) return;
     try {
-      const res = await fetch(`/api/deals/${deleteId}`, {
-        method: "DELETE",
-        headers: { "x-user-id": currentUser?.id || "" },
-      });
+      const res = await apiRequest("DELETE", `/api/deals/${deleteId}`);
       if (!res.ok) throw new Error("delete failed");
       toast({ title: isRtl ? "تم حذف الفرصة" : "Lead deleted" });
       setDeleteId(null);
@@ -327,11 +317,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
       return;
     }
     try {
-      const res = await fetch(`/api/deals/${assignTarget.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "x-user-id": currentUser?.id || "" },
-        body: JSON.stringify({ assignedTo: assignTo }),
-      });
+      const res = await apiRequest("PATCH", `/api/deals/${assignTarget.id}`, { assignedTo: assignTo });
       if (!res.ok) throw new Error("assign failed");
       const u = userById(assignTo);
       toast({
