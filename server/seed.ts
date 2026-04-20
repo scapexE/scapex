@@ -194,18 +194,14 @@ export async function seedDefaultActivities(): Promise<void> {
   const allUsers = await db.select().from(users);
   const allActivities = await db.select().from(businessActivities);
   let memberships = 0;
+  // Auto-membership applies ONLY to admin/manager — they need universal
+  // visibility to operate the platform. Every other user (engineer,
+  // accountant, custom roles, etc.) is assigned explicitly by an admin
+  // through the Companies → Activities UI; no implicit memberships.
   for (const u of allUsers) {
     const userRoles = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
-    if (userRoles.has("client") || userRoles.has("viewer")) continue;
-    const isPrivileged = userRoles.has("admin") || userRoles.has("manager");
-    // Tenant isolation: a non-privileged user only gets auto-membership in
-    // activities that belong to their own company. Users with no companyId
-    // (seeded test sub-users / system users) get broad assignment so they can
-    // exercise the platform out of the box.
-    const scoped = (isPrivileged || !u.companyId)
-      ? allActivities
-      : allActivities.filter((a) => a.companyId === u.companyId);
-    for (const a of scoped) {
+    if (!userRoles.has("admin") && !userRoles.has("manager")) continue;
+    for (const a of allActivities) {
       const r = await db.insert(activityMembers)
         .values({ activityId: a.id, userId: u.id })
         .onConflictDoNothing()
