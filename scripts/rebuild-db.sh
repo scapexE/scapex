@@ -55,7 +55,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE S
 echo "📐 3/4  Pushing Drizzle schema (force)"
 npm run db:push -- --force
 
-echo "🌱 4/4  Seeding defaults"
-npx tsx scripts/seed.ts
+echo "🌱 4/4  Seeding defaults (resetting catalogs to canonical values)"
+SCAPEX_SEED_OVERWRITE_CATALOGS=yes npx tsx scripts/seed.ts
 
 echo "✅ Rebuild complete. Backup retained at $BACKUP_FILE"

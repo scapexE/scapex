@@ -212,22 +212,50 @@ export async function seedDefaultActivities(): Promise<void> {
   }
 }
 
-async function setAppData(key: string, value: any) {
-  await db.insert(appData).values({ key, value }).onConflictDoNothing();
-  // Always overwrite to keep defaults consistent.
-  await db.update(appData).set({ value, updatedAt: new Date() }).where(eq(appData.key, key));
+/**
+ * Insert-only by default: if the row exists we leave the admin's customised
+ * value untouched. When `overwrite` is true (only used by the destructive
+ * rebuild path) we replace the row with the canonical defaults.
+ */
+async function setAppData(key: string, value: any, overwrite = false) {
+  if (overwrite) {
+    await db.insert(appData).values({ key, value }).onConflictDoNothing();
+    await db.update(appData).set({ value, updatedAt: new Date() }).where(eq(appData.key, key));
+    return true;
+  }
+  const inserted = await db.insert(appData)
+    .values({ key, value })
+    .onConflictDoNothing()
+    .returning({ key: appData.key });
+  return inserted.length > 0;
 }
 
-export async function seedDefaultCatalogs(): Promise<void> {
-  await setAppData("scapex_deal_pipeline", DEFAULT_DEAL_PIPELINE);
-  await setAppData("scapex_account_categories", DEFAULT_ACCOUNT_CATEGORIES);
-  await setAppData("scapex_document_categories", DEFAULT_DOCUMENT_CATEGORIES);
-  await setAppData("scapex_default_project_stages", DEFAULT_PROJECT_STAGES);
-  console.log("✅ Default CRM pipeline, account & document categories, project stages seeded");
+/**
+ * Seed the catalog defaults. With `overwrite=false` (default, used at boot)
+ * existing admin-customised values are preserved. With `overwrite=true`
+ * (used only by the rebuild script) values are reset to canonical defaults.
+ */
+export async function seedDefaultCatalogs(overwrite = false): Promise<void> {
+  const a = await setAppData("scapex_deal_pipeline", DEFAULT_DEAL_PIPELINE, overwrite);
+  const b = await setAppData("scapex_account_categories", DEFAULT_ACCOUNT_CATEGORIES, overwrite);
+  const c = await setAppData("scapex_document_categories", DEFAULT_DOCUMENT_CATEGORIES, overwrite);
+  const d = await setAppData("scapex_default_project_stages", DEFAULT_PROJECT_STAGES, overwrite);
+  const created = [a, b, c, d].filter(Boolean).length;
+  if (overwrite) {
+    console.log("✅ Default catalogs reset to canonical values (overwrite mode)");
+  } else if (created > 0) {
+    console.log(`✅ Seeded ${created} missing default catalog(s)`);
+  } else {
+    console.log("• catalogs already present — preserving admin customisations");
+  }
 }
 
-/** Run every seed step in the correct order. Idempotent. */
-export async function runAllSeeds(): Promise<void> {
+/**
+ * Run every seed step in the correct order. Idempotent.
+ * `overwriteCatalogs` is forwarded only by the rebuild script — boot uses
+ * the safe insert-only default.
+ */
+export async function runAllSeeds(opts: { overwriteCatalogs?: boolean } = {}): Promise<void> {
   // app_data table is referenced by setAppData. Make sure it exists first
   // (mirrors the bootstrap step in registerRoutes).
   await db.execute(`CREATE TABLE IF NOT EXISTS app_data (
@@ -238,5 +266,5 @@ export async function runAllSeeds(): Promise<void> {
   await seedDefaultUsers();
   await seedDefaultCompanies();
   await seedDefaultActivities();
-  await seedDefaultCatalogs();
+  await seedDefaultCatalogs(opts.overwriteCatalogs === true);
 }
