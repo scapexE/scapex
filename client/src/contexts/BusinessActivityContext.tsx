@@ -65,9 +65,12 @@ export function BusinessActivityProvider({
   const [activeActivity, setActiveActivityState] = useState<BusinessActivity | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!userId) {
+      setActivities([]); setLoading(false); return;
+    }
     try {
       setLoading(true);
-      const res = await fetch("/api/activities");
+      const res = await fetch("/api/activities", { headers: { "x-user-id": userId } });
       const data: BusinessActivity[] = res.ok ? await res.json() : [];
       setActivities(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -76,7 +79,7 @@ export function BusinessActivityProvider({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -105,10 +108,10 @@ export function BusinessActivityProvider({
       if (fresh && fresh !== activeActivity) setActiveActivityState(fresh);
       return;
     }
-    // Try persisted (localStorage first; user.lastActivityId fallback)
+    // Try persisted: sessionStorage (current tab) → user.lastActivityId (server) → first item
     const storedId =
       sessionStorage.getItem(ACTIVE_ACTIVITY_KEY) ||
-      (currentUser as any)?.lastActivityId ||
+      currentUser?.lastActivityId ||
       null;
     const found = (storedId && list.find((a) => a.id === storedId)) || list[0] || null;
     setActiveActivityState(found);

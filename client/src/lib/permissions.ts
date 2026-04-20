@@ -18,6 +18,8 @@ export interface SystemUser {
   companyIds?: string[];
   /** Specific branches the user is restricted to. Empty = all branches of allowed companies */
   branchIds?: string[];
+  /** Server-persisted last selected business activity (for auto-restore on login) */
+  lastActivityId?: string | null;
 }
 
 /** Returns the list of company IDs a user can access. Admins return null = unrestricted. */

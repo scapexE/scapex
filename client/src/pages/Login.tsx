@@ -159,15 +159,16 @@ export default function Login() {
       const user = data.user;
       const localUser = {
         id: user.id,
-        nationalId: "",
+        nationalId: user.nationalId || "",
         name: user.name || "",
         email: user.email || "",
         password: "",
         role: user.role || "viewer",
-        roles: [user.role || "viewer"],
+        roles: Array.isArray(user.roles) && user.roles.length ? user.roles : [user.role || "viewer"],
         permissions: user.permissions || [],
         createdAt: user.createdAt || new Date().toISOString(),
         active: user.isActive ?? true,
+        lastActivityId: user.lastActivityId ?? null,
       };
       dbSetItem("user", JSON.stringify(localUser));
       logAction("login", "auth", `User ${user.name} logged in`, `المستخدم ${user.name} سجّل دخول`);

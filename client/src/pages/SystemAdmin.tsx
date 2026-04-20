@@ -731,7 +731,7 @@ function SystemAdminContent() {
       const mapped: SystemUser[] = (rows || []).filter((u) => u.isActive).map((u) => ({
         id: u.id, name: u.name || u.username || "", email: u.email || "",
         nationalId: u.nationalId || "", password: "",
-        role: (u.role || "viewer") as any,
+        role: (u.role || "viewer") as SystemUser["role"],
         roles: Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role || "viewer"],
         permissions: Array.isArray(u.permissions) ? u.permissions : [],
         active: !!u.isActive, createdAt: u.createdAt || new Date().toISOString(),
@@ -785,7 +785,7 @@ function SystemAdminContent() {
       companyNameAr: addCompanyNameAr || co?.nameAr || null,
       companyNameEn: addCompanyNameEn || co?.nameEn || null,
       companyLogoUrl: addCompanyLogoUrl || co?.logoUrl || null,
-    } as any);
+    });
     if (!created) {
       toast({ title: isRtl ? "تعذر الحفظ" : "Save failed", variant: "destructive" }); return;
     }
@@ -809,7 +809,7 @@ function SystemAdminContent() {
       companyNameAr: editCompanyNameAr,
       companyNameEn: editCompanyNameEn,
       companyLogoUrl: editCompanyLogoUrl,
-    } as any);
+    });
     if (!updated) { toast({ title: isRtl ? "تعذر الحفظ" : "Save failed", variant: "destructive" }); return; }
     setEditActivity(null);
     toast({ title: isRtl ? "تم بنجاح" : "Saved", description: isRtl ? "تم تحديث النشاط" : "Activity updated" });
@@ -824,7 +824,7 @@ function SystemAdminContent() {
   };
 
   const handleToggleActive = async (activity: BusinessActivity) => {
-    await updateActivity(activity.id, { active: !activity.active } as any);
+    await updateActivity(activity.id, { active: !activity.active });
   };
 
   const openEdit = (a: BusinessActivity) => {

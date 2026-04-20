@@ -282,7 +282,17 @@ export async function registerRoutes(
 
   app.get("/api/activities", async (req, res) => {
     try {
-      const userId = (req.query.userId as string) || null;
+      // Authenticate caller via x-user-id header (same pattern as other secured routes)
+      const actorId = (req.header("x-user-id") || "").trim();
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      if (!actor) return res.status(401).json({ error: "Unauthorized" });
+      const actorRoles = new Set<string>([
+        actor.role || "",
+        ...(Array.isArray((actor as any).roles) ? ((actor as any).roles as string[]) : []),
+      ]);
+      const isPrivileged = actorRoles.has("admin") || actorRoles.has("manager");
+
       const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : null;
       const conds: any[] = [];
       if (companyId) conds.push(eq(businessActivities.companyId, companyId));
@@ -295,8 +305,9 @@ export async function registerRoutes(
         (memberMap[m.activityId] ||= []).push(m.userId);
       }
       let result = rows.map((a) => ({ ...a, userIds: memberMap[a.id] || [] }));
-      if (userId) {
-        result = result.filter((a) => (memberMap[a.id] || []).includes(userId));
+      // Non-admin/manager: only see activities where the caller is a member
+      if (!isPrivileged) {
+        result = result.filter((a) => (memberMap[a.id] || []).includes(actorId));
       }
       res.json(result);
     } catch (err: any) {
