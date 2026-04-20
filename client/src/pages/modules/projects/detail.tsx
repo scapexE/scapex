@@ -21,6 +21,7 @@ import {
   getProject, updateProject, listStages, createStage, updateStage, deleteStage,
   listProjectDocuments, createProjectDocument, deleteProjectDocument,
   listProjectInvoices,
+  createProjectInvoice,
   type ApiProject, type ApiStage, type ApiProjectDocument, type ApiProjectInvoice,
   type ProjectStatus, type StageStatus,
   PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN,
@@ -447,10 +448,35 @@ function ProjectDocumentsTab({ projectId, isRtl, userName }: {
 function ProjectPaymentsTab({ project, isRtl }: { project: ApiProject; isRtl: boolean }) {
   const [invoices, setInvoices] = useState<ApiProjectInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTotal, setNewTotal] = useState("");
+  const [newPaid, setNewPaid] = useState("");
+  const [newDue, setNewDue] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     setLoading(true);
     listProjectInvoices(project.id).then(setInvoices).catch(() => setInvoices([])).finally(() => setLoading(false));
   }, [project.id]);
+
+  async function handleCreate() {
+    const total = Number(newTotal);
+    if (!Number.isFinite(total) || total <= 0) return;
+    setSubmitting(true);
+    try {
+      const created = await createProjectInvoice(project.id, {
+        total,
+        paidAmount: Number(newPaid) || 0,
+        dueDate: newDue || undefined,
+        notes: newNotes || undefined,
+      });
+      setInvoices(prev => [created, ...prev]);
+      setShowAdd(false);
+      setNewTotal(""); setNewPaid(""); setNewDue(""); setNewNotes("");
+    } catch (e) {
+      console.error(e);
+    } finally { setSubmitting(false); }
+  }
 
   const totals = useMemo(() => {
     const billed = invoices.reduce((s, i) => s + Number(i.total ?? 0), 0);
@@ -460,7 +486,12 @@ function ProjectPaymentsTab({ project, isRtl }: { project: ApiProject; isRtl: bo
 
   return (
     <Card className="border-border/50">
-      <CardHeader><CardTitle className="text-base flex items-center gap-2"><CreditCard className="w-4 h-4" />{isRtl ? "المدفوعات والفواتير" : "Payments & invoices"}</CardTitle></CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base flex items-center gap-2"><CreditCard className="w-4 h-4" />{isRtl ? "المدفوعات والفواتير" : "Payments & invoices"}</CardTitle>
+        <Button size="sm" variant="outline" onClick={() => setShowAdd(true)} data-testid="button-add-invoice">
+          <Plus className="w-4 h-4 me-1" />{isRtl ? "إضافة فاتورة" : "Add invoice"}
+        </Button>
+      </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm mb-4">
           <Stat label={isRtl ? "الميزانية" : "Budget"} value={project.budget ?? "—"} testid="text-budget" />
@@ -498,6 +529,35 @@ function ProjectPaymentsTab({ project, isRtl }: { project: ApiProject; isRtl: bo
           </div>
         )}
       </CardContent>
+      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{isRtl ? "إضافة فاتورة جديدة" : "Add a new invoice"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>{isRtl ? "المبلغ الإجمالي" : "Total amount"}</Label>
+              <Input type="number" min="0" step="0.01" value={newTotal} onChange={e => setNewTotal(e.target.value)} data-testid="input-invoice-total" />
+            </div>
+            <div>
+              <Label>{isRtl ? "المسدد" : "Paid amount"}</Label>
+              <Input type="number" min="0" step="0.01" value={newPaid} onChange={e => setNewPaid(e.target.value)} data-testid="input-invoice-paid" />
+            </div>
+            <div>
+              <Label>{isRtl ? "تاريخ الاستحقاق" : "Due date"}</Label>
+              <Input type="date" value={newDue} onChange={e => setNewDue(e.target.value)} data-testid="input-invoice-due" />
+            </div>
+            <div>
+              <Label>{isRtl ? "ملاحظات" : "Notes"}</Label>
+              <Textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} data-testid="input-invoice-notes" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAdd(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={handleCreate} disabled={submitting || !newTotal} data-testid="button-submit-invoice">
+              {submitting ? (isRtl ? "جارٍ الحفظ..." : "Saving...") : (isRtl ? "حفظ" : "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

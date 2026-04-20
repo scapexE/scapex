@@ -1092,6 +1092,7 @@ export async function registerRoutes(
       // CASCADE in schema yet): stages and project documents.
       await db.delete(projectMilestones).where(eq(projectMilestones.projectId, r.row.id));
       await db.delete(documents).where(eq(documents.projectId, r.row.id));
+      await db.delete(invoices).where(eq(invoices.projectId, r.row.id));
       await db.delete(projects).where(eq(projects.id, r.row.id));
       res.json({ success: true });
     } catch (err: any) {
@@ -1341,10 +1342,9 @@ export async function registerRoutes(
       // Project ↔ invoice linkage: invoices share the same contactId, OR
       // share the same contractId. Activity scope is implicit (the project
       // and its invoices both carry activityId).
-      const linkConds: any[] = [];
+      const linkConds: any[] = [eq(invoices.projectId, r.row.id)];
       if (r.row.contactId) linkConds.push(eq(invoices.contactId, r.row.contactId));
       if (r.row.contractId) linkConds.push(eq(invoices.contractId, r.row.contractId));
-      if (!linkConds.length) return res.json([]);
       // CRITICAL: also constrain by the project's activityId so invoices
       // belonging to a different tenant/activity don't leak through a
       // shared contact id. (Invoices are activity-scoped in the schema.)
@@ -1358,6 +1358,55 @@ export async function registerRoutes(
       res.json(rows);
     } catch (err: any) {
       console.error("List project invoices error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // POST /api/projects/:id/invoices — create a draft invoice linked to
+  // the project (uses project.contactId/contractId/activityId/companyId).
+  app.post("/api/projects/:id/invoices", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const allowed = r.scope.isPrivileged
+        || r.row.managerId === r.scope.actor.id
+        || r.row.createdBy === r.scope.actor.id;
+      if (!allowed) return res.status(403).json({ error: "Forbidden" });
+      const body = req.body || {};
+      const total = Number(body.total ?? body.amount ?? 0);
+      if (!Number.isFinite(total) || total < 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+      // Auto invoice number: INV-YYYYMMDD-<seq for today>
+      const today = new Date();
+      const ymd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
+      const seq = Date.now().toString().slice(-5);
+      const invoiceNumber = body.invoiceNumber || `INV-${ymd}-${seq}`;
+      const subtotal = body.subtotal != null ? String(body.subtotal) : String(total);
+      const vatAmount = body.vatAmount != null ? String(body.vatAmount) : "0";
+      const [row] = await db.insert(invoices).values({
+        invoiceNumber,
+        type: body.type || "sales",
+        contactId: r.row.contactId ?? null,
+        contractId: r.row.contractId ?? null,
+        clientName: body.clientName || r.row.clientName || null,
+        issueDate: body.issueDate || today.toISOString().slice(0, 10),
+        dueDate: body.dueDate || null,
+        subtotal,
+        vatAmount,
+        total: String(total),
+        paidAmount: body.paidAmount != null ? String(body.paidAmount) : "0",
+        currency: body.currency || "SAR",
+        status: body.status || "draft",
+        notes: body.notes || null,
+        createdBy: r.scope.actor.id,
+        activityId: r.row.activityId,
+        companyId: r.row.companyId ?? null,
+        projectId: r.row.id,
+      }).returning();
+      res.status(201).json(row);
+    } catch (err: any) {
+      console.error("Create project invoice error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });

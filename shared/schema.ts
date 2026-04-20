@@ -493,6 +493,7 @@ export const invoices = pgTable("invoices", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   activityId: text("activity_id").references(() => businessActivities.id),
+  projectId: integer("project_id").references(() => projects.id),
 });
 
 export const invoiceItems = pgTable("invoice_items", {

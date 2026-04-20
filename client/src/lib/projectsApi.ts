@@ -190,6 +190,26 @@ export async function listProjectInvoices(projectId: number) {
   return (await r.json()) as ApiProjectInvoice[];
 }
 
+export interface CreateProjectInvoiceInput {
+  total: number;
+  paidAmount?: number;
+  issueDate?: string;
+  dueDate?: string;
+  notes?: string;
+  status?: string;
+  invoiceNumber?: string;
+}
+
+export async function createProjectInvoice(projectId: number, input: CreateProjectInvoiceInput) {
+  const r = await scopedFetch(`/api/projects/${projectId}/invoices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) throw new Error(`Failed to create invoice: ${r.status}`);
+  return (await r.json()) as ApiProjectInvoice;
+}
+
 /** Default stage template applied to new projects when no custom stages provided. */
 export const DEFAULT_PROJECT_STAGES: Array<{ titleAr: string; titleEn: string }> = [
   { titleAr: "عرض السعر", titleEn: "Proposal" },
