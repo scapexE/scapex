@@ -710,6 +710,8 @@ function StageDialog({
     assignedTo: initial?.assignedTo || "",
     expectedStart: initial?.expectedStart || "",
     expectedEnd: initial?.expectedEnd || "",
+    actualStart: initial?.actualStart || "",
+    actualEnd: initial?.actualEnd || "",
     status: initial?.status || "pending",
     progress: initial?.progress ?? 0,
     notes: initial?.notes || "",
@@ -722,6 +724,8 @@ function StageDialog({
         assignedTo: initial.assignedTo || "",
         expectedStart: initial.expectedStart || "",
         expectedEnd: initial.expectedEnd || "",
+        actualStart: initial.actualStart || "",
+        actualEnd: initial.actualEnd || "",
         status: initial.status || "pending",
         progress: initial.progress ?? 0,
         notes: initial.notes || "",
@@ -743,6 +747,8 @@ function StageDialog({
         assignedTo: form.assignedTo || null,
         expectedStart: form.expectedStart || null,
         expectedEnd: form.expectedEnd || null,
+        actualStart: form.actualStart || null,
+        actualEnd: form.actualEnd || null,
         status: form.status as StageStatus,
         progress: form.progress,
         notes: form.notes || null,
@@ -796,6 +802,14 @@ function StageDialog({
           <div>
             <Label>{isRtl ? "انتهاء متوقع" : "Expected end"}</Label>
             <Input type="date" value={form.expectedEnd} onChange={e => setForm({ ...form, expectedEnd: e.target.value })} data-testid="input-stage-expectedEnd" />
+          </div>
+          <div>
+            <Label>{isRtl ? "بدء فعلي" : "Actual start"}</Label>
+            <Input type="date" value={form.actualStart} onChange={e => setForm({ ...form, actualStart: e.target.value })} data-testid="input-stage-actualStart" />
+          </div>
+          <div>
+            <Label>{isRtl ? "انتهاء فعلي" : "Actual end"}</Label>
+            <Input type="date" value={form.actualEnd} onChange={e => setForm({ ...form, actualEnd: e.target.value })} data-testid="input-stage-actualEnd" />
           </div>
           <div className="col-span-2">
             <Label>{isRtl ? "نسبة الإنجاز" : "Progress"}: {form.progress}%</Label>

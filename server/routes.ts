@@ -1005,6 +1005,15 @@ export async function registerRoutes(
       // would still pass DB FK because the value is non-null but invalid).
       const [contactRow] = await db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1);
       if (!contactRow) return res.status(400).json({ error: "Invalid contactId" });
+      // SCOPE CHECK: non-privileged users can only link contacts that
+      // belong to one of their allowed activities. Otherwise a user could
+      // guess a contactId from another tenant and link a project to it.
+      if (!scope.isPrivileged) {
+        const allowed = scope.allowedIds || [];
+        if (!contactRow.activityId || !allowed.includes(contactRow.activityId)) {
+          return res.status(403).json({ error: "Forbidden: contact is outside your activity scope" });
+        }
+      }
       // Activity is REQUIRED to keep tenant isolation. Privileged callers may pick.
       const writeActivityId = scope.isPrivileged
         ? (d.activityId || scope.activityId || null)
@@ -1072,6 +1081,12 @@ export async function registerRoutes(
         }
         const [exists] = await db.select().from(contacts).where(eq(contacts.id, newCid)).limit(1);
         if (!exists) return res.status(400).json({ error: "Invalid contactId" });
+        if (!r.scope.isPrivileged) {
+          const allowed = r.scope.allowedIds || [];
+          if (!exists.activityId || !allowed.includes(exists.activityId)) {
+            return res.status(403).json({ error: "Forbidden: contact is outside your activity scope" });
+          }
+        }
       }
       const upd = await db.update(projects).set({
         nameAr: d.nameAr ?? r.row.nameAr,
