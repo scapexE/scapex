@@ -765,10 +765,21 @@ export const projectMilestones = pgTable("project_milestones", {
   projectId: integer("project_id").notNull().references(() => projects.id),
   titleAr: text("title_ar").notNull(),
   titleEn: text("title_en"),
+  descriptionAr: text("description_ar"),
+  descriptionEn: text("description_en"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  expectedStart: date("expected_start"),
+  expectedEnd: date("expected_end"),
+  actualStart: date("actual_start"),
+  actualEnd: date("actual_end"),
   dueDate: date("due_date"),
   completedAt: timestamp("completed_at"),
   status: text("status").default("pending"),
+  progress: integer("progress").default(0),
+  notes: text("notes"),
   sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  activityId: text("activity_id").references(() => businessActivities.id),
 });
 
 export const timesheets = pgTable("timesheets", {
@@ -1142,6 +1153,10 @@ export type Employee = typeof employees.$inferSelect;
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
+
+export const insertProjectStageSchema = createInsertSchema(projectMilestones).omit({ id: true, createdAt: true, completedAt: true });
+export type InsertProjectStage = z.infer<typeof insertProjectStageSchema>;
+export type ProjectStage = typeof projectMilestones.$inferSelect;
 
 export const insertProposalSchema = createInsertSchema(proposals).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertProposal = z.infer<typeof insertProposalSchema>;

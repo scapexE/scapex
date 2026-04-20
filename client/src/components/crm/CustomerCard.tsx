@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { getProposals, getContracts, STATUS_META, SERVICE_META, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
+import { listProjects, type ApiProject, PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN } from "@/lib/projectsApi";
+import { CreateProjectDialog } from "@/components/projects/ProjectsList";
+import { useActivityScope } from "@/hooks/useActivityScope";
+import { scopedFetch } from "@/lib/queryClient";
 import { getSurveysByCustomer } from "@/lib/surveys";
 import { SurveyResults } from "./SurveyResults";
 import { useLocation } from "wouter";
@@ -45,7 +49,12 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [apiProjects, setApiProjects] = useState<ApiProject[]>([]);
+  const [customersList, setCustomersList] = useState<any[]>([]);
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [showNewProject, setShowNewProject] = useState(false);
   const [surveyCount, setSurveyCount] = useState(0);
+  const { activeActivity, isPrivileged } = useActivityScope();
 
   useEffect(() => {
     if (!customer || !open) return;
@@ -58,7 +67,23 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
     setContracts(allContracts.filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
     setProjects(allProjects.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
     setSurveyCount(getSurveysByCustomer(customer.id).length);
-  }, [customer, open]);
+
+    // DB-backed projects scoped to this contact id (when the customer comes from /api/customers)
+    const contactId = Number(customer.id);
+    if (Number.isFinite(contactId)) {
+      listProjects({ contactId }).then(setApiProjects).catch(() => setApiProjects([]));
+    } else {
+      setApiProjects([]);
+    }
+    // Used by the "New project" dialog
+    Promise.all([
+      scopedFetch(activeActivity?.id ? `/api/customers?activityId=${activeActivity.id}` : "/api/customers").then(r => r.ok ? r.json() : []),
+      scopedFetch("/api/users").then(r => r.ok ? r.json() : []),
+    ]).then(([cs, us]) => {
+      setCustomersList(Array.isArray(cs) ? cs : []);
+      setUsersList(Array.isArray(us) ? us : []);
+    }).catch(() => {});
+  }, [customer, open, activeActivity?.id]);
 
   useEffect(() => {
     if (!customer || !open) return;
@@ -284,11 +309,72 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
           {/* ── Projects ── */}
           <TabsContent value="projects" className="flex-1 min-h-0 m-0 mt-3">
             <ScrollArea className="h-full px-6 pb-4">
-              {projects.length === 0 ? (
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-muted-foreground">
+                  {isRtl ? `${apiProjects.length} مشروع مرتبط بهذا العميل` : `${apiProjects.length} project(s) linked to this customer`}
+                </p>
+                <CreateProjectDialog
+                  open={showNewProject}
+                  onOpenChange={setShowNewProject}
+                  customers={customersList}
+                  users={usersList}
+                  activityId={activeActivity?.id || null}
+                  isPrivileged={isPrivileged}
+                  defaultContactId={Number.isFinite(Number(customer.id)) ? Number(customer.id) : null}
+                  defaultClientName={customer.name}
+                  triggerLabel={isRtl ? "مشروع جديد" : "New project"}
+                  onCreated={(p) => {
+                    setApiProjects(prev => [p, ...prev]);
+                    onClose();
+                    navigate(`/projects/${p.id}`);
+                  }}
+                />
+              </div>
+              {apiProjects.length > 0 && (
+                <div className="space-y-3 mb-4">
+                  {apiProjects.map(p => (
+                    <div
+                      key={`api-${p.id}`}
+                      data-testid={`row-customer-project-${p.id}`}
+                      className="border border-border/50 rounded-xl p-4 bg-card hover:border-emerald-300/50 transition-colors cursor-pointer"
+                      onClick={() => { onClose(); navigate(`/projects/${p.id}`); }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">{isRtl ? (p.nameAr || p.nameEn) : (p.nameEn || p.nameAr)}</p>
+                          {p.projectCode && <p className="text-xs text-muted-foreground mt-0.5 font-mono">{p.projectCode}</p>}
+                        </div>
+                        <Badge variant="outline" className={cn("text-xs border-transparent",
+                          p.status === "active" ? "bg-emerald-100 text-emerald-700" :
+                          p.status === "planning" ? "bg-blue-100 text-blue-700" :
+                          p.status === "completed" ? "bg-slate-100 text-slate-700" :
+                          p.status === "on_hold" ? "bg-amber-100 text-amber-700" :
+                          "bg-red-100 text-red-700")}>
+                          {isRtl ? (PROJECT_STATUS_LABELS_AR[p.status] ?? p.status) : (PROJECT_STATUS_LABELS_EN[p.status] ?? p.status)}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{isRtl ? "التقدم" : "Progress"}</span>
+                          <span className="font-medium">{p.progress ?? 0}%</span>
+                        </div>
+                        <Progress value={p.progress ?? 0} className="h-1.5" />
+                      </div>
+                      {(p.startDate || p.endDate) && (
+                        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                          {p.startDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {p.startDate}</span>}
+                          {p.endDate && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {p.endDate}</span>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {apiProjects.length === 0 && projects.length === 0 ? (
                 <EmptyState
                   icon={<Briefcase className="w-10 h-10 text-muted-foreground/40" />}
                   label={isRtl ? "لا توجد مشاريع لهذا العميل" : "No projects for this customer"}
-                  sub={isRtl ? "سيُنشأ المشروع تلقائياً عند تحويل عرض الأسعار إلى عقد" : "A project is auto-created when a proposal is converted to a contract"}
+                  sub={isRtl ? "أنشئ مشروعاً جديداً من الزر أعلاه أو حوّل عرض سعر إلى عقد" : "Create one above, or convert a proposal to a contract"}
                 />
               ) : (
                 <div className="space-y-3">

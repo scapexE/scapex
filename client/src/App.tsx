@@ -16,6 +16,7 @@ import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import CRMModule from "@/pages/modules/crm/index";
 import ProjectsModule from "@/pages/modules/projects/index";
+import ProjectDetailPage from "@/pages/modules/projects/detail";
 import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 import SalesModule from "@/pages/modules/sales/index";
 import AccountingModule from "@/pages/modules/accounting/index";
@@ -62,6 +63,7 @@ function Router() {
 
       {/* Operations */}
       <Route path="/projects" component={ProjectsModule} />
+      <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/inventory" component={InventoryModule} />
       <Route path="/equipment" component={EquipmentModule} />
 

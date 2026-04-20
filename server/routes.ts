@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones } from "@shared/schema";
 import { and, desc, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -915,6 +915,254 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (err: any) {
       console.error("Delete deal error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ═══ Projects + Stages CRUD ═══════════════════════════════════════════
+  // Helper: ensure the requester can see/touch a given project, returning the row.
+  async function loadScopedProject(req: any, idStr: string) {
+    const id = parseInt(idStr);
+    if (isNaN(id)) return { ok: false as const, status: 400, error: "Invalid id" };
+    const scope = await resolveActivityScope(req);
+    if (!scope.ok) return { ok: false as const, status: scope.status, error: scope.error };
+    const [row] = await db.select().from(projects).where(eq(projects.id, id));
+    if (!row) return { ok: false as const, status: 404, error: "Not found" };
+    if (!scope.isPrivileged && row.activityId && !(scope.allowedIds || []).includes(row.activityId)) {
+      return { ok: false as const, status: 403, error: "Forbidden: project is in a different activity" };
+    }
+    return { ok: true as const, row, scope };
+  }
+
+  app.get("/api/projects", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const status = (req.query.status as string) || null;
+      const contactId = req.query.contactId ? parseInt(req.query.contactId as string) : null;
+      const managerId = (req.query.managerId as string) || null;
+      const conds: any[] = [];
+      if (scope.activityId) conds.push(eq(projects.activityId, scope.activityId));
+      else if (!scope.isPrivileged && scope.allowedIds && scope.allowedIds.length) {
+        conds.push(inArray(projects.activityId, scope.allowedIds));
+      }
+      if (status) conds.push(eq(projects.status, status));
+      if (contactId && !isNaN(contactId)) conds.push(eq(projects.contactId, contactId));
+      if (managerId) conds.push(eq(projects.managerId, managerId));
+      const q = db.select().from(projects);
+      const rows = conds.length
+        ? await q.where(conds.length > 1 ? and(...conds) : conds[0]).orderBy(desc(projects.createdAt))
+        : await q.orderBy(desc(projects.createdAt));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("Get projects error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/projects/:id", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      res.json(r.row);
+    } catch (err: any) {
+      console.error("Get project error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/projects", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const d = req.body || {};
+      if (!d.nameAr && !d.nameEn) return res.status(400).json({ error: "Name is required" });
+      // Activity is REQUIRED to keep tenant isolation. Privileged callers may pick.
+      const writeActivityId = scope.isPrivileged
+        ? (d.activityId || scope.activityId || null)
+        : scope.activityId;
+      if (!writeActivityId) return res.status(400).json({ error: "activityId is required" });
+      const result = await db.insert(projects).values({
+        companyId: d.companyId ?? null,
+        branchId: d.branchId ?? null,
+        projectCode: d.projectCode || null,
+        nameAr: d.nameAr || d.nameEn,
+        nameEn: d.nameEn || d.nameAr || null,
+        description: d.description || null,
+        clientName: d.clientName || null,
+        contactId: d.contactId ?? null,
+        contractId: d.contractId ?? null,
+        serviceType: d.serviceType || null,
+        managerId: d.managerId || null,
+        status: d.status || "planning",
+        priority: d.priority || "medium",
+        startDate: d.startDate || null,
+        endDate: d.endDate || null,
+        budget: d.budget ?? null,
+        progress: d.progress ?? 0,
+        location: d.location || null,
+        city: d.city || null,
+        notes: d.notes || null,
+        activityId: writeActivityId,
+        createdBy: d.createdBy || scope.actor.id,
+      }).returning();
+      res.json(result[0]);
+    } catch (err: any) {
+      console.error("Create project error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/projects/:id", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const d = req.body || {};
+      // Activity transfer is admin/manager-only.
+      let nextActivityId = r.row.activityId;
+      if ("activityId" in d && d.activityId !== undefined && d.activityId !== r.row.activityId) {
+        if (!r.scope.isPrivileged) return res.status(403).json({ error: "Forbidden: only admin/manager may transfer activity" });
+        nextActivityId = d.activityId;
+      }
+      const upd = await db.update(projects).set({
+        nameAr: d.nameAr ?? r.row.nameAr,
+        nameEn: d.nameEn ?? r.row.nameEn,
+        description: d.description ?? r.row.description,
+        clientName: d.clientName ?? r.row.clientName,
+        contactId: d.contactId ?? r.row.contactId,
+        managerId: d.managerId ?? r.row.managerId,
+        status: d.status ?? r.row.status,
+        priority: d.priority ?? r.row.priority,
+        startDate: d.startDate ?? r.row.startDate,
+        endDate: d.endDate ?? r.row.endDate,
+        budget: d.budget ?? r.row.budget,
+        spent: d.spent ?? r.row.spent,
+        progress: d.progress ?? r.row.progress,
+        location: d.location ?? r.row.location,
+        city: d.city ?? r.row.city,
+        notes: d.notes ?? r.row.notes,
+        serviceType: d.serviceType ?? r.row.serviceType,
+        activityId: nextActivityId,
+        updatedAt: new Date(),
+      }).where(eq(projects.id, r.row.id)).returning();
+      res.json(upd[0]);
+    } catch (err: any) {
+      console.error("Update project error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/projects/:id", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      if (!r.scope.isPrivileged) return res.status(403).json({ error: "Forbidden" });
+      await db.delete(projectMilestones).where(eq(projectMilestones.projectId, r.row.id));
+      await db.delete(projects).where(eq(projects.id, r.row.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete project error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // Stages (project_milestones) inherit the parent project's scope.
+  app.get("/api/projects/:id/stages", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const rows = await db
+        .select()
+        .from(projectMilestones)
+        .where(eq(projectMilestones.projectId, r.row.id))
+        .orderBy(projectMilestones.sortOrder, projectMilestones.id);
+      res.json(rows);
+    } catch (err: any) {
+      console.error("Get stages error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/projects/:id/stages", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const d = req.body || {};
+      if (!d.titleAr && !d.titleEn) return res.status(400).json({ error: "Title is required" });
+      const result = await db.insert(projectMilestones).values({
+        projectId: r.row.id,
+        titleAr: d.titleAr || d.titleEn,
+        titleEn: d.titleEn || d.titleAr || null,
+        descriptionAr: d.descriptionAr || null,
+        descriptionEn: d.descriptionEn || null,
+        assignedTo: d.assignedTo || null,
+        expectedStart: d.expectedStart || null,
+        expectedEnd: d.expectedEnd || null,
+        actualStart: d.actualStart || null,
+        actualEnd: d.actualEnd || null,
+        dueDate: d.dueDate || d.expectedEnd || null,
+        status: d.status || "pending",
+        progress: d.progress ?? 0,
+        notes: d.notes || null,
+        sortOrder: d.sortOrder ?? 0,
+        // Stages inherit the project's activityId so that the same scope
+        // filter works if anyone queries them directly later on.
+        activityId: r.row.activityId,
+      }).returning();
+      res.json(result[0]);
+    } catch (err: any) {
+      console.error("Create stage error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/stages/:id", async (req, res) => {
+    try {
+      const sid = parseInt(req.params.id);
+      if (isNaN(sid)) return res.status(400).json({ error: "Invalid id" });
+      const [stage] = await db.select().from(projectMilestones).where(eq(projectMilestones.id, sid));
+      if (!stage) return res.status(404).json({ error: "Not found" });
+      const r = await loadScopedProject(req, String(stage.projectId));
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const d = req.body || {};
+      // Auto-stamp completedAt when status flips to "completed"
+      const becameComplete = d.status === "completed" && stage.status !== "completed";
+      const upd = await db.update(projectMilestones).set({
+        titleAr: d.titleAr ?? stage.titleAr,
+        titleEn: d.titleEn ?? stage.titleEn,
+        descriptionAr: d.descriptionAr ?? stage.descriptionAr,
+        descriptionEn: d.descriptionEn ?? stage.descriptionEn,
+        assignedTo: d.assignedTo ?? stage.assignedTo,
+        expectedStart: d.expectedStart ?? stage.expectedStart,
+        expectedEnd: d.expectedEnd ?? stage.expectedEnd,
+        actualStart: d.actualStart ?? stage.actualStart,
+        actualEnd: d.actualEnd ?? stage.actualEnd,
+        dueDate: d.dueDate ?? stage.dueDate,
+        status: d.status ?? stage.status,
+        progress: d.progress ?? stage.progress,
+        notes: d.notes ?? stage.notes,
+        sortOrder: d.sortOrder ?? stage.sortOrder,
+        completedAt: becameComplete ? new Date() : stage.completedAt,
+      }).where(eq(projectMilestones.id, sid)).returning();
+      res.json(upd[0]);
+    } catch (err: any) {
+      console.error("Update stage error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/stages/:id", async (req, res) => {
+    try {
+      const sid = parseInt(req.params.id);
+      if (isNaN(sid)) return res.status(400).json({ error: "Invalid id" });
+      const [stage] = await db.select().from(projectMilestones).where(eq(projectMilestones.id, sid));
+      if (!stage) return res.status(404).json({ error: "Not found" });
+      const r = await loadScopedProject(req, String(stage.projectId));
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      await db.delete(projectMilestones).where(eq(projectMilestones.id, sid));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete stage error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
