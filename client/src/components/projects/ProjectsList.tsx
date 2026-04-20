@@ -294,7 +294,7 @@ export function CreateProjectDialog({
       toast({ title: isRtl ? "العنوان مطلوب" : "Name is required", variant: "destructive" });
       return;
     }
-    if (!form.contactId && !form.clientName) {
+    if (!form.contactId) {
       toast({ title: isRtl ? "اختر عميلاً" : "Pick a customer", variant: "destructive" });
       return;
     }
@@ -360,18 +360,17 @@ export function CreateProjectDialog({
           </div>
           <div className="col-span-2">
             <Label>{isRtl ? "العميل" : "Customer"} *</Label>
-            <Select value={form.contactId || "__manual__"} onValueChange={(v) => setForm({ ...form, contactId: v === "__manual__" ? "" : v })}>
+            <Select value={form.contactId} onValueChange={(v) => setForm({ ...form, contactId: v })}>
               <SelectTrigger data-testid="select-project-customer"><SelectValue placeholder={isRtl ? "اختر عميلاً" : "Pick a customer"} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__manual__">{isRtl ? "كتابة اسم العميل يدوياً" : "Type client name manually"}</SelectItem>
                 {customers.map(c => (
                   <SelectItem key={c.id} value={String(c.id)}>{isRtl ? (c.nameAr || c.nameEn || `#${c.id}`) : (c.nameEn || c.nameAr || `#${c.id}`)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {!form.contactId && (
-              <Input className="mt-2" placeholder={isRtl ? "اسم العميل" : "Client name"} value={form.clientName} onChange={e => setForm({ ...form, clientName: e.target.value })} data-testid="input-project-clientName" />
-            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {isRtl ? "العميل إلزامي. أضف العميل من شاشة CRM أولاً إذا لم يكن موجوداً." : "Customer is required. Add the customer in CRM first if not listed."}
+            </p>
           </div>
           <div>
             <Label>{isRtl ? "المسؤول" : "Manager"}</Label>

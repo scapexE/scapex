@@ -993,12 +993,18 @@ export async function registerRoutes(
       if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const d = req.body || {};
       if (!d.nameAr && !d.nameEn) return res.status(400).json({ error: "Name is required" });
-      // A project MUST be linked to a client (contactId) OR carry a free-text
-      // clientName. Otherwise the record is orphaned (no one to bill, no CRM
-      // tab to surface it on). This mirrors the UI's mandatory client field.
-      if (!d.contactId && !(d.clientName && String(d.clientName).trim())) {
-        return res.status(400).json({ error: "Client is required (contactId or clientName)" });
+      // A project MUST be linked to a CRM contact (contactId). Free-text
+      // client names are not allowed because the CRM customer-projects tab
+      // queries by contactId; orphaned projects would be invisible there
+      // and would break "كل عميل مرتبط بمشاريعه".
+      const contactId = Number(d.contactId);
+      if (!Number.isFinite(contactId) || contactId <= 0) {
+        return res.status(400).json({ error: "contactId is required" });
       }
+      // Make sure the contact actually exists (avoid dangling FK rows that
+      // would still pass DB FK because the value is non-null but invalid).
+      const [contactRow] = await db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1);
+      if (!contactRow) return res.status(400).json({ error: "Invalid contactId" });
       // Activity is REQUIRED to keep tenant isolation. Privileged callers may pick.
       const writeActivityId = scope.isPrivileged
         ? (d.activityId || scope.activityId || null)
@@ -1011,8 +1017,8 @@ export async function registerRoutes(
         nameAr: d.nameAr || d.nameEn,
         nameEn: d.nameEn || d.nameAr || null,
         description: d.description || null,
-        clientName: d.clientName || null,
-        contactId: d.contactId ?? null,
+        clientName: d.clientName || contactRow.nameAr || contactRow.nameEn || null,
+        contactId: contactId,
         contractId: d.contractId ?? null,
         serviceType: d.serviceType || null,
         managerId: d.managerId || null,
@@ -1054,6 +1060,18 @@ export async function registerRoutes(
       if ("activityId" in d && d.activityId !== undefined && d.activityId !== r.row.activityId) {
         if (!r.scope.isPrivileged) return res.status(403).json({ error: "Forbidden: only admin/manager may transfer activity" });
         nextActivityId = d.activityId;
+      }
+      // Reject any attempt to clear the contact link. A project must always
+      // remain linked to a CRM contact so it stays visible on the customer
+      // card. If a new contactId is provided, it must reference an existing
+      // contact.
+      if ("contactId" in d) {
+        const newCid = Number(d.contactId);
+        if (!Number.isFinite(newCid) || newCid <= 0) {
+          return res.status(400).json({ error: "contactId is required" });
+        }
+        const [exists] = await db.select().from(contacts).where(eq(contacts.id, newCid)).limit(1);
+        if (!exists) return res.status(400).json({ error: "Invalid contactId" });
       }
       const upd = await db.update(projects).set({
         nameAr: d.nameAr ?? r.row.nameAr,
