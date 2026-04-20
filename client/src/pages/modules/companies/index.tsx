@@ -105,6 +105,8 @@ function CompaniesContent() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [companyForm, setCompanyForm] = useState<Partial<Company>>({});
   const [branchForm, setBranchForm] = useState<Partial<Branch>>({});
+  const [showNewActivityDialog, setShowNewActivityDialog] = useState(false);
+  const newActivityFormRef = useRef<ActivityFormHandle>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -530,29 +532,119 @@ function CompaniesContent() {
               <div><Label>{t("الهاتف", "Phone")}</Label><Input value={companyForm.phone || ""} onChange={e => setCompanyForm(p => ({ ...p, phone: e.target.value }))} data-testid="input-company-phone" /></div>
               <div><Label>{t("الموقع الإلكتروني", "Website")}</Label><Input value={companyForm.website || ""} onChange={e => setCompanyForm(p => ({ ...p, website: e.target.value }))} data-testid="input-company-website" /></div>
               <div>
-                <Label>{t("الأنشطة التجارية", "Business Activities")}</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>{t("الأنشطة التجارية", "Business Activities")}</Label>
+                  {isAdmin && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowNewActivityDialog(true)}
+                      data-testid="button-add-activity-catalog"
+                      className="h-7 text-xs"
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      {t("إضافة نشاط جديد", "Add new activity")}
+                    </Button>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mb-2">{t("اختر الأنشطة التي تعمل بها هذه الشركة", "Select the activities this company operates in")}</p>
                 <div className="grid grid-cols-2 gap-2 p-3 border rounded-md max-h-48 overflow-y-auto">
-                  {activities.filter(a => a.active).map(a => {
-                    const checked = (companyForm.activityIds || []).includes(a.id);
-                    return (
-                      <label key={a.id} className="flex items-center gap-2 cursor-pointer text-sm" data-testid={`checkbox-activity-${a.id}`}>
-                        <Checkbox checked={checked} onCheckedChange={(v) => {
-                          setCompanyForm(p => {
-                            const cur = p.activityIds || [];
-                            return { ...p, activityIds: v ? [...cur, a.id] : cur.filter(x => x !== a.id) };
-                          });
-                        }} />
-                        <span>{isRtl ? a.nameAr : a.nameEn}</span>
-                      </label>
-                    );
-                  })}
+                  {(() => {
+                    // Deduplicate by nameAr|nameEn so each unique activity shows
+                    // once even if it's been instantiated per company in the DB.
+                    const seen = new Set<string>();
+                    const unique = activities
+                      .filter(a => a.active)
+                      .filter(a => {
+                        const key = `${a.nameAr}|${a.nameEn}`;
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                      });
+                    return unique.map(a => {
+                      // Treat all activities sharing this name as the same logical
+                      // catalog item: checking adds every matching id, unchecking
+                      // removes them all.
+                      const sameNameIds = activities
+                        .filter(x => x.nameAr === a.nameAr && x.nameEn === a.nameEn)
+                        .map(x => x.id);
+                      const checked = sameNameIds.some(id => (companyForm.activityIds || []).includes(id));
+                      return (
+                        <label key={a.id} className="flex items-center gap-2 cursor-pointer text-sm" data-testid={`checkbox-activity-${a.id}`}>
+                          <Checkbox checked={checked} onCheckedChange={(v) => {
+                            setCompanyForm(p => {
+                              const cur = p.activityIds || [];
+                              if (v) {
+                                const merged = Array.from(new Set([...cur, ...sameNameIds]));
+                                return { ...p, activityIds: merged };
+                              }
+                              return { ...p, activityIds: cur.filter(x => !sameNameIds.includes(x)) };
+                            });
+                          }} />
+                          <span>{isRtl ? a.nameAr : a.nameEn}</span>
+                        </label>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCompanyDialog(false)}>{t("إلغاء", "Cancel")}</Button>
               <Button onClick={saveCompany} data-testid="button-save-company">{t("حفظ", "Save")}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Inline "add new activity to catalog" dialog (admin only) */}
+        <Dialog open={showNewActivityDialog} onOpenChange={setShowNewActivityDialog}>
+          <DialogContent className="max-w-lg" dir={dir}>
+            <DialogHeader>
+              <DialogTitle>{t("إضافة نشاط جديد", "Add new activity")}</DialogTitle>
+            </DialogHeader>
+            <ActivityForm ref={newActivityFormRef} initialValue={emptyActivity} t={t} isRtl={isRtl} />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowNewActivityDialog(false)}>
+                {t("إلغاء", "Cancel")}
+              </Button>
+              <Button
+                data-testid="button-save-new-activity"
+                onClick={async () => {
+                  const v = newActivityFormRef.current?.getValues();
+                  if (!v?.nameAr || !v?.nameEn) {
+                    toast({ title: t("اسم النشاط مطلوب", "Activity name is required"), variant: "destructive" });
+                    return;
+                  }
+                  // Catalog-level activity: companyId left null so it appears
+                  // for every company in the picker. Once a company adopts it,
+                  // the admin can clone it per-company via Manage Activities.
+                  const created = await createActivity({
+                    nameAr: v.nameAr, nameEn: v.nameEn,
+                    color: (v.color as ActivityColor) ?? "blue",
+                    icon: v.icon ?? "HardHat",
+                    modules: v.modules ?? ["dashboard"],
+                    active: true,
+                    companyId: null,
+                    companyNameAr: null,
+                    companyNameEn: null,
+                    companyLogoUrl: null,
+                  });
+                  if (!created) {
+                    toast({ title: t("تعذر الحفظ", "Save failed"), variant: "destructive" });
+                    return;
+                  }
+                  toast({ title: t("تمت الإضافة", "Added") });
+                  // Auto-select the new activity for the company being edited.
+                  setCompanyForm(p => ({
+                    ...p,
+                    activityIds: Array.from(new Set([...(p.activityIds || []), created.id])),
+                  }));
+                  setShowNewActivityDialog(false);
+                }}
+              >
+                {t("حفظ", "Save")}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
