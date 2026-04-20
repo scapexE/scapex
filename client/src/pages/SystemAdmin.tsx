@@ -60,7 +60,7 @@ const COLOR_OPTIONS: { key: ActivityColor; ar: string; en: string }[] = [
 ];
 
 function generateId() { return `act_${Date.now().toString(36)}`; }
-const emptyActivity = (): Partial<BusinessActivity> => ({
+export const emptyActivity = (): Partial<BusinessActivity> => ({
   nameAr: "", nameEn: "", color: "blue", icon: "HardHat", active: true,
   modules: ["dashboard"], companyNameAr: "", companyNameEn: "", companyLogoUrl: null,
 });
@@ -333,7 +333,7 @@ export interface ActivityFormHandle {
   getValues: () => Partial<BusinessActivity>;
 }
 
-const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<BusinessActivity> }>(
+export const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<BusinessActivity> }>(
   ({ initialForm }, ref) => {
     const { t, dir } = useLanguage();
     const isRtl = dir === 'rtl';
@@ -445,7 +445,7 @@ const ActivityForm = forwardRef<ActivityFormHandle, { initialForm: Partial<Busin
 ActivityForm.displayName = "ActivityForm";
 
 // ─── Activity Assignment Card (with searchable user dropdown) ─────────────────
-function ActivityAssignmentCard({
+export function ActivityAssignmentCard({
   act,
   allUsers,
   getActivityUserIds,

@@ -260,6 +260,16 @@ export async function registerRoutes(
     return r.has("admin") || r.has("manager");
   }
 
+  // Strict admin-only check (used for company/branch mutations).
+  async function isAdminOnly(req: any): Promise<boolean> {
+    const actorId = (req.header("x-user-id") || "").trim();
+    if (!actorId) return false;
+    const [u] = await db.select().from(users).where(eq(users.id, actorId));
+    if (!u) return false;
+    const r = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
+    return r.has("admin");
+  }
+
   app.get("/api/activities", async (req, res) => {
     try {
       // Authenticate caller via x-user-id header (same pattern as other secured routes)
@@ -441,6 +451,7 @@ export async function registerRoutes(
 
   app.post("/api/companies", async (req, res) => {
     try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const data = req.body;
       const result = await db.insert(companies).values({
         nameAr: data.nameAr,
@@ -466,6 +477,7 @@ export async function registerRoutes(
 
   app.put("/api/companies/:id", async (req, res) => {
     try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
       const data = req.body;
@@ -496,6 +508,7 @@ export async function registerRoutes(
 
   app.delete("/api/companies/:id", async (req, res) => {
     try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const id = parseInt(req.params.id);
       await db.delete(branches).where(eq(branches.companyId, id));
       await db.delete(companies).where(eq(companies.id, id));
@@ -520,6 +533,7 @@ export async function registerRoutes(
 
   app.post("/api/branches", async (req, res) => {
     try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const data = req.body;
       const result = await db.insert(branches).values({
         companyId: data.companyId,
@@ -540,6 +554,7 @@ export async function registerRoutes(
 
   app.put("/api/branches/:id", async (req, res) => {
     try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const id = parseInt(req.params.id);
       const data = req.body;
       const result = await db.update(branches).set({
@@ -560,6 +575,7 @@ export async function registerRoutes(
 
   app.delete("/api/branches/:id", async (req, res) => {
     try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const id = parseInt(req.params.id);
       await db.delete(branches).where(eq(branches.id, id));
       res.json({ success: true });

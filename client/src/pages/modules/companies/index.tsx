@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
+import { useBusinessActivity, type BusinessActivity } from "@/contexts/BusinessActivityContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getAllowedCompanyIds, getAllowedBranchIds, type SystemUser } from "@/lib/permissions";
 import { dbGetItem } from "@/lib/dbStorage";
@@ -10,13 +10,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Building2, Plus, Search, Edit, Trash2, MapPin, Users, GitBranch, Settings, Globe, Phone, Mail, FileText, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { Building2, Plus, Search, Edit, Trash2, MapPin, Users, GitBranch, Layers, Pencil, Shield, ShieldOff, Eye, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
+import { ActivityIcon } from "@/components/ActivityIcon";
+import { ActivityForm, ActivityFormHandle, ActivityAssignmentCard, emptyActivity } from "@/pages/SystemAdmin";
 
 interface Company {
   id: string;
@@ -62,10 +67,33 @@ function CompaniesContent() {
   const { dir, language } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
-  const { activities, activeActivity } = useBusinessActivity();
+  const {
+    activities, activeActivity,
+    createActivity, updateActivity, deleteActivity, setActivityMembers, getActivityUserIds,
+  } = useBusinessActivity();
   const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
+  const isAdmin = currentUser?.role === "admin" || (currentUser?.roles ?? []).includes("admin");
   const allowedCompanyIds = getAllowedCompanyIds(currentUser);
   const allowedBranchIds = getAllowedBranchIds(currentUser);
+  // Manage-activities dialog state (per-company)
+  const [manageCompany, setManageCompany] = useState<Company | null>(null);
+  const [allUsers, setAllUsers] = useState<SystemUser[]>([]);
+
+  // Load users only when admin opens the manage dialog (cheap one-time fetch)
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/users").then(r => r.ok ? r.json() : []).then((rows: any[]) => {
+      const mapped: SystemUser[] = (rows || []).filter(u => u.isActive).map(u => ({
+        id: u.id, name: u.name || u.username || "", email: u.email || "",
+        nationalId: u.nationalId || "", password: "",
+        role: (u.role || "viewer") as SystemUser["role"],
+        roles: Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role || "viewer"],
+        permissions: Array.isArray(u.permissions) ? u.permissions : [],
+        active: !!u.isActive, createdAt: u.createdAt || new Date().toISOString(),
+      }));
+      setAllUsers(mapped);
+    }).catch(() => {});
+  }, [isAdmin]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,6 +283,26 @@ function CompaniesContent() {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   }
 
+  // Companies & their activities are admin-only territory.
+  if (!isAdmin) {
+    return (
+      <div className="p-6" dir={dir}>
+        <Card className="max-w-xl mx-auto border-amber-300 dark:border-amber-700/40">
+          <CardContent className="py-10 text-center space-y-3">
+            <ShieldOff className="h-10 w-10 text-amber-600 mx-auto" />
+            <h2 className="text-lg font-bold">{t("صلاحية مدير النظام مطلوبة", "System Admin permission required")}</h2>
+            <p className="text-sm text-muted-foreground">
+              {t(
+                "إنشاء وإدارة الشركات وأنشطتها متاح فقط لمدير النظام. الرجاء التواصل مع المدير.",
+                "Creating and managing companies and their activities is restricted to the system administrator. Please contact your admin."
+              )}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
       <div className="p-4 md:p-6 space-y-6" dir={dir}>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -323,7 +371,7 @@ function CompaniesContent() {
                       <TableCell><Badge variant={c.isActive ? "default" : "secondary"}>{c.isActive ? t("نشط", "Active") : t("غير نشط", "Inactive")}</Badge></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setSelectedCompany(c)} data-testid={`button-view-company-${c.id}`}><Eye className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" title={t("إدارة الأنشطة", "Manage Activities")} onClick={() => setManageCompany(c)} data-testid={`button-manage-activities-${c.id}`}><Layers className="h-4 w-4 text-primary" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => openEditCompany(c)} data-testid={`button-edit-company-${c.id}`}><Edit className="h-4 w-4" /></Button>
                           {c.type !== "main" && <Button variant="ghost" size="icon" onClick={() => deleteCompany(c.id)} data-testid={`button-delete-company-${c.id}`}><Trash2 className="h-4 w-4 text-red-500" /></Button>}
                         </div>
@@ -509,6 +557,22 @@ function CompaniesContent() {
           </DialogContent>
         </Dialog>
 
+        {manageCompany && (
+          <ManageCompanyActivitiesDialog
+            company={manageCompany}
+            isRtl={isRtl}
+            t={t}
+            onClose={() => setManageCompany(null)}
+            allActivities={activities}
+            allUsers={allUsers}
+            createActivity={createActivity}
+            updateActivity={updateActivity}
+            deleteActivity={deleteActivity}
+            setActivityMembers={setActivityMembers}
+            getActivityUserIds={getActivityUserIds}
+          />
+        )}
+
         <Dialog open={showBranchDialog} onOpenChange={setShowBranchDialog}>
           <DialogContent className="max-w-lg" dir={dir}>
             <DialogHeader><DialogTitle>{editBranch ? t("تعديل فرع", "Edit Branch") : t("إضافة فرع جديد", "Add New Branch")}</DialogTitle></DialogHeader>
@@ -537,5 +601,248 @@ function CompaniesContent() {
           </DialogContent>
         </Dialog>
       </div>
+  );
+}
+
+// ─── Manage Activities Dialog (per-company) ───────────────────────────────────
+// Admin-only inline editor that lists every business activity belonging to a
+// single company, with create/edit/delete and per-activity user assignment.
+function ManageCompanyActivitiesDialog({
+  company, isRtl, t, onClose,
+  allActivities, allUsers,
+  createActivity, updateActivity, deleteActivity,
+  setActivityMembers, getActivityUserIds,
+}: {
+  company: Company;
+  isRtl: boolean;
+  t: (ar: string, en: string) => string;
+  onClose: () => void;
+  allActivities: BusinessActivity[];
+  allUsers: SystemUser[];
+  createActivity: (a: Partial<BusinessActivity>) => Promise<BusinessActivity | null>;
+  updateActivity: (id: string, p: Partial<BusinessActivity>) => Promise<BusinessActivity | null>;
+  deleteActivity: (id: string) => Promise<boolean>;
+  setActivityMembers: (activityId: string, userIds: string[]) => Promise<boolean>;
+  getActivityUserIds: (activityId: string) => string[];
+}) {
+  const { toast } = useToast();
+  const companyIdNum = parseInt(company.id, 10);
+  const companyActivities = allActivities.filter(
+    a => a.companyId === companyIdNum,
+  );
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [editAct, setEditAct] = useState<BusinessActivity | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<BusinessActivity | null>(null);
+  const addRef = useRef<ActivityFormHandle>(null);
+  const editRef = useRef<ActivityFormHandle>(null);
+
+  const handleAdd = async () => {
+    const v = addRef.current?.getValues();
+    if (!v?.nameAr || !v?.nameEn) {
+      toast({ title: t("اسم النشاط مطلوب", "Activity name is required"), variant: "destructive" });
+      return;
+    }
+    const created = await createActivity({
+      nameAr: v.nameAr, nameEn: v.nameEn,
+      color: (v.color as ActivityColor) ?? "blue",
+      icon: v.icon ?? "HardHat",
+      modules: v.modules ?? ["dashboard"],
+      active: true,
+      companyId: companyIdNum,
+      companyNameAr: company.nameAr,
+      companyNameEn: company.nameEn,
+      companyLogoUrl: null,
+    });
+    if (!created) { toast({ title: t("تعذر الحفظ", "Save failed"), variant: "destructive" }); return; }
+    toast({ title: t("تمت الإضافة", "Added") });
+    setAddOpen(false);
+  };
+
+  const handleEdit = async () => {
+    if (!editAct) return;
+    const v = editRef.current?.getValues();
+    if (!v?.nameAr || !v?.nameEn) {
+      toast({ title: t("اسم النشاط مطلوب", "Activity name is required"), variant: "destructive" });
+      return;
+    }
+    const updated = await updateActivity(editAct.id, {
+      nameAr: v.nameAr, nameEn: v.nameEn,
+      color: (v.color as ActivityColor) ?? editAct.color,
+      icon: v.icon ?? editAct.icon,
+      modules: v.modules ?? editAct.modules,
+    });
+    if (!updated) { toast({ title: t("تعذر الحفظ", "Save failed"), variant: "destructive" }); return; }
+    toast({ title: t("تم التحديث", "Updated") });
+    setEditAct(null);
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    const ok = await deleteActivity(confirmDelete.id);
+    if (!ok) { toast({ title: t("تعذر الحذف", "Delete failed"), variant: "destructive" }); return; }
+    toast({ title: t("تم الحذف", "Deleted") });
+    setConfirmDelete(null);
+  };
+
+  const toggleActive = async (a: BusinessActivity) => {
+    await updateActivity(a.id, { active: !a.active });
+  };
+
+  const toggleUser = async (activityId: string, userId: string) => {
+    const cur = getActivityUserIds(activityId);
+    const next = cur.includes(userId) ? cur.filter(x => x !== userId) : [...cur, userId];
+    await setActivityMembers(activityId, next);
+  };
+
+  return (
+    <>
+      <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir={isRtl ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-primary" />
+              {t("أنشطة شركة", "Activities of")} <span className="text-primary">{isRtl ? company.nameAr : company.nameEn}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {companyActivities.length} {t("نشاط", "activities")}
+              </p>
+              <Button size="sm" onClick={() => setAddOpen(true)} className="gap-2" data-testid="button-add-company-activity">
+                <Plus className="h-4 w-4" /> {t("إضافة نشاط", "Add Activity")}
+              </Button>
+            </div>
+
+            {companyActivities.length === 0 ? (
+              <div className="text-center py-8 border-2 border-dashed border-border/50 rounded-lg">
+                <Layers className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {t("لا توجد أنشطة لهذه الشركة. أضف نشاطها الأول.", "No activities yet. Add this company's first activity.")}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {companyActivities.map((act) => {
+                  const c = ACTIVITY_COLOR_MAP[act.color as ActivityColor] ?? ACTIVITY_COLOR_MAP.blue;
+                  const assignedCount = getActivityUserIds(act.id).length;
+                  return (
+                    <Card key={act.id} className={cn("border-2", act.active ? c.border : "border-border/40 opacity-70")}>
+                      <CardContent className="p-3">
+                        <div className="flex items-start gap-3">
+                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", c.badge)}>
+                            <ActivityIcon name={act.icon} className={cn("w-5 h-5", c.text)} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="font-bold text-sm">{isRtl ? act.nameAr : act.nameEn}</h4>
+                                <p className="text-xs text-muted-foreground">{isRtl ? act.nameEn : act.nameAr}</p>
+                              </div>
+                              <Switch checked={act.active} onCheckedChange={() => toggleActive(act)} />
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              <Badge variant="outline" className={cn("border-transparent text-xs", c.badge, c.text)}>
+                                {act.modules.length} {t("وحدة", "modules")}
+                              </Badge>
+                              <Badge variant="outline" className="border-transparent text-xs bg-secondary text-muted-foreground">
+                                <Users className="w-3 h-3 mr-1" />{assignedCount} {t("مستخدم", "users")}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
+                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs h-8" onClick={() => setEditAct(act)} data-testid={`button-edit-act-${act.id}`}>
+                            <Pencil className="w-3.5 h-3.5" /> {t("تعديل", "Edit")}
+                          </Button>
+                          <Button size="sm" variant="outline" className="gap-1 text-xs h-8 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setConfirmDelete(act)} data-testid={`button-delete-act-${act.id}`}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                        {/* Per-activity user assignment */}
+                        <div className="mt-3">
+                          <ActivityAssignmentCard
+                            act={act}
+                            allUsers={allUsers}
+                            getActivityUserIds={getActivityUserIds}
+                            isUserAssigned={(aid, uid) => getActivityUserIds(aid).includes(uid)}
+                            toggleUserAssignment={toggleUser}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>{t("إغلاق", "Close")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add activity */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir={isRtl ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle>{t("إضافة نشاط جديد", "Add New Activity")} — {isRtl ? company.nameAr : company.nameEn}</DialogTitle>
+          </DialogHeader>
+          <ActivityForm key="add-act" ref={addRef} initialForm={emptyActivity()} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>{t("إلغاء", "Cancel")}</Button>
+            <Button onClick={handleAdd} data-testid="button-save-new-activity">{t("حفظ", "Save")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit activity */}
+      {editAct && (
+        <Dialog open onOpenChange={(o) => { if (!o) setEditAct(null); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir={isRtl ? "rtl" : "ltr"}>
+            <DialogHeader>
+              <DialogTitle>{t("تعديل النشاط", "Edit Activity")}</DialogTitle>
+            </DialogHeader>
+            <ActivityForm
+              key={editAct.id}
+              ref={editRef}
+              initialForm={{
+                nameAr: editAct.nameAr, nameEn: editAct.nameEn,
+                color: editAct.color, icon: editAct.icon,
+                modules: [...editAct.modules], active: editAct.active,
+              }}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditAct(null)}>{t("إلغاء", "Cancel")}</Button>
+              <Button onClick={handleEdit}>{t("حفظ", "Save")}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Confirm delete */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}>
+        <AlertDialogContent dir={isRtl ? "rtl" : "ltr"}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("تأكيد الحذف", "Confirm Delete")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                `سيتم حذف نشاط "${confirmDelete ? (isRtl ? confirmDelete.nameAr : confirmDelete.nameEn) : ''}" نهائياً. هذا الإجراء لا يمكن التراجع عنه.`,
+                `Activity "${confirmDelete ? (isRtl ? confirmDelete.nameAr : confirmDelete.nameEn) : ''}" will be permanently deleted. This cannot be undone.`,
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("إلغاء", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {t("حذف", "Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

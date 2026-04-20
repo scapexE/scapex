@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
-import { useActivityScope, ActivityRequiredAlert } from "@/hooks/useActivityScope";
+import { useActivityScope } from "@/hooks/useActivityScope";
 import { Search, Filter, MapPin, Building, Clock, AlertTriangle, Plus, ArrowRight } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -93,7 +93,6 @@ export function ProjectsList() {
   return (
     <Card className="flex-1 border-border/50 shadow-sm overflow-hidden flex flex-col h-full">
       <CardHeader className="p-4 border-b border-border/50 bg-card space-y-3">
-        {!canQuery && <ActivityRequiredAlert blocking />}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
