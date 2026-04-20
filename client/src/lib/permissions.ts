@@ -118,7 +118,10 @@ export const ROLE_LABELS: Record<Role, { ar: string; en: string; color: string }
 
 export function hasAccess(user: SystemUser | null, page: string): boolean {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  const roles = new Set<string>([user.role || "", ...((user.roles as string[]) || [])]);
+  if (roles.has("admin")) return true;
+  // Managers can manage activities/users from System Admin
+  if (roles.has("manager") && (page === "system_admin" || page === "users")) return true;
   return (user.permissions || []).includes(page);
 }
 

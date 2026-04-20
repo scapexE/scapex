@@ -144,9 +144,12 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     ...cat,
     items: cat.items.filter((item) => {
       if (!currentUser) return false;
-      // system_admin is only for admin role
+      // system_admin is available to admin + manager (matches backend authorization)
       if (item.id === "about" || item.id === "audit_log") return true;
-      if (item.id === "system_admin") return currentUser.role === "admin";
+      if (item.id === "system_admin") {
+        const roles = new Set<string>([currentUser.role || "", ...((currentUser.roles as string[]) || [])]);
+        return roles.has("admin") || roles.has("manager");
+      }
       if (currentUser.role === "admin") return true;
       // Users with approve_registrations can also access the users page
       if (item.id === "users") {
