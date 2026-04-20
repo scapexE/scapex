@@ -226,7 +226,23 @@ export async function registerRoutes(
     "/api/auth/verify-code",
     "/api/auth/forgot",
   ]);
-  app.use((req, res, next) => {
+  // Tiny TTL cache so the auth guard doesn't hit the DB on every request.
+  // Maps userId → { active, role, expires }.
+  const STAFF_CACHE = new Map<string, { active: boolean; role: string | null; expires: number }>();
+  const STAFF_CACHE_TTL_MS = 30_000;
+  async function resolveStaffUser(userId: string) {
+    const now = Date.now();
+    const hit = STAFF_CACHE.get(userId);
+    if (hit && hit.expires > now) return hit;
+    const rows = await db.select({ id: users.id, isActive: users.isActive, role: users.role })
+      .from(users).where(eq(users.id, userId)).limit(1);
+    const u = rows[0];
+    const entry = { active: !!u && u.isActive !== false, role: u?.role ?? null, expires: now + STAFF_CACHE_TTL_MS };
+    if (u) STAFF_CACHE.set(userId, entry);
+    return u ? entry : null;
+  }
+
+  app.use(async (req, res, next) => {
     if (!req.path.startsWith("/api/")) return next();
     const isPortalPath = req.path.startsWith("/api/portal/");
     const portalToken = readPortalToken(req);
@@ -246,18 +262,21 @@ export async function registerRoutes(
       return res.status(403).json({ error: "Portal users cannot access internal APIs" });
     }
 
-    // Require a staff identity header on all internal /api/* routes (except
-    // pre-login endpoints). The client wraps window.fetch in main.tsx so
-    // every internal call carries `x-user-id` automatically once a user is
-    // logged in. This prevents anonymous callers from probing internal APIs.
+    // Pre-login / bootstrap endpoints that legitimately have no staff identity yet.
     if (STAFF_AUTH_PUBLIC.has(req.path)) return next();
-    // /api/app-data is read-only key/value bootstrap data fetched before login
-    // (logos, theme, default lists). Allow GETs through without staff auth;
-    // mutations still require it.
+    // /api/app-data: read-only key/value bootstrap data (logos, theme, etc.)
+    // fetched before login. GETs are open; mutations require staff auth.
     if (req.method === "GET" && req.path.startsWith("/api/app-data")) return next();
+
     const staffId = (req.header("x-user-id") || "").trim();
-    if (!staffId) {
-      return res.status(401).json({ error: "Staff authentication required" });
+    if (!staffId) return res.status(401).json({ error: "Staff authentication required" });
+    try {
+      const staff = await resolveStaffUser(staffId);
+      if (!staff) return res.status(401).json({ error: "Unknown user" });
+      if (!staff.active) return res.status(403).json({ error: "User is disabled" });
+    } catch (err) {
+      console.error("[guard] staff lookup failed:", err);
+      return res.status(500).json({ error: "Auth check failed" });
     }
     return next();
   });
