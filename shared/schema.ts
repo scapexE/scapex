@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable, text, varchar, integer, boolean, timestamp,
-  numeric, date, jsonb, serial, index,
+  numeric, date, jsonb, serial, index, uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -84,7 +84,7 @@ export const activityMembers = pgTable("activity_members", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
-  uniq: index("activity_members_uniq").on(t.activityId, t.userId),
+  uniq: uniqueIndex("activity_members_uniq").on(t.activityId, t.userId),
 }));
 
 export const insertBusinessActivitySchema = createInsertSchema(businessActivities);
