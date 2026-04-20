@@ -68,6 +68,8 @@ function DashboardContent() {
     : roleFilteredPerms;
 
   const visibleApps = ALL_APPS.filter((app) => {
+    // Companies management is strictly admin-only.
+    if (app.id === "multi_tenant" && !isAdmin) return false;
     if (isAdmin) {
       return activityModules ? activityModules.includes(app.id) : true;
     }

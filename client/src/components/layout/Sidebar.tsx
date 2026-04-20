@@ -150,6 +150,11 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         const roles = new Set<string>([currentUser.role || "", ...((currentUser.roles as string[]) || [])]);
         return roles.has("admin") || roles.has("manager");
       }
+      // Companies management is strictly admin-only — hide from everyone else.
+      if (item.id === "multi_tenant") {
+        const roles = new Set<string>([currentUser.role || "", ...((currentUser.roles as string[]) || [])]);
+        return roles.has("admin");
+      }
       if (currentUser.role === "admin") return true;
       // Users with approve_registrations can also access the users page
       if (item.id === "users") {
