@@ -41,7 +41,7 @@ export interface PortalStage {
   actualStart: string | null;
   actualEnd: string | null;
   sortOrder: number | null;
-  assignee: { id: string; name: string } | null;
+  assignee: { name: string } | null;
 }
 
 export interface PortalDocument {

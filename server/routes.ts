@@ -211,6 +211,36 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // ── Global API guard ─────────────────────────────────────────────────────
+  // Two separate sessions live in this app:
+  //   • Staff:  identified by `x-user-id` header  → may hit any non-/api/portal/* route
+  //   • Portal: identified by `Authorization: Bearer <portal-token>` → may ONLY hit /api/portal/*
+  // This guard keeps the two strictly isolated so a logged-in customer cannot
+  // probe internal endpoints with their own token, and an anonymous caller
+  // cannot hit /api/portal/* without a portal token.
+  app.use((req, res, next) => {
+    if (!req.path.startsWith("/api/")) return next();
+    const isPortalPath = req.path.startsWith("/api/portal/");
+    const portalToken = readPortalToken(req);
+    const portalDecoded = portalToken ? verifyPortalToken(portalToken) : null;
+
+    if (isPortalPath) {
+      // Public portal endpoints (no token needed yet).
+      if (req.path === "/api/portal/login" || req.path === "/api/portal/logout") return next();
+      if (!portalDecoded) return res.status(401).json({ error: "Portal session required" });
+      return next();
+    }
+
+    // Non-portal /api/* — block portal tokens entirely so a customer cannot
+    // pivot from their own session into staff APIs. Per-route handlers retain
+    // their existing auth checks (x-user-id etc.) for staff identity.
+    if (portalDecoded) {
+      console.warn(`[guard] portal token blocked from ${req.method} ${req.path}`);
+      return res.status(403).json({ error: "Portal users cannot access internal APIs" });
+    }
+    return next();
+  });
+
   // app_data must exist before seedDefaultActivities reads legacy entries from it
   await db.execute(`CREATE TABLE IF NOT EXISTS app_data (
     key TEXT PRIMARY KEY,
@@ -1744,7 +1774,7 @@ export async function registerRoutes(
   function sanitizeAssignee(u: any | null) {
     if (!u) return null;
     const name = (u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim()) || "—";
-    return { id: u.id, name };
+    return { name }; // Name only — no internal ids/emails leak to portal users.
   }
 
   app.post("/api/portal/login", async (req, res) => {
