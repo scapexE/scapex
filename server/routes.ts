@@ -542,6 +542,7 @@ export async function registerRoutes(
         city: data.city || null,
         address: data.address || null,
         phone: data.phone || null,
+        managerId: data.managerId || null,
         managerName: data.managerName || data.manager || null,
         isActive: data.isActive ?? true,
       }).returning();
@@ -563,6 +564,7 @@ export async function registerRoutes(
         city: data.city,
         address: data.address,
         phone: data.phone,
+        managerId: data.managerId ?? null,
         managerName: data.managerName || data.manager,
         isActive: data.isActive,
       }).where(eq(branches.id, id)).returning();

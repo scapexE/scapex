@@ -51,6 +51,7 @@ interface Branch {
   address: string;
   phone: string;
   manager: string;
+  managerId: string | null;
   employeeCount: number;
   isActive: boolean;
 }
@@ -143,6 +144,7 @@ function CompaniesContent() {
         address: b.address || "",
         phone: b.phone || "",
         manager: b.managerName || b.manager_name || "",
+        managerId: b.managerId || b.manager_id || null,
         employeeCount: 0,
         isActive: b.isActive ?? b.is_active ?? true,
       }));
@@ -189,12 +191,15 @@ function CompaniesContent() {
 
   function openEditCompany(c: Company) {
     setEditCompany(c);
-    setCompanyForm({ ...c });
+    setCompanyForm({ ...c, managerId: c.settings?.managerId || null } as any);
     setShowCompanyDialog(true);
   }
 
   async function saveCompany() {
     if (!companyForm.nameAr || !companyForm.nameEn) return;
+    const managerUser = (companyForm as any).managerId
+      ? allUsers.find(u => u.id === (companyForm as any).managerId)
+      : null;
     const payload = {
       nameAr: companyForm.nameAr,
       nameEn: companyForm.nameEn,
@@ -206,7 +211,15 @@ function CompaniesContent() {
       email: companyForm.email || "",
       website: companyForm.website || "",
       isActive: companyForm.isActive ?? true,
-      settings: { ...(editCompany?.settings || {}), type: companyForm.type || "subsidiary", parentId: companyForm.parentId, employeeCount: companyForm.employeeCount || 0, activityIds: companyForm.activityIds || [] },
+      settings: {
+        ...(editCompany?.settings || {}),
+        type: companyForm.type || "subsidiary",
+        parentId: companyForm.parentId,
+        employeeCount: companyForm.employeeCount || 0,
+        activityIds: companyForm.activityIds || [],
+        managerId: (companyForm as any).managerId || null,
+        managerName: managerUser ? managerUser.name : null,
+      },
     };
     try {
       if (editCompany) {
@@ -242,6 +255,10 @@ function CompaniesContent() {
 
   async function saveBranch() {
     if (!branchForm.nameAr || !branchForm.nameEn) return;
+    // Derive the display name from the selected user if a managerId was picked.
+    const managerUser = branchForm.managerId
+      ? allUsers.find(u => u.id === branchForm.managerId)
+      : null;
     const payload = {
       companyId: parseInt(branchForm.companyId || selectedCompany?.id || "1"),
       nameAr: branchForm.nameAr,
@@ -249,7 +266,8 @@ function CompaniesContent() {
       city: branchForm.city || "",
       address: branchForm.address || "",
       phone: branchForm.phone || "",
-      managerName: branchForm.manager || "",
+      managerId: branchForm.managerId || null,
+      managerName: managerUser ? managerUser.name : (branchForm.manager || ""),
       isActive: branchForm.isActive ?? true,
     };
     try {
@@ -349,9 +367,9 @@ function CompaniesContent() {
                     <TableHead>{t("الشركة", "Company")}</TableHead>
                     <TableHead>{t("النوع", "Type")}</TableHead>
                     <TableHead>{t("تتبع لـ", "Parent")}</TableHead>
+                    <TableHead>{t("المدير المسؤول", "Manager")}</TableHead>
                     <TableHead>{t("السجل التجاري", "CR Number")}</TableHead>
                     <TableHead>{t("المدينة", "City")}</TableHead>
-                    <TableHead>{t("الموظفين", "Employees")}</TableHead>
                     <TableHead>{t("الحالة", "Status")}</TableHead>
                     <TableHead>{t("إجراءات", "Actions")}</TableHead>
                   </TableRow>
@@ -367,9 +385,15 @@ function CompaniesContent() {
                       </TableCell>
                       <TableCell><Badge className={typeColor(c.type)} variant="secondary">{typeLabel(c.type)}</Badge></TableCell>
                       <TableCell className="text-sm">{c.parentId ? (() => { const p = companies.find(x => x.id === c.parentId); return p ? (isRtl ? p.nameAr : p.nameEn) : "-"; })() : t("مستقلة", "Independent")}</TableCell>
+                      <TableCell className="text-sm">
+                        {(() => {
+                          const mId = c.settings?.managerId;
+                          if (mId) { const u = allUsers.find(u => u.id === mId); return u ? u.name : (c.settings?.managerName || "—"); }
+                          return c.settings?.managerName || <span className="text-muted-foreground">—</span>;
+                        })()}
+                      </TableCell>
                       <TableCell className="font-mono text-sm">{c.crNumber}</TableCell>
                       <TableCell><div className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {c.city}</div></TableCell>
-                      <TableCell>{c.employeeCount}</TableCell>
                       <TableCell><Badge variant={c.isActive ? "default" : "secondary"}>{c.isActive ? t("نشط", "Active") : t("غير نشط", "Inactive")}</Badge></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
@@ -423,7 +447,12 @@ function CompaniesContent() {
                         </TableCell>
                         <TableCell className="text-sm">{comp ? (isRtl ? comp.nameAr : comp.nameEn) : "-"}</TableCell>
                         <TableCell><div className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {b.city}</div></TableCell>
-                        <TableCell>{b.manager}</TableCell>
+                        <TableCell>
+                          {b.managerId
+                            ? (() => { const u = allUsers.find(u => u.id === b.managerId); return u ? u.name : b.manager; })()
+                            : (b.manager || <span className="text-muted-foreground text-xs">{t("—", "—")}</span>)
+                          }
+                        </TableCell>
                         <TableCell>{b.employeeCount}</TableCell>
                         <TableCell><Badge variant={b.isActive ? "default" : "secondary"}>{b.isActive ? t("نشط", "Active") : t("غير نشط", "Inactive")}</Badge></TableCell>
                         <TableCell>
@@ -531,6 +560,27 @@ function CompaniesContent() {
               <div><Label>{t("البريد الإلكتروني", "Email")}</Label><Input value={companyForm.email || ""} onChange={e => setCompanyForm(p => ({ ...p, email: e.target.value }))} data-testid="input-company-email" /></div>
               <div><Label>{t("الهاتف", "Phone")}</Label><Input value={companyForm.phone || ""} onChange={e => setCompanyForm(p => ({ ...p, phone: e.target.value }))} data-testid="input-company-phone" /></div>
               <div><Label>{t("الموقع الإلكتروني", "Website")}</Label><Input value={companyForm.website || ""} onChange={e => setCompanyForm(p => ({ ...p, website: e.target.value }))} data-testid="input-company-website" /></div>
+              <div>
+                <Label>{t("المدير المسؤول", "Responsible Manager")}</Label>
+                <Select
+                  value={(companyForm as any).managerId || "__none__"}
+                  onValueChange={v => setCompanyForm(p => ({ ...p, managerId: v === "__none__" ? null : v } as any))}
+                >
+                  <SelectTrigger data-testid="select-company-manager">
+                    <SelectValue placeholder={t("اختر مديراً", "Select a manager")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t("— بدون مدير —", "— No manager —")}</SelectItem>
+                    {allUsers
+                      .filter(u => !["client", "viewer"].includes(u.role))
+                      .map(u => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name} <span className="text-muted-foreground text-xs ml-1">({t(u.role, u.role)})</span>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label>{t("الأنشطة التجارية", "Business Activities")}</Label>
@@ -681,7 +731,27 @@ function CompaniesContent() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>{t("المدينة", "City")}</Label><Input value={branchForm.city || ""} onChange={e => setBranchForm(p => ({ ...p, city: e.target.value }))} data-testid="input-branch-city" /></div>
-                <div><Label>{t("المدير", "Manager")}</Label><Input value={branchForm.manager || ""} onChange={e => setBranchForm(p => ({ ...p, manager: e.target.value }))} data-testid="input-branch-manager" /></div>
+                <div>
+                  <Label>{t("المدير", "Manager")}</Label>
+                  <Select
+                    value={branchForm.managerId || "__none__"}
+                    onValueChange={v => setBranchForm(p => ({ ...p, managerId: v === "__none__" ? null : v }))}
+                  >
+                    <SelectTrigger data-testid="select-branch-manager">
+                      <SelectValue placeholder={t("اختر مديراً", "Select a manager")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{t("— بدون مدير —", "— No manager —")}</SelectItem>
+                      {allUsers
+                        .filter(u => !["client", "viewer"].includes(u.role))
+                        .map(u => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name} <span className="text-muted-foreground text-xs ml-1">({t(u.role, u.role)})</span>
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div><Label>{t("العنوان", "Address")}</Label><Input value={branchForm.address || ""} onChange={e => setBranchForm(p => ({ ...p, address: e.target.value }))} data-testid="input-branch-address" /></div>
               <div><Label>{t("الهاتف", "Phone")}</Label><Input value={branchForm.phone || ""} onChange={e => setBranchForm(p => ({ ...p, phone: e.target.value }))} data-testid="input-branch-phone" /></div>
