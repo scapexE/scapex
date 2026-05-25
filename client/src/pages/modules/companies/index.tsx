@@ -165,7 +165,12 @@ function CompaniesContent() {
     ? companies
     : companies.filter(c => allowedCompanyIds.includes(c.id));
   const activityFiltered = activeActivity
-    ? userScopedCompanies.filter(c => Array.isArray(c.activityIds) && c.activityIds.includes(activeActivity.id))
+    ? (activeActivity.companyId != null
+        ? userScopedCompanies.filter(c =>
+            c.id === String(activeActivity.companyId) ||
+            c.parentId === String(activeActivity.companyId)
+          )
+        : userScopedCompanies) // catalog-level activity (companyId=null) → show all
     : userScopedCompanies;
   const activityFilteredIds = new Set(activityFiltered.map(c => c.id));
   const userScopedBranches = branches.filter(b => activityFilteredIds.has(b.companyId) && (allowedBranchIds === null || allowedBranchIds.includes(b.id)));
@@ -435,7 +440,7 @@ function CompaniesContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(selectedCompany ? companyBranches : branches).map(b => {
+                  {(selectedCompany ? companyBranches : branchesInActivity).map(b => {
                     const comp = companies.find(c => c.id === b.companyId);
                     return (
                       <TableRow key={b.id} data-testid={`row-branch-${b.id}`}>
