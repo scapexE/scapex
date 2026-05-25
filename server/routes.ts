@@ -280,6 +280,9 @@ export async function registerRoutes(
   )`);
   // Ensure contract_id column exists in older installations
   await db.execute(`ALTER TABLE partner_accounts ADD COLUMN IF NOT EXISTS contract_id INTEGER`);
+  // Ensure confidentiality columns exist in contracts
+  await db.execute(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS is_confidential BOOLEAN DEFAULT false`);
+  await db.execute(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS viewer_ids JSONB DEFAULT '[]'::jsonb`);
 
   await seedDefaultUsers();
   await seedDefaultCompanies();
@@ -3428,17 +3431,41 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   app.get("/api/contracts", async (req, res) => {
     try {
+      const staffId = (req.header("x-user-id") || "").trim();
+      const role = await resolveUserRole(staffId);
+      const isPriv = isManagerOrAdmin(role);
       const companyId = parseInt((req.query.companyId as string) || "1");
       const rows = await db.select().from(contracts)
         .where(eq(contracts.companyId, companyId))
         .orderBy(desc(contracts.createdAt));
-      // Parse 'terms' JSON blob for full contract data
       const parsed = rows.map(r => {
         let extra: any = {};
         try { if (r.terms) extra = JSON.parse(r.terms); } catch {}
         return { ...r, ...extra, id: r.id };
       });
-      res.json(parsed);
+      // Filter confidential contracts for non-privileged users
+      const visible = isPriv
+        ? parsed
+        : parsed.filter(c => {
+            if (!c.isConfidential) return true;
+            const viewers: string[] = Array.isArray(c.viewerIds) ? c.viewerIds : [];
+            return viewers.includes(staffId);
+          });
+      res.json(visible);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Staff users list — for viewer selection (manager only)
+  app.get("/api/staff-users", async (req, res) => {
+    try {
+      const staffId = (req.header("x-user-id") || "").trim();
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const rows = await db.select({
+        id: users.id, name: users.name, email: users.email,
+        role: users.role, isActive: users.isActive,
+      }).from(users).where(eq(users.isActive, true));
+      res.json(rows);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
@@ -3528,6 +3555,8 @@ export async function registerRoutes(
         endDate: b.endDate ?? existing.endDate,
         signedAt: b.signedAt ? new Date(b.signedAt) : existing.signedAt,
         signedBy: b.signedBy ?? existing.signedBy,
+        isConfidential: b.isConfidential !== undefined ? b.isConfidential : existing.isConfidential,
+        viewerIds: b.viewerIds !== undefined ? b.viewerIds : existing.viewerIds,
         terms: JSON.stringify(extra),
         updatedAt: new Date(),
       }).where(eq(contracts.id, id)).returning();

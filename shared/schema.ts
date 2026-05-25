@@ -308,6 +308,8 @@ export const contracts = pgTable("contracts", {
   terms: text("terms"),
   signedAt: timestamp("signed_at"),
   signedBy: text("signed_by"),
+  isConfidential: boolean("is_confidential").default(false),
+  viewerIds: jsonb("viewer_ids").$type<string[]>().default([]),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
