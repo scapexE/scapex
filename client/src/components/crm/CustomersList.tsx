@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   Search, Filter, Mail, Phone, MapPin, Plus, Trash2, Loader2,
   MoreVertical, Building, Star, MessageSquare, Download, Copy, FileText,
-  ClipboardCheck, UserCog, User as UserIcon
+  ClipboardCheck, UserCog, User as UserIcon, Users
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -47,6 +47,7 @@ interface DbContact {
   activityId: string | null;
   assignedTo: string | null;
   createdBy: string | null;
+  serviceEmployeeIds: string[] | null;
 }
 
 interface SimpleUser {
@@ -101,6 +102,7 @@ export function CustomersList({
   const [assignTarget, setAssignTarget] = useState<DbContact | null>(null);
   const [assignTo, setAssignTo] = useState<string>("");
   const [assignActivity, setAssignActivity] = useState<string>("");
+  const [assignServiceIds, setAssignServiceIds] = useState<string[]>([]);
   const [form, setForm] = useState({
     nameAr: "", nameEn: "", organization: "", position: "",
     email: "", phone: "", city: "", address: "", source: "active", notes: "",
@@ -119,9 +121,8 @@ export function CustomersList({
       setLoading(true);
       const params = new URLSearchParams();
       if (activeActivity?.id) params.set("activityId", activeActivity.id);
-      // Privileged viewing "Mine": server filters by assignedTo
-      // Non-privileged: server always enforces assignedTo = me automatically
-      if (isPriv && !showAll && currentUser?.id) params.set("assignedTo", currentUser.id);
+      // "Mine" mode: any user can filter to only their own assigned customers
+      if (!showAll && currentUser?.id) params.set("assignedTo", currentUser.id);
       const url = `/api/customers${params.toString() ? `?${params.toString()}` : ""}`;
       const [r, u] = await Promise.all([
         scopedFetch(url).then(x => x.json()),
@@ -265,6 +266,7 @@ export function CustomersList({
     setAssignTarget(c);
     setAssignTo(c.assignedTo || "");
     setAssignActivity(c.activityId || activeActivity?.id || "");
+    setAssignServiceIds(Array.isArray(c.serviceEmployeeIds) ? c.serviceEmployeeIds : []);
   };
 
   // Users that belong to a given activity (for the dialog dropdown)
@@ -288,7 +290,6 @@ export function CustomersList({
 
   const handleAssign = async () => {
     if (!assignTarget) return;
-    // Admin and manager can change activity; regular employees can only reassign within same activity
     const canChangeActivity = isAdmin || isManager;
     const activityChanged = canChangeActivity && assignActivity && assignActivity !== assignTarget.activityId;
     if (!assignTo) {
@@ -298,17 +299,19 @@ export function CustomersList({
     try {
       const body: any = { assignedTo: assignTo };
       if (activityChanged) body.activityId = assignActivity;
+      // Manager/admin can also update the service team
+      if (isAdmin || isManager) body.serviceEmployeeIds = assignServiceIds.filter(id => id !== assignTo);
       const res = await apiRequest("PATCH", `/api/customers/${assignTarget.id}`, body);
       if (!res.ok) throw new Error("assign failed");
       const targetUser = userById(assignTo);
       toast({
-        title: isRtl ? "تم نقل العميل" : "Customer transferred",
-        description: targetUser ? (isRtl ? `الآن مسند إلى ${targetUser.name}` : `Now assigned to ${targetUser.name}`) : "",
+        title: isRtl ? "تم تحديث إسناد العميل" : "Customer assignment updated",
+        description: targetUser ? (isRtl ? `المسؤول الأساسي: ${targetUser.name}` : `Primary owner: ${targetUser.name}`) : "",
       });
       setAssignTarget(null);
       await fetchData();
     } catch {
-      toast({ title: isRtl ? "تعذر النقل" : "Failed to transfer", variant: "destructive" });
+      toast({ title: isRtl ? "تعذر الحفظ" : "Failed to save", variant: "destructive" });
     }
   };
 
@@ -331,28 +334,26 @@ export function CustomersList({
               <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
                 <Filter className="h-4 w-4" />
               </Button>
-              {canSeeAll && (
-                <div className="flex items-center gap-1 text-xs">
-                  <Button
-                    size="sm"
-                    variant={showAll ? "default" : "outline"}
-                    className="h-9 px-2"
-                    onClick={() => setShowAll(true)}
-                    data-testid="button-filter-all"
-                  >
-                    {isRtl ? "الكل" : "All"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={!showAll ? "default" : "outline"}
-                    className="h-9 px-2"
-                    onClick={() => setShowAll(false)}
-                    data-testid="button-filter-mine"
-                  >
-                    {isRtl ? "عملائي" : "Mine"}
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center gap-1 text-xs">
+                <Button
+                  size="sm"
+                  variant={showAll ? "default" : "outline"}
+                  className="h-9 px-2"
+                  onClick={() => setShowAll(true)}
+                  data-testid="button-filter-all"
+                >
+                  {isRtl ? "الكل" : "All"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={!showAll ? "default" : "outline"}
+                  className="h-9 px-2"
+                  onClick={() => setShowAll(false)}
+                  data-testid="button-filter-mine"
+                >
+                  {isRtl ? "عملائي" : "Mine"}
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-sm text-muted-foreground font-medium">
@@ -486,16 +487,37 @@ export function CustomersList({
                       </div>
                     </TableCell>
                     <TableCell className={isRtl ? 'text-right' : 'text-left'}>
-                      {assignedUser ? (
-                        <Badge variant="outline" className="font-normal gap-1 border-primary/30 text-primary bg-primary/5">
-                          <UserIcon className="w-3 h-3" />
-                          {assignedUser.name}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="font-normal text-muted-foreground">
-                          {isRtl ? "غير مسند" : "Unassigned"}
-                        </Badge>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {assignedUser ? (
+                          <Badge variant="outline" className="font-normal gap-1 border-primary/30 text-primary bg-primary/5 w-fit">
+                            <UserIcon className="w-3 h-3" />
+                            {assignedUser.name}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="font-normal text-muted-foreground w-fit">
+                            {isRtl ? "غير مسند" : "Unassigned"}
+                          </Badge>
+                        )}
+                        {Array.isArray(dbRow.serviceEmployeeIds) && dbRow.serviceEmployeeIds.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {dbRow.serviceEmployeeIds.slice(0, 3).map(sid => {
+                              const su = userById(sid);
+                              if (!su) return null;
+                              return (
+                                <Badge key={sid} variant="outline" className="font-normal gap-1 border-indigo-200 text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800 text-[10px] px-1.5 py-0 w-fit">
+                                  <Users className="w-2.5 h-2.5" />
+                                  {su.name}
+                                </Badge>
+                              );
+                            })}
+                            {dbRow.serviceEmployeeIds.length > 3 && (
+                              <Badge variant="outline" className="font-normal text-muted-foreground text-[10px] px-1.5 py-0 w-fit">
+                                +{dbRow.serviceEmployeeIds.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className={isRtl ? 'text-right' : 'text-left'}>
                       <Badge variant="outline" className={cn("font-normal border-transparent",
@@ -714,6 +736,39 @@ export function CustomersList({
                 </p>
               )}
             </div>
+            {/* Service Team: admin/manager can assign extra employees */}
+            {(isAdmin || isManager) && usersForActivity.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5" />
+                  {isRtl ? "فريق الخدمة (اختياري)" : "Service Team (optional)"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {isRtl
+                    ? "الموظفون المضافون هنا يمكنهم الاطلاع على بيانات العميل لأغراض الخدمة والمتابعة."
+                    : "Employees added here can view customer details for service and follow-up purposes."}
+                </p>
+                <div className="max-h-36 overflow-y-auto border border-border/60 rounded-md divide-y divide-border/40">
+                  {usersForActivity.filter(u => u.id !== assignTo).map(u => (
+                    <label
+                      key={u.id}
+                      className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent/40 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-primary w-4 h-4 rounded"
+                        checked={assignServiceIds.includes(u.id)}
+                        onChange={e => setAssignServiceIds(prev =>
+                          e.target.checked ? [...prev, u.id] : prev.filter(id => id !== u.id)
+                        )}
+                      />
+                      <span>{u.name}</span>
+                      {u.role && <span className="text-xs text-muted-foreground">({u.role})</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Warning for regular employees: transfer is one-way */}
             {!isAdmin && !isManager && (
               <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2">

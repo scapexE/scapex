@@ -783,14 +783,13 @@ export async function registerRoutes(
       }
 
       // Ownership scoping:
-      // - Privileged (admin/manager) may pass ?assignedTo=<id> to filter to one employee (Mine toggle)
-      // - Non-privileged employees ONLY see customers currently assigned to them
-      //   (after a transfer they lose access to what they handed off)
+      // - Privileged (admin/manager) may pass ?assignedTo=<id> to view one employee's customers (Mine toggle)
+      // - Non-privileged employees see ALL customers in their activity (read-only for non-owners)
       if (assignedTo) {
         conds.push(eq(contacts.assignedTo, assignedTo));
-      } else if (!scope.isPrivileged) {
-        conds.push(eq(contacts.assignedTo, scope.actor.id));
       }
+      // No additional filter for non-privileged: activity scoping above is sufficient;
+      // edit/delete restrictions are enforced in PATCH and DELETE.
 
       const where = conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.createdAt));
@@ -886,6 +885,17 @@ export async function registerRoutes(
         }
         nextActivityId = d.activityId;
       }
+      // serviceEmployeeIds: privileged callers may update the service team list
+      let nextServiceIds = Array.isArray((existing as any).serviceEmployeeIds)
+        ? (existing as any).serviceEmployeeIds as string[]
+        : [];
+      if ("serviceEmployeeIds" in d && Array.isArray(d.serviceEmployeeIds)) {
+        if (!isPrivileged) {
+          return res.status(403).json({ error: "Forbidden: only admin/manager may update service team" });
+        }
+        nextServiceIds = d.serviceEmployeeIds as string[];
+      }
+
       const result = await db.update(contacts).set({
         nameAr: d.nameAr ?? existing.nameAr,
         nameEn: d.nameEn ?? existing.nameEn,
@@ -902,6 +912,7 @@ export async function registerRoutes(
         isActive: d.isActive ?? existing.isActive,
         activityId: nextActivityId,
         assignedTo: d.assignedTo ?? existing.assignedTo,
+        serviceEmployeeIds: nextServiceIds,
         updatedAt: new Date(),
       }).where(eq(contacts.id, id)).returning();
       res.json(result[0]);

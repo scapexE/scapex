@@ -161,6 +161,7 @@ export const contacts = pgTable("contacts", {
   activityId: text("activity_id"),
   assignedTo: varchar("assigned_to").references(() => users.id),
   createdBy: varchar("created_by").references(() => users.id),
+  serviceEmployeeIds: jsonb("service_employee_ids").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   // Customer-portal fields
