@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scopedFetch, apiRequest } from "@/lib/queryClient";
+import { DealDrawer } from "./DealDrawer";
 
 interface DbDeal {
   id: number;
@@ -148,6 +149,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   const [assignTarget, setAssignTarget] = useState<DbDeal | null>(null);
   const [assignTo, setAssignTo] = useState<string>("");
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [selectedDeal, setSelectedDeal] = useState<DbDeal | null>(null);
   const [form, setForm] = useState({
     titleAr: "", titleEn: "", contactId: "", value: "",
     priority: "medium", nextAction: "", expectedClose: "", notes: "",
@@ -499,10 +501,11 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                             onDragStart={e => handleDragStart(e, d)}
                             onMouseEnter={() => setHoveredCard(d.id)}
                             onMouseLeave={() => setHoveredCard(null)}
+                            onClick={() => setSelectedDeal(d)}
                             className={cn(
                               "group bg-card rounded-xl border shadow-sm transition-all duration-200 overflow-hidden",
                               "hover:shadow-md hover:-translate-y-0.5",
-                              editable ? "cursor-grab active:cursor-grabbing" : "cursor-default opacity-90",
+                              editable ? "cursor-pointer active:cursor-grabbing" : "cursor-pointer opacity-90",
                               d.priority === "high" ? "border-red-200 dark:border-red-800" : "border-border/60",
                             )}
                             data-testid={`card-deal-${d.id}`}
@@ -531,7 +534,8 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                                   <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon"
                                       className="h-6 w-6 shrink-0 -me-1 -mt-1 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                      data-testid={`button-deal-menu-${d.id}`}>
+                                      data-testid={`button-deal-menu-${d.id}`}
+                                      onClick={e => e.stopPropagation()}>
                                       <MoreHorizontal className="h-3.5 w-3.5" />
                                     </Button>
                                   </PopoverTrigger>
@@ -620,7 +624,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                                   <button
                                     data-testid={`button-create-proposal-${d.id}`}
                                     className="w-full flex items-center justify-center gap-1.5 text-[11px] text-primary hover:text-primary/80 font-semibold bg-primary/8 hover:bg-primary/15 border border-primary/25 hover:border-primary/50 px-2 py-1.5 rounded-lg transition-all"
-                                    onClick={() => handleProposal(d)}
+                                    onClick={e => { e.stopPropagation(); handleProposal(d); }}
                                   >
                                     <FileText className="w-3 h-3" />
                                     {isRtl ? "إنشاء عرض سعر" : "Create Proposal"}
@@ -747,6 +751,25 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ─── Deal Drawer ─────────────────────────────────────── */}
+      <DealDrawer
+        deal={selectedDeal}
+        customer={selectedDeal ? customerById(selectedDeal.contactId) || null : null}
+        assignedUser={selectedDeal ? userById(selectedDeal.assignedTo) || null : null}
+        onClose={() => setSelectedDeal(null)}
+        onCreateProposal={onCreateProposal ? (d, c) => {
+          setSelectedDeal(null);
+          onCreateProposal({
+            clientName: c ? (isRtl ? c.nameAr : c.nameEn) || c.nameEn || c.nameAr || "" : "",
+            clientEmail: c?.email || "",
+            clientContact: c?.phone || "",
+            projectName: (isRtl ? d.titleAr : d.titleEn) || d.titleEn || d.titleAr || "",
+            contactId: d.contactId ?? null,
+            dealId: d.id ?? null,
+          });
+        } : undefined}
+      />
     </div>
   );
 }

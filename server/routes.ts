@@ -283,6 +283,10 @@ export async function registerRoutes(
   // Ensure confidentiality columns exist in contracts
   await db.execute(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS is_confidential BOOLEAN DEFAULT false`);
   await db.execute(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS viewer_ids JSONB DEFAULT '[]'::jsonb`);
+  await db.execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS contact_id INTEGER`);
+  await db.execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS deal_id INTEGER`);
+  await db.execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_content TEXT`);
+  await db.execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS original_name TEXT`);
 
   await seedDefaultUsers();
   await seedDefaultCompanies();
@@ -2848,6 +2852,75 @@ export async function registerRoutes(
     try {
       const id = Number(req.params.id);
       await db.delete(documents).where(eq(documents.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─────── CRM Documents (linked to contacts + deals) ─────────────────────────
+  app.get("/api/crm-documents", async (req, res) => {
+    try {
+      const contactId = req.query.contactId ? Number(req.query.contactId) : null;
+      const dealId = req.query.dealId ? Number(req.query.dealId) : null;
+      let rows = await db.select().from(documents).orderBy(desc(documents.createdAt));
+      if (contactId) rows = rows.filter(d => (d as any).contactId === contactId);
+      else if (dealId) rows = rows.filter(d => (d as any).dealId === dealId);
+      else rows = [];
+      // Never return file_content in list (performance)
+      const safe = rows.map(({ ...r }: any) => { delete r.fileContent; return r; });
+      res.json(safe);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/crm-documents", async (req, res) => {
+    try {
+      const actorId = (req.header("x-user-id") || "").trim();
+      const b = req.body;
+      const year = new Date().getFullYear();
+      const countResult = await db.select().from(documents);
+      const seq = String(countResult.length + 1).padStart(4, "0");
+      const [doc] = await db.insert(documents).values({
+        titleAr: b.titleAr,
+        titleEn: b.titleEn || null,
+        docNo: `CRM-${year}-${seq}`,
+        category: b.category || "other",
+        folder: b.contactId ? "crm-company" : "crm-deal",
+        status: "active",
+        fileContent: b.fileContent || null,
+        originalName: b.originalName || null,
+        mimeType: b.mimeType || null,
+        fileSize: b.fileSize ? Number(b.fileSize) : null,
+        activityId: b.activityId || null,
+        uploadedBy: actorId || null,
+        uploadedByName: b.uploadedByName || null,
+        description: b.description || null,
+        contactId: b.contactId ? Number(b.contactId) : null,
+        dealId: b.dealId ? Number(b.dealId) : null,
+        tags: [],
+        version: 1,
+        accessLevel: "internal",
+      } as any).returning();
+      const { fileContent: _fc, ...safe } = doc as any;
+      res.json(safe);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/crm-documents/:id/file", async (req, res) => {
+    try {
+      const [doc] = await db.select().from(documents).where(eq(documents.id, Number(req.params.id)));
+      if (!doc) return res.status(404).json({ error: "Not found" });
+      const content = (doc as any).fileContent;
+      if (!content) return res.status(404).json({ error: "No file content" });
+      const buffer = Buffer.from(content, "base64");
+      res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
+      res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent((doc as any).originalName || doc.titleAr || 'file')}"`);
+      res.setHeader("Content-Length", buffer.length);
+      res.send(buffer);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/crm-documents/:id", async (req, res) => {
+    try {
+      await db.delete(documents).where(eq(documents.id, Number(req.params.id)));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
