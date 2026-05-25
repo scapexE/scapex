@@ -272,11 +272,14 @@ export async function registerRoutes(
     payment_method TEXT DEFAULT 'cash',
     notes TEXT,
     status TEXT DEFAULT 'pending',
+    contract_id INTEGER,
     activity_id TEXT,
     created_by TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
   )`);
+  // Ensure contract_id column exists in older installations
+  await db.execute(`ALTER TABLE partner_accounts ADD COLUMN IF NOT EXISTS contract_id INTEGER`);
 
   await seedDefaultUsers();
   await seedDefaultCompanies();
@@ -3346,6 +3349,19 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  // Get contract IDs that already have a partner account (for badge display)
+  app.get("/api/partner-accounts/linked-contracts", async (req, res) => {
+    try {
+      const staffId = (req.header("x-user-id") || "").trim();
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const rows = await db.execute(`SELECT contract_id, id FROM partner_accounts WHERE contract_id IS NOT NULL`);
+      const map: Record<number, number> = {};
+      for (const r of rows.rows as any[]) { if (r.contract_id) map[r.contract_id] = r.id; }
+      res.json(map);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   app.post("/api/partner-accounts", async (req, res) => {
     try {
       const staffId = (req.header("x-user-id") || "").trim();
@@ -3364,6 +3380,7 @@ export async function registerRoutes(
         paymentMethod: b.paymentMethod ?? "cash",
         notes: b.notes ?? null,
         status: b.status ?? "pending",
+        contractId: b.contractId ? parseInt(b.contractId) : null,
         activityId: b.activityId ?? null,
         createdBy: staffId || null,
       }).returning();

@@ -1276,6 +1276,7 @@ export const partnerAccounts = pgTable("partner_accounts", {
   paymentMethod: text("payment_method").default("cash"),
   notes: text("notes"),
   status: text("status").default("pending"),
+  contractId: integer("contract_id"),
   activityId: text("activity_id"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import {
   Plus, Pencil, Trash2, Loader2, Printer, RefreshCw,
-  ShieldAlert, TrendingUp, Wallet, CheckCircle2, Clock, Search,
+  ShieldAlert, TrendingUp, Wallet, CheckCircle2, Clock, Search, Handshake,
 } from "lucide-react";
 import { getAboutData } from "@/lib/companySettings";
 
@@ -36,6 +36,7 @@ interface PartnerAccount {
   paymentMethod: string;
   notes: string | null;
   status: string;
+  contractId: number | null;
   createdAt: string;
 }
 
@@ -500,7 +501,17 @@ export function PartnerAccounts() {
                   return (
                     <TableRow key={row.id} className="border-border/40 hover:bg-muted/30 transition-colors">
                       <TableCell className="text-center text-muted-foreground text-xs">{i + 1}</TableCell>
-                      <TableCell className="text-center font-mono text-sm font-semibold text-primary">{row.contractNumber}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="font-mono text-sm font-semibold text-primary">{row.contractNumber}</span>
+                          {row.contractId && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+                              <Handshake className="w-2 h-2" />
+                              {lbl("من عقد", "from contract")}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center font-medium text-sm">{row.clientName}</TableCell>
                       <TableCell className="text-center">
                         <span className={cn("inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium", typeCls)}>
