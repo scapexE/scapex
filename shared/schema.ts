@@ -673,11 +673,52 @@ export const payrollItems = pgTable("payroll_items", {
   basicSalary: numeric("basic_salary", { precision: 12, scale: 2 }).default("0"),
   allowances: numeric("allowances", { precision: 12, scale: 2 }).default("0"),
   overtime: numeric("overtime", { precision: 12, scale: 2 }).default("0"),
+  bonuses: numeric("bonuses", { precision: 12, scale: 2 }).default("0"),
+  commission: numeric("commission", { precision: 12, scale: 2 }).default("0"),
   deductions: numeric("deductions", { precision: 12, scale: 2 }).default("0"),
+  advanceDeduction: numeric("advance_deduction", { precision: 12, scale: 2 }).default("0"),
+  violationDeduction: numeric("violation_deduction", { precision: 12, scale: 2 }).default("0"),
   gosiEmployee: numeric("gosi_employee", { precision: 12, scale: 2 }).default("0"),
   gosiCompany: numeric("gosi_company", { precision: 12, scale: 2 }).default("0"),
   netSalary: numeric("net_salary", { precision: 12, scale: 2 }).default("0"),
   notes: text("notes"),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMPLOYEE ADVANCES & VIOLATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const employeeAdvances = pgTable("employee_advances", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  reason: text("reason"),
+  requestDate: date("request_date"),
+  deductionMonths: integer("deduction_months").default(1),
+  deductedSoFar: numeric("deducted_so_far", { precision: 12, scale: 2 }).default("0"),
+  status: text("status").default("pending"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  notes: text("notes"),
+  activityId: text("activity_id").references(() => businessActivities.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const employeeViolations = pgTable("employee_violations", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  violationType: text("violation_type").notNull(),
+  description: text("description"),
+  penaltyAmount: numeric("penalty_amount", { precision: 12, scale: 2 }).default("0"),
+  date: date("date"),
+  status: text("status").default("pending"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  notes: text("notes"),
+  activityId: text("activity_id").references(() => businessActivities.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1205,3 +1246,15 @@ export type Invoice = typeof invoices.$inferSelect;
 export const insertAssetSchema = createInsertSchema(assets).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertAsset = z.infer<typeof insertAssetSchema>;
 export type Asset = typeof assets.$inferSelect;
+
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type Payment = typeof payments.$inferSelect;
+
+export const insertEmployeeAdvanceSchema = createInsertSchema(employeeAdvances).omit({ id: true, createdAt: true });
+export type InsertEmployeeAdvance = z.infer<typeof insertEmployeeAdvanceSchema>;
+export type EmployeeAdvance = typeof employeeAdvances.$inferSelect;
+
+export const insertEmployeeViolationSchema = createInsertSchema(employeeViolations).omit({ id: true, createdAt: true });
+export type InsertEmployeeViolation = z.infer<typeof insertEmployeeViolationSchema>;
+export type EmployeeViolation = typeof employeeViolations.$inferSelect;

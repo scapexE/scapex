@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote, Layers } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote, Layers, ShieldAlert } from "lucide-react";
+import { AdvancesTab } from "@/components/hr/AdvancesTab";
+import { ViolationsTab } from "@/components/hr/ViolationsTab";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -251,9 +253,11 @@ export default function HRModule() {
         </div>
 
         <Tabs defaultValue="employees">
-          <TabsList className="bg-secondary/50">
-            <TabsTrigger value="employees">{isRtl ? "الموظفون" : "Employees"}</TabsTrigger>
-            <TabsTrigger value="departments">{isRtl ? "الأقسام" : "Departments"}</TabsTrigger>
+          <TabsList className="bg-secondary/50 flex-wrap h-auto gap-1">
+            <TabsTrigger value="employees"><Users className="w-3.5 h-3.5 me-1" />{isRtl ? "الموظفون" : "Employees"}</TabsTrigger>
+            <TabsTrigger value="departments"><Building2 className="w-3.5 h-3.5 me-1" />{isRtl ? "الأقسام" : "Departments"}</TabsTrigger>
+            <TabsTrigger value="advances"><Banknote className="w-3.5 h-3.5 me-1" />{isRtl ? "السلف" : "Advances"}</TabsTrigger>
+            <TabsTrigger value="violations"><ShieldAlert className="w-3.5 h-3.5 me-1" />{isRtl ? "المخالفات" : "Violations"}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="employees" className="mt-4 space-y-3">
@@ -364,6 +368,14 @@ export default function HRModule() {
                 );
               })}
             </div>
+          </TabsContent>
+
+          <TabsContent value="advances" className="mt-4">
+            <AdvancesTab />
+          </TabsContent>
+
+          <TabsContent value="violations" className="mt-4">
+            <ViolationsTab />
           </TabsContent>
         </Tabs>
       </div>

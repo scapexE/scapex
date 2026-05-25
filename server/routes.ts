@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations } from "@shared/schema";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
@@ -2840,6 +2840,289 @@ export async function registerRoutes(
       console.error("Change password error:", err);
       res.status(500).json({ error: "Server error" });
     }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STANDALONE INVOICES (Tax Invoices)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/invoices", async (req, res) => {
+    try {
+      const rows = await db.select().from(invoices).orderBy(desc(invoices.createdAt));
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/invoices/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [inv] = await db.select().from(invoices).where(eq(invoices.id, id));
+      if (!inv) return res.status(404).json({ error: "Not found" });
+      const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+      res.json({ ...inv, items });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/invoices", async (req, res) => {
+    try {
+      const b = req.body;
+      const today = new Date().toISOString().slice(0, 10);
+      const countToday = await db.select().from(invoices);
+      const seq = (countToday.length + 1).toString().padStart(4, "0");
+      const ymd = today.replace(/-/g, "");
+      const invoiceNumber = b.invoiceNumber || `INV-${ymd}-${seq}`;
+      const subtotal = parseFloat(b.subtotal || 0);
+      const vatRate = parseFloat(b.vatRate || 15) / 100;
+      const vatAmount = parseFloat(b.vatAmount ?? (subtotal * vatRate).toFixed(2));
+      const total = parseFloat(b.total ?? (subtotal + vatAmount).toFixed(2));
+      const [row] = await db.insert(invoices).values({
+        invoiceNumber, type: b.type || "sales",
+        contactId: b.contactId ? parseInt(b.contactId) : null,
+        contractId: b.contractId ? parseInt(b.contractId) : null,
+        clientName: b.clientName || null,
+        issueDate: b.issueDate || today, dueDate: b.dueDate || null,
+        subtotal: String(subtotal), vatAmount: String(vatAmount), total: String(total),
+        paidAmount: "0", currency: b.currency || "SAR",
+        status: b.status || "draft", notes: b.notes || null,
+        activityId: b.activityId || null, projectId: b.projectId ? parseInt(b.projectId) : null,
+        createdBy: b.createdBy || null,
+      }).returning();
+      if (b.items && Array.isArray(b.items) && b.items.length > 0) {
+        await db.insert(invoiceItems).values(b.items.map((it: any) => ({
+          invoiceId: row.id, descAr: it.descAr, descEn: it.descEn,
+          qty: String(it.qty || 1), unit: it.unit || null,
+          unitPrice: String(it.unitPrice || 0), total: String(it.total || 0),
+        })));
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/invoices/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const b = req.body;
+      const subtotal = b.subtotal !== undefined ? parseFloat(b.subtotal) : undefined;
+      const vatAmount = b.vatAmount !== undefined ? parseFloat(b.vatAmount) : undefined;
+      const total = b.total !== undefined ? parseFloat(b.total) : undefined;
+      const updateData: any = { updatedAt: new Date() };
+      if (b.status !== undefined) updateData.status = b.status;
+      if (b.clientName !== undefined) updateData.clientName = b.clientName;
+      if (b.contactId !== undefined) updateData.contactId = b.contactId ? parseInt(b.contactId) : null;
+      if (b.issueDate !== undefined) updateData.issueDate = b.issueDate;
+      if (b.dueDate !== undefined) updateData.dueDate = b.dueDate;
+      if (subtotal !== undefined) updateData.subtotal = String(subtotal);
+      if (vatAmount !== undefined) updateData.vatAmount = String(vatAmount);
+      if (total !== undefined) updateData.total = String(total);
+      if (b.paidAmount !== undefined) updateData.paidAmount = String(b.paidAmount);
+      if (b.notes !== undefined) updateData.notes = b.notes;
+      if (b.type !== undefined) updateData.type = b.type;
+      const [row] = await db.update(invoices).set(updateData).where(eq(invoices.id, id)).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/invoices/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+      await db.delete(invoices).where(eq(invoices.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PAYMENTS — Receipt Vouchers (سند قبض) + Payment Vouchers (سند صرف)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/payments", async (req, res) => {
+    try {
+      const type = req.query.type as string | undefined;
+      const rows = type
+        ? await db.select().from(payments).where(eq(payments.type, type)).orderBy(desc(payments.createdAt))
+        : await db.select().from(payments).orderBy(desc(payments.createdAt));
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/payments", async (req, res) => {
+    try {
+      const b = req.body;
+      const today = new Date().toISOString().slice(0, 10);
+      const existing = await db.select().from(payments);
+      const seq = (existing.length + 1).toString().padStart(4, "0");
+      const prefix = b.type === "paid" ? "SPY" : "SRC";
+      const paymentNumber = b.paymentNumber || `${prefix}-${today.replace(/-/g, "").slice(2)}-${seq}`;
+      const [row] = await db.insert(payments).values({
+        paymentNumber, type: b.type || "received",
+        invoiceId: b.invoiceId ? parseInt(b.invoiceId) : null,
+        contactId: b.contactId ? parseInt(b.contactId) : null,
+        amount: String(b.amount || 0), currency: b.currency || "SAR",
+        method: b.method || "bank_transfer", reference: b.reference || null,
+        date: b.date || today, notes: b.notes || null,
+        activityId: b.activityId || null, createdBy: b.createdBy || null,
+      }).returning();
+      // Update invoice paidAmount if linked
+      if (b.invoiceId && b.type === "received") {
+        const [inv] = await db.select().from(invoices).where(eq(invoices.id, parseInt(b.invoiceId)));
+        if (inv) {
+          const newPaid = parseFloat(inv.paidAmount || "0") + parseFloat(String(b.amount));
+          const total = parseFloat(inv.total || "0");
+          const newStatus = newPaid >= total ? "paid" : newPaid > 0 ? "partial" : inv.status;
+          await db.update(invoices).set({ paidAmount: String(newPaid), status: newStatus, updatedAt: new Date() }).where(eq(invoices.id, parseInt(b.invoiceId)));
+        }
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/payments/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const b = req.body;
+      const updateData: any = {};
+      if (b.status !== undefined) updateData.status = b.status;
+      if (b.notes !== undefined) updateData.notes = b.notes;
+      if (b.reference !== undefined) updateData.reference = b.reference;
+      if (b.method !== undefined) updateData.method = b.method;
+      const [row] = await db.update(payments).set(updateData).where(eq(payments.id, id)).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/payments/:id", async (req, res) => {
+    try {
+      await db.delete(payments).where(eq(payments.id, parseInt(req.params.id)));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMPLOYEE ADVANCES (سلف الموظفين)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/employee-advances", async (req, res) => {
+    try {
+      const empId = req.query.employeeId;
+      const rows = empId
+        ? await db.select().from(employeeAdvances).where(eq(employeeAdvances.employeeId, parseInt(empId as string))).orderBy(desc(employeeAdvances.createdAt))
+        : await db.select().from(employeeAdvances).orderBy(desc(employeeAdvances.createdAt));
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/employee-advances", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(employeeAdvances).values({
+        companyId: b.companyId ? parseInt(b.companyId) : 1,
+        employeeId: parseInt(b.employeeId),
+        amount: String(b.amount), reason: b.reason || null,
+        requestDate: b.requestDate || new Date().toISOString().slice(0, 10),
+        deductionMonths: parseInt(b.deductionMonths || 1),
+        deductedSoFar: "0", status: "pending",
+        notes: b.notes || null, activityId: b.activityId || null,
+        createdBy: b.createdBy || null,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/employee-advances/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const updateData: any = {};
+      if (b.status !== undefined) updateData.status = b.status;
+      if (b.approvedBy !== undefined) updateData.approvedBy = b.approvedBy;
+      if (b.notes !== undefined) updateData.notes = b.notes;
+      if (b.deductedSoFar !== undefined) updateData.deductedSoFar = String(b.deductedSoFar);
+      if (b.deductionMonths !== undefined) updateData.deductionMonths = parseInt(b.deductionMonths);
+      const [row] = await db.update(employeeAdvances).set(updateData).where(eq(employeeAdvances.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/employee-advances/:id", async (req, res) => {
+    try {
+      await db.delete(employeeAdvances).where(eq(employeeAdvances.id, parseInt(req.params.id)));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMPLOYEE VIOLATIONS (مخالفات الموظفين)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/employee-violations", async (req, res) => {
+    try {
+      const empId = req.query.employeeId;
+      const rows = empId
+        ? await db.select().from(employeeViolations).where(eq(employeeViolations.employeeId, parseInt(empId as string))).orderBy(desc(employeeViolations.createdAt))
+        : await db.select().from(employeeViolations).orderBy(desc(employeeViolations.createdAt));
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/employee-violations", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(employeeViolations).values({
+        companyId: b.companyId ? parseInt(b.companyId) : 1,
+        employeeId: parseInt(b.employeeId),
+        violationType: b.violationType, description: b.description || null,
+        penaltyAmount: String(b.penaltyAmount || 0),
+        date: b.date || new Date().toISOString().slice(0, 10),
+        status: "pending", notes: b.notes || null,
+        activityId: b.activityId || null, createdBy: b.createdBy || null,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/employee-violations/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const updateData: any = {};
+      if (b.status !== undefined) updateData.status = b.status;
+      if (b.approvedBy !== undefined) updateData.approvedBy = b.approvedBy;
+      if (b.notes !== undefined) updateData.notes = b.notes;
+      if (b.penaltyAmount !== undefined) updateData.penaltyAmount = String(b.penaltyAmount);
+      const [row] = await db.update(employeeViolations).set(updateData).where(eq(employeeViolations.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/employee-violations/:id", async (req, res) => {
+    try {
+      await db.delete(employeeViolations).where(eq(employeeViolations.id, parseInt(req.params.id)));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Payroll items CRUD (with new fields)
+  app.post("/api/payroll-items", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(payrollItems).values({
+        batchId: parseInt(b.batchId), employeeId: parseInt(b.employeeId),
+        basicSalary: String(b.basicSalary || 0), allowances: String(b.allowances || 0),
+        overtime: String(b.overtime || 0), bonuses: String(b.bonuses || 0),
+        commission: String(b.commission || 0), deductions: String(b.deductions || 0),
+        advanceDeduction: String(b.advanceDeduction || 0),
+        violationDeduction: String(b.violationDeduction || 0),
+        gosiEmployee: String(b.gosiEmployee || 0), gosiCompany: String(b.gosiCompany || 0),
+        netSalary: String(b.netSalary || 0), notes: b.notes || null,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/payroll-items/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const updateData: any = {};
+      const numFields = ["basicSalary","allowances","overtime","bonuses","commission","deductions","advanceDeduction","violationDeduction","gosiEmployee","gosiCompany","netSalary"];
+      for (const f of numFields) { if (b[f] !== undefined) updateData[f] = String(b[f]); }
+      if (b.notes !== undefined) updateData.notes = b.notes;
+      const [row] = await db.update(payrollItems).set(updateData).where(eq(payrollItems.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   return httpServer;
