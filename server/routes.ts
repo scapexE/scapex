@@ -2296,6 +2296,8 @@ export async function registerRoutes(
         jobTitle: b.jobTitle, jobTitleAr: b.jobTitleAr, contractType: b.contractType,
         basicSalary: b.basicSalary, housingAllowance: b.housingAllowance,
         transportAllowance: b.transportAllowance, status: b.status || "active",
+        companyId: b.companyId ? parseInt(b.companyId) : null,
+        activityIds: Array.isArray(b.activityIds) ? b.activityIds : [],
       }).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -2311,6 +2313,8 @@ export async function registerRoutes(
         jobTitle: b.jobTitle, jobTitleAr: b.jobTitleAr, contractType: b.contractType,
         basicSalary: b.basicSalary, housingAllowance: b.housingAllowance,
         transportAllowance: b.transportAllowance, status: b.status,
+        companyId: b.companyId ? parseInt(b.companyId) : null,
+        activityIds: Array.isArray(b.activityIds) ? b.activityIds : [],
         updatedAt: new Date(),
       }).where(eq(employees.id, id)).returning();
       res.json(row);

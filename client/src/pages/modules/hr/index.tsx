@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,7 +21,12 @@ interface Employee {
   hireDate: string; baseSalary: number; housingAllowance: number;
   transportAllowance: number; status: "active" | "inactive" | "on_leave";
   contractType: "permanent" | "contract" | "part_time";
+  companyId?: number | null;
+  activityIds?: string[];
 }
+
+interface SimpleCompany { id: number; nameAr: string; nameEn: string; }
+interface SimpleActivity { id: string; nameAr: string; nameEn: string; companyId: number; active: boolean; }
 
 const DEPARTMENTS = [
   { id: "engineering", ar: "الهندسة", en: "Engineering" },
@@ -61,6 +66,8 @@ function mapRow(r: any): Employee {
     transportAllowance: parseFloat(r.transportAllowance || "0") || 0,
     status: r.status || "active",
     contractType: r.contractType || "permanent",
+    companyId: r.companyId ?? null,
+    activityIds: Array.isArray(r.activityIds) ? r.activityIds : [],
   };
 }
 
@@ -79,7 +86,9 @@ export default function HRModule() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeList, setEmployeeList] = useState<Employee[]>([]);
+  const [companies, setCompanies] = useState<SimpleCompany[]>([]);
+  const [activities, setActivities] = useState<SimpleActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -88,13 +97,23 @@ export default function HRModule() {
   const [form, setForm] = useState<Partial<Employee>>({});
   const [saving, setSaving] = useState(false);
 
-  const fetchEmployees = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/employees");
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        setEmployees(data.map(mapRow));
+      const [empRes, compRes, actRes] = await Promise.all([
+        fetch("/api/employees"),
+        fetch("/api/companies"),
+        fetch("/api/activities"),
+      ]);
+      const [empData, compData, actData] = await Promise.all([
+        empRes.json(), compRes.json(), actRes.json(),
+      ]);
+
+      setCompanies(Array.isArray(compData) ? compData : []);
+      setActivities(Array.isArray(actData) ? actData : []);
+
+      if (Array.isArray(empData) && empData.length > 0) {
+        setEmployeeList(empData.map(mapRow));
       } else {
         const legacy = localStorage.getItem("scapex_hr_employees");
         const source: Employee[] = legacy ? JSON.parse(legacy) : SEED;
@@ -106,40 +125,89 @@ export default function HRModule() {
         }
         if (legacy) localStorage.removeItem("scapex_hr_employees");
         const res2 = await fetch("/api/employees");
-        setEmployees((await res2.json()).map(mapRow));
+        setEmployeeList((await res2.json()).map(mapRow));
       }
     } catch { toast({ title: isRtl ? "خطأ في تحميل البيانات" : "Load error", variant: "destructive" }); }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filtered = employees.filter(e => {
+  const filtered = employeeList.filter(e => {
     const q = search.toLowerCase();
     return (!q || e.nameAr.includes(q) || e.nameEn.toLowerCase().includes(q) || e.empNo.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)) && (deptFilter === "all" || e.department === deptFilter);
   });
 
-  const stats = { total: employees.length, active: employees.filter(e => e.status === "active").length, onLeave: employees.filter(e => e.status === "on_leave").length, saudi: employees.filter(e => e.nationality === "Saudi").length };
-  const openAdd = () => { setEditEmp(null); setForm({ status: "active", contractType: "permanent", nationality: "Saudi", department: "engineering" }); setShowDialog(true); };
+  const stats = { total: employeeList.length, active: employeeList.filter(e => e.status === "active").length, onLeave: employeeList.filter(e => e.status === "on_leave").length, saudi: employeeList.filter(e => e.nationality === "Saudi").length };
+
+  const openAdd = () => {
+    setEditEmp(null);
+    setForm({ status: "active", contractType: "permanent", nationality: "Saudi", department: "engineering", companyId: companies[0]?.id ?? null, activityIds: [] });
+    setShowDialog(true);
+  };
   const openEdit = (e: Employee) => { setEditEmp(e); setForm(e); setShowDialog(true); };
   const deptLabel = (id: string) => { const d = DEPARTMENTS.find(x => x.id === id); return d ? (isRtl ? d.ar : d.en) : id; };
   const statusColor = (s: string) => s === "active" ? "default" : s === "on_leave" ? "secondary" : "destructive";
   const statusLabel = (s: string) => s === "active" ? (isRtl ? "نشط" : "Active") : s === "on_leave" ? (isRtl ? "إجازة" : "On Leave") : (isRtl ? "غير نشط" : "Inactive");
 
+  const companyName = (id?: number | null) => {
+    if (!id) return null;
+    const c = companies.find(x => x.id === id);
+    return c ? (isRtl ? c.nameAr : c.nameEn) : null;
+  };
+
+  const activityName = (id: string) => {
+    const a = activities.find(x => x.id === id);
+    return a ? (isRtl ? a.nameAr : a.nameEn) : id;
+  };
+
+  const activitiesForCompany = useMemo(() => {
+    if (!form.companyId) return activities.filter(a => a.active);
+    return activities.filter(a => a.active && a.companyId === form.companyId);
+  }, [activities, form.companyId]);
+
+  const toggleActivity = (id: string) => {
+    setForm(prev => {
+      const current = prev.activityIds || [];
+      const next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+      return { ...prev, activityIds: next };
+    });
+  };
+
   const handleSave = async () => {
-    if (!form.nameAr || !form.nameEn || !form.email) { toast({ title: isRtl ? "يرجى ملء الحقول المطلوبة" : "Fill required fields", variant: "destructive" }); return; }
+    if (!form.nameAr || !form.nameEn || !form.email) {
+      toast({ title: isRtl ? "يرجى ملء الحقول المطلوبة (الاسم، البريد)" : "Fill required fields (name, email)", variant: "destructive" });
+      return;
+    }
+    if (!form.companyId) {
+      toast({ title: isRtl ? "يرجى اختيار الشركة" : "Please select a company", variant: "destructive" });
+      return;
+    }
+    if (!form.activityIds?.length) {
+      toast({ title: isRtl ? "يرجى اختيار نشاط تجاري واحد على الأقل" : "Select at least one business activity", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
-      const payload = { employeeNumber: form.empNo, nameAr: form.nameAr, nameEn: form.nameEn, departmentName: form.department, jobTitle: form.jobTitle, jobTitleAr: form.jobTitleAr, nationality: form.nationality, nationalId: form.iqama, phone: form.phone, email: form.email, joinDate: form.hireDate, basicSalary: form.baseSalary, housingAllowance: form.housingAllowance, transportAllowance: form.transportAllowance, status: form.status, contractType: form.contractType };
+      const payload = {
+        employeeNumber: form.empNo, nameAr: form.nameAr, nameEn: form.nameEn,
+        departmentName: form.department, jobTitle: form.jobTitle, jobTitleAr: form.jobTitleAr,
+        nationality: form.nationality, nationalId: form.iqama, phone: form.phone,
+        email: form.email, joinDate: form.hireDate, basicSalary: form.baseSalary,
+        housingAllowance: form.housingAllowance, transportAllowance: form.transportAllowance,
+        status: form.status, contractType: form.contractType,
+        companyId: form.companyId,
+        activityIds: form.activityIds || [],
+      };
       if (editEmp) {
         await fetch(`/api/employees/${editEmp.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         toast({ title: isRtl ? "تم تحديث الموظف" : "Employee updated" });
       } else {
         await fetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        toast({ title: isRtl ? "تم إضافة الموظف" : "Employee added" });
+        toast({ title: isRtl ? "تم إضافة الموظف بنجاح" : "Employee added successfully" });
       }
       setShowDialog(false);
-      fetchEmployees();
+      fetchAll();
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
     finally { setSaving(false); }
   };
@@ -148,7 +216,7 @@ export default function HRModule() {
     try {
       await fetch(`/api/employees/${id}`, { method: "DELETE" });
       toast({ title: isRtl ? "تم حذف الموظف" : "Employee deleted" });
-      fetchEmployees();
+      fetchAll();
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
   };
 
@@ -161,7 +229,7 @@ export default function HRModule() {
             <p className="text-muted-foreground text-sm mt-1">{isRtl ? "إدارة الموظفين، العقود، والبيانات الوظيفية" : "Manage employees, contracts, and HR data"}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => printEmployees(employees, isRtl)}><Download className="w-4 h-4 me-1.5" />{isRtl ? "طباعة PDF" : "Print PDF"}</Button>
+            <Button variant="outline" size="sm" onClick={() => printEmployees(employeeList, isRtl)}><Download className="w-4 h-4 me-1.5" />{isRtl ? "طباعة PDF" : "Print PDF"}</Button>
             <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 me-1.5" />{isRtl ? "إضافة موظف" : "Add Employee"}</Button>
           </div>
         </div>
@@ -213,9 +281,9 @@ export default function HRModule() {
                       <TableRow>
                         <TableHead>{isRtl ? "الرقم الوظيفي" : "Emp No."}</TableHead>
                         <TableHead>{isRtl ? "الاسم" : "Name"}</TableHead>
+                        <TableHead>{isRtl ? "الشركة / الأنشطة" : "Company / Activities"}</TableHead>
                         <TableHead>{isRtl ? "القسم" : "Department"}</TableHead>
                         <TableHead>{isRtl ? "المسمى الوظيفي" : "Job Title"}</TableHead>
-                        <TableHead>{isRtl ? "الجنسية" : "Nationality"}</TableHead>
                         <TableHead>{isRtl ? "الراتب الأساسي" : "Basic Salary"}</TableHead>
                         <TableHead>{isRtl ? "الحالة" : "Status"}</TableHead>
                         <TableHead></TableHead>
@@ -233,9 +301,35 @@ export default function HRModule() {
                               <div><p className="font-medium text-sm">{isRtl ? emp.nameAr : emp.nameEn}</p><p className="text-xs text-muted-foreground">{emp.email}</p></div>
                             </div>
                           </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              {emp.companyId && companyName(emp.companyId) ? (
+                                <Badge variant="outline" className="font-normal gap-1 border-blue-200 text-blue-700 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 w-fit text-xs">
+                                  <Building2 className="w-3 h-3" />
+                                  {companyName(emp.companyId)}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                              {emp.activityIds && emp.activityIds.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {emp.activityIds.slice(0, 2).map(aid => (
+                                    <Badge key={aid} variant="outline" className="font-normal gap-1 border-violet-200 text-violet-700 bg-violet-50 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800 text-[10px] px-1.5 py-0 w-fit">
+                                      <Layers className="w-2.5 h-2.5" />
+                                      {activityName(aid)}
+                                    </Badge>
+                                  ))}
+                                  {emp.activityIds.length > 2 && (
+                                    <Badge variant="outline" className="font-normal text-muted-foreground text-[10px] px-1.5 py-0 w-fit">
+                                      +{emp.activityIds.length - 2}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell className="text-sm">{deptLabel(emp.department)}</TableCell>
                           <TableCell className="text-sm">{isRtl ? emp.jobTitleAr : emp.jobTitle}</TableCell>
-                          <TableCell className="text-sm">{emp.nationality === "Saudi" ? (isRtl ? "سعودي" : "Saudi") : emp.nationality}</TableCell>
                           <TableCell className="text-sm font-medium">{emp.baseSalary.toLocaleString()} {isRtl ? "ر.س" : "SAR"}</TableCell>
                           <TableCell><Badge variant={statusColor(emp.status) as any}>{statusLabel(emp.status)}</Badge></TableCell>
                           <TableCell>
@@ -258,7 +352,7 @@ export default function HRModule() {
           <TabsContent value="departments" className="mt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {DEPARTMENTS.map(dept => {
-                const count = employees.filter(e => e.department === dept.id && e.status === "active").length;
+                const count = employeeList.filter(e => e.department === dept.id && e.status === "active").length;
                 return (
                   <Card key={dept.id} className="border-border/50 hover:border-primary/30 transition-colors">
                     <CardContent className="p-4 flex items-center gap-3">
@@ -274,62 +368,134 @@ export default function HRModule() {
         </Tabs>
       </div>
 
+      {/* Add / Edit Employee Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editEmp ? (isRtl ? "تعديل بيانات الموظف" : "Edit Employee") : (isRtl ? "إضافة موظف جديد" : "Add New Employee")}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-2">
-            {([
-              { label: isRtl ? "الاسم بالعربية *" : "Arabic Name *", field: "nameAr" },
-              { label: isRtl ? "الاسم بالإنجليزية *" : "English Name *", field: "nameEn" },
-              { label: isRtl ? "البريد الإلكتروني *" : "Email *", field: "email" },
-              { label: isRtl ? "الهاتف" : "Phone", field: "phone" },
-              { label: isRtl ? "المسمى الوظيفي (EN)" : "Job Title (EN)", field: "jobTitle" },
-              { label: isRtl ? "المسمى الوظيفي (AR)" : "Job Title (AR)", field: "jobTitleAr" },
-              { label: isRtl ? "تاريخ التعيين" : "Hire Date", field: "hireDate", type: "date" },
-              { label: isRtl ? "الجنسية" : "Nationality", field: "nationality" },
-              { label: isRtl ? "رقم الإقامة / الهوية" : "ID / Iqama No.", field: "iqama" },
-              { label: isRtl ? "الراتب الأساسي" : "Basic Salary", field: "baseSalary", type: "number" },
-              { label: isRtl ? "بدل السكن" : "Housing Allow.", field: "housingAllowance", type: "number" },
-              { label: isRtl ? "بدل المواصلات" : "Transport Allow.", field: "transportAllowance", type: "number" },
-            ] as any[]).map((f: any) => (
-              <div key={f.field}>
-                <Label className="text-xs font-semibold">{f.label}</Label>
-                <Input type={f.type || "text"} className="mt-1 h-8 text-sm" value={(form as any)[f.field] || ""} onChange={e => setForm(p => ({ ...p, [f.field]: f.type === "number" ? Number(e.target.value) : e.target.value }))} />
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editEmp ? (isRtl ? "تعديل بيانات الموظف" : "Edit Employee") : (isRtl ? "إضافة موظف جديد" : "Add New Employee")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+
+            {/* ── Company (required) ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20">
+              <div className="sm:col-span-2">
+                <p className="text-xs font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5" />
+                  {isRtl ? "الشركة والأنشطة التجارية *" : "Company & Business Activities *"}
+                </p>
               </div>
-            ))}
-            <div>
-              <Label className="text-xs font-semibold">{isRtl ? "القسم" : "Department"}</Label>
-              <Select value={form.department || "engineering"} onValueChange={v => setForm(p => ({ ...p, department: v }))}>
-                <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>{DEPARTMENTS.map(d => <SelectItem key={d.id} value={d.id}>{isRtl ? d.ar : d.en}</SelectItem>)}</SelectContent>
-              </Select>
+              <div>
+                <Label className="text-xs font-semibold">{isRtl ? "الشركة *" : "Company *"}</Label>
+                <Select
+                  value={form.companyId ? String(form.companyId) : ""}
+                  onValueChange={v => setForm(p => ({ ...p, companyId: parseInt(v), activityIds: [] }))}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm">
+                    <SelectValue placeholder={isRtl ? "— اختر الشركة —" : "— Select Company —"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {isRtl ? c.nameAr : c.nameEn}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Activities multi-select */}
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-semibold">
+                  {isRtl ? "الأنشطة التجارية * (اختر نشاطاً أو أكثر)" : "Business Activities * (select one or more)"}
+                </Label>
+                {!form.companyId ? (
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    {isRtl ? "اختر الشركة أولاً لعرض أنشطتها." : "Select a company first to see its activities."}
+                  </p>
+                ) : activitiesForCompany.length === 0 ? (
+                  <p className="text-xs text-amber-600 mt-1.5">
+                    {isRtl ? "لا توجد أنشطة تجارية نشطة لهذه الشركة." : "No active activities found for this company."}
+                  </p>
+                ) : (
+                  <div className="mt-1.5 border border-border/60 rounded-md divide-y divide-border/40 max-h-40 overflow-y-auto">
+                    {activitiesForCompany.map(act => (
+                      <label
+                        key={act.id}
+                        className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent/40 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-primary w-4 h-4 rounded"
+                          checked={(form.activityIds || []).includes(act.id)}
+                          onChange={() => toggleActivity(act.id)}
+                        />
+                        <Layers className="w-3.5 h-3.5 text-violet-500" />
+                        <span>{isRtl ? act.nameAr : act.nameEn}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <Label className="text-xs font-semibold">{isRtl ? "نوع العقد" : "Contract Type"}</Label>
-              <Select value={form.contractType || "permanent"} onValueChange={v => setForm(p => ({ ...p, contractType: v as any }))}>
-                <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="permanent">{isRtl ? "دائم" : "Permanent"}</SelectItem>
-                  <SelectItem value="contract">{isRtl ? "عقد" : "Contract"}</SelectItem>
-                  <SelectItem value="part_time">{isRtl ? "دوام جزئي" : "Part-time"}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs font-semibold">{isRtl ? "الحالة" : "Status"}</Label>
-              <Select value={form.status || "active"} onValueChange={v => setForm(p => ({ ...p, status: v as any }))}>
-                <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">{isRtl ? "نشط" : "Active"}</SelectItem>
-                  <SelectItem value="on_leave">{isRtl ? "إجازة" : "On Leave"}</SelectItem>
-                  <SelectItem value="inactive">{isRtl ? "غير نشط" : "Inactive"}</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* ── Personal & HR fields ── */}
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { label: isRtl ? "الاسم بالعربية *" : "Arabic Name *", field: "nameAr" },
+                { label: isRtl ? "الاسم بالإنجليزية *" : "English Name *", field: "nameEn" },
+                { label: isRtl ? "البريد الإلكتروني *" : "Email *", field: "email" },
+                { label: isRtl ? "الهاتف" : "Phone", field: "phone" },
+                { label: isRtl ? "المسمى الوظيفي (EN)" : "Job Title (EN)", field: "jobTitle" },
+                { label: isRtl ? "المسمى الوظيفي (AR)" : "Job Title (AR)", field: "jobTitleAr" },
+                { label: isRtl ? "تاريخ التعيين" : "Hire Date", field: "hireDate", type: "date" },
+                { label: isRtl ? "الجنسية" : "Nationality", field: "nationality" },
+                { label: isRtl ? "رقم الإقامة / الهوية" : "ID / Iqama No.", field: "iqama" },
+                { label: isRtl ? "الراتب الأساسي" : "Basic Salary", field: "baseSalary", type: "number" },
+                { label: isRtl ? "بدل السكن" : "Housing Allow.", field: "housingAllowance", type: "number" },
+                { label: isRtl ? "بدل المواصلات" : "Transport Allow.", field: "transportAllowance", type: "number" },
+              ] as any[]).map((f: any) => (
+                <div key={f.field}>
+                  <Label className="text-xs font-semibold">{f.label}</Label>
+                  <Input type={f.type || "text"} className="mt-1 h-8 text-sm" value={(form as any)[f.field] || ""} onChange={e => setForm(p => ({ ...p, [f.field]: f.type === "number" ? Number(e.target.value) : e.target.value }))} />
+                </div>
+              ))}
+              <div>
+                <Label className="text-xs font-semibold">{isRtl ? "القسم" : "Department"}</Label>
+                <Select value={form.department || "engineering"} onValueChange={v => setForm(p => ({ ...p, department: v }))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>{DEPARTMENTS.map(d => <SelectItem key={d.id} value={d.id}>{isRtl ? d.ar : d.en}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold">{isRtl ? "نوع العقد" : "Contract Type"}</Label>
+                <Select value={form.contractType || "permanent"} onValueChange={v => setForm(p => ({ ...p, contractType: v as any }))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="permanent">{isRtl ? "دائم" : "Permanent"}</SelectItem>
+                    <SelectItem value="contract">{isRtl ? "عقد" : "Contract"}</SelectItem>
+                    <SelectItem value="part_time">{isRtl ? "دوام جزئي" : "Part-time"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold">{isRtl ? "الحالة" : "Status"}</Label>
+                <Select value={form.status || "active"} onValueChange={v => setForm(p => ({ ...p, status: v as any }))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">{isRtl ? "نشط" : "Active"}</SelectItem>
+                    <SelectItem value="on_leave">{isRtl ? "إجازة" : "On Leave"}</SelectItem>
+                    <SelectItem value="inactive">{isRtl ? "غير نشط" : "Inactive"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isRtl ? "حفظ" : "Save")}</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : null}
+              {isRtl ? "حفظ" : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

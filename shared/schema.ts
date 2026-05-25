@@ -617,6 +617,7 @@ export const employees = pgTable("employees", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   activityId: text("activity_id").references(() => businessActivities.id),
+  activityIds: jsonb("activity_ids").$type<string[]>().default([]),
 });
 
 export const employeeDocuments = pgTable("employee_documents", {
