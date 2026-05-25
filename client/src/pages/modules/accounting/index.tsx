@@ -6,8 +6,9 @@ import { JournalEntries } from "@/components/accounting/JournalEntries";
 import { InvoicesTab } from "@/components/accounting/InvoicesTab";
 import { PaymentsTab } from "@/components/accounting/PaymentsTab";
 import { ChartOfAccountsTab } from "@/components/accounting/ChartOfAccountsTab";
+import { FinancialReportsTab } from "@/components/accounting/FinancialReportsTab";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, ArrowDownCircle, TreePine } from "lucide-react";
+import { Download, FileText, ArrowDownCircle, TreePine, BarChart3 } from "lucide-react";
 
 export default function AccountingModule() {
   const { dir } = useLanguage();
@@ -80,8 +81,8 @@ export default function AccountingModule() {
               <ChartOfAccountsTab />
             </TabsContent>
 
-            <TabsContent value="reports" className="h-full m-0 data-[state=active]:flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-xl bg-card/50">
-              <div className="text-muted-foreground">{isRtl ? "التقارير المالية قريباً" : "Financial Reports coming soon"}</div>
+            <TabsContent value="reports" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto pb-6">
+              <FinancialReportsTab />
             </TabsContent>
           </div>
         </Tabs>
