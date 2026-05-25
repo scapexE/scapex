@@ -1258,3 +1258,32 @@ export type EmployeeAdvance = typeof employeeAdvances.$inferSelect;
 export const insertEmployeeViolationSchema = createInsertSchema(employeeViolations).omit({ id: true, createdAt: true });
 export type InsertEmployeeViolation = z.infer<typeof insertEmployeeViolationSchema>;
 export type EmployeeViolation = typeof employeeViolations.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONTRACT PAYMENT SCHEDULES
+// ═══════════════════════════════════════════════════════════════════════════════
+export const contractPaymentSchedules = pgTable("contract_payment_schedules", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
+  contractRef: text("contract_ref").notNull(),
+  contractName: text("contract_name").notNull(),
+  clientName: text("client_name").notNull(),
+  contractTotal: numeric("contract_total", { precision: 14, scale: 2 }).default("0"),
+  installmentNumber: integer("installment_number").notNull(),
+  descriptionAr: text("description_ar"),
+  descriptionEn: text("description_en"),
+  percentage: numeric("percentage", { precision: 6, scale: 2 }).default("0"),
+  amount: numeric("amount", { precision: 14, scale: 2 }).default("0"),
+  dueDate: date("due_date"),
+  status: text("status").default("pending"),
+  paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }).default("0"),
+  paidDate: date("paid_date"),
+  notes: text("notes"),
+  invoiceRef: text("invoice_ref"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertContractPaymentScheduleSchema = createInsertSchema(contractPaymentSchedules).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertContractPaymentSchedule = z.infer<typeof insertContractPaymentScheduleSchema>;
+export type ContractPaymentSchedule = typeof contractPaymentSchedules.$inferSelect;

@@ -2,9 +2,10 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContractsList } from "@/components/sales/ContractsList";
+import { ContractPaymentSchedule } from "@/components/sales/ContractPaymentSchedule";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Bot, CheckCircle2, Send, Clock, TrendingUp } from "lucide-react";
+import { Plus, FileText, Bot, CheckCircle2, Send, Clock, TrendingUp, CalendarCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { getProposals, STATUS_META, SERVICE_META, type Proposal } from "@/lib/proposals";
 import { useState, useEffect } from "react";
@@ -146,6 +147,10 @@ export default function SalesModule() {
             <TabsTrigger value="quotations" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('sales.tab.quotations')}</TabsTrigger>
             <TabsTrigger value="orders" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('sales.tab.orders')}</TabsTrigger>
             <TabsTrigger value="contracts" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('sales.tab.contracts')}</TabsTrigger>
+            <TabsTrigger value="payments" className="flex-1 sm:flex-none data-[state=active]:bg-background gap-1.5">
+              <CalendarCheck className="w-3.5 h-3.5" />
+              {isRtl ? "جدول الدفعات" : "Payment Schedule"}
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex-1 mt-4 overflow-hidden relative">
@@ -159,6 +164,10 @@ export default function SalesModule() {
 
             <TabsContent value="contracts" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto">
               <ContractsList />
+            </TabsContent>
+
+            <TabsContent value="payments" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto pb-6">
+              <ContractPaymentSchedule />
             </TabsContent>
           </div>
         </Tabs>

@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules } from "@shared/schema";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
@@ -3296,10 +3296,116 @@ export async function registerRoutes(
   app.delete("/api/chart-of-accounts/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      // Check for children
       const children = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.parentId, id));
       if (children.length > 0) return res.status(400).json({ error: "Cannot delete account with sub-accounts" });
       await db.delete(chartOfAccounts).where(eq(chartOfAccounts.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─── Contract Payment Schedules ────────────────────────────────────────────
+  // Summary MUST be registered before /:id to avoid "summary" being parsed as an id
+  app.get("/api/contract-payment-schedules/summary", async (req, res) => {
+    try {
+      const companyId = parseInt((req.query.companyId as string) || "1");
+      const rows = await db.select().from(contractPaymentSchedules)
+        .where(eq(contractPaymentSchedules.companyId, companyId))
+        .orderBy(contractPaymentSchedules.contractRef, contractPaymentSchedules.installmentNumber);
+      const map = new Map<string, any>();
+      for (const r of rows) {
+        if (!map.has(r.contractRef)) {
+          map.set(r.contractRef, {
+            contractRef: r.contractRef, contractName: r.contractName,
+            clientName: r.clientName, contractTotal: parseFloat(r.contractTotal ?? "0"),
+            installments: [], totalAmount: 0, totalPaid: 0,
+          });
+        }
+        const c = map.get(r.contractRef);
+        c.installments.push(r);
+        c.totalAmount += parseFloat(r.amount ?? "0");
+        c.totalPaid += parseFloat(r.paidAmount ?? "0");
+      }
+      res.json(Array.from(map.values()));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/contract-payment-schedules", async (req, res) => {
+    try {
+      const companyId = parseInt((req.query.companyId as string) || "1");
+      const contractRef = req.query.contractRef as string | undefined;
+      const rows = contractRef
+        ? await db.select().from(contractPaymentSchedules)
+            .where(and(eq(contractPaymentSchedules.companyId, companyId), eq(contractPaymentSchedules.contractRef, contractRef)))
+            .orderBy(contractPaymentSchedules.installmentNumber)
+        : await db.select().from(contractPaymentSchedules)
+            .where(eq(contractPaymentSchedules.companyId, companyId))
+            .orderBy(contractPaymentSchedules.contractRef, contractPaymentSchedules.installmentNumber);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/contract-payment-schedules", async (req, res) => {
+    try {
+      const b = req.body;
+      // Auto-update status if overdue
+      let status = b.status || "pending";
+      if (status === "pending" && b.dueDate && new Date(b.dueDate) < new Date()) status = "overdue";
+      const [row] = await db.insert(contractPaymentSchedules).values({
+        companyId: b.companyId ?? 1,
+        contractRef: b.contractRef,
+        contractName: b.contractName,
+        clientName: b.clientName,
+        contractTotal: b.contractTotal?.toString() ?? "0",
+        installmentNumber: b.installmentNumber ?? 1,
+        descriptionAr: b.descriptionAr,
+        descriptionEn: b.descriptionEn,
+        percentage: b.percentage?.toString() ?? "0",
+        amount: b.amount?.toString() ?? "0",
+        dueDate: b.dueDate,
+        status,
+        paidAmount: b.paidAmount?.toString() ?? "0",
+        paidDate: b.paidDate,
+        notes: b.notes,
+        invoiceRef: b.invoiceRef,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/contract-payment-schedules/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const b = req.body;
+      // Auto-derive status from paidAmount vs amount
+      let status = b.status;
+      if (!status) {
+        const paid = parseFloat(b.paidAmount ?? "0");
+        const total = parseFloat(b.amount ?? "0");
+        if (paid >= total && total > 0) status = "paid";
+        else if (paid > 0) status = "partial";
+        else if (b.dueDate && new Date(b.dueDate) < new Date()) status = "overdue";
+        else status = "pending";
+      }
+      const [row] = await db.update(contractPaymentSchedules).set({
+        descriptionAr: b.descriptionAr,
+        descriptionEn: b.descriptionEn,
+        percentage: b.percentage?.toString(),
+        amount: b.amount?.toString(),
+        dueDate: b.dueDate,
+        status,
+        paidAmount: b.paidAmount?.toString(),
+        paidDate: b.paidDate,
+        notes: b.notes,
+        invoiceRef: b.invoiceRef,
+        updatedAt: new Date(),
+      }).where(eq(contractPaymentSchedules.id, id)).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/contract-payment-schedules/:id", async (req, res) => {
+    try {
+      await db.delete(contractPaymentSchedules).where(eq(contractPaymentSchedules.id, parseInt(req.params.id)));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
