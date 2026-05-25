@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts } from "@shared/schema";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
@@ -3122,6 +3122,185 @@ export async function registerRoutes(
       if (b.notes !== undefined) updateData.notes = b.notes;
       const [row] = await db.update(payrollItems).set(updateData).where(eq(payrollItems.id, parseInt(req.params.id))).returning();
       res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHART OF ACCOUNTS (شجرة الحسابات)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Seed default SOCPA chart of accounts if empty
+  async function seedChartOfAccounts(companyId: number) {
+    const existing = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.companyId, companyId));
+    if (existing.length > 0) return;
+
+    const ACCOUNTS = [
+      // ── Level 1: Root categories ──
+      { code: "1", nameAr: "الأصول", nameEn: "Assets", type: "asset", parentId: null, level: 1 },
+      { code: "2", nameAr: "المطلوبات", nameEn: "Liabilities", type: "liability", parentId: null, level: 1 },
+      { code: "3", nameAr: "حقوق الملكية", nameEn: "Equity", type: "equity", parentId: null, level: 1 },
+      { code: "4", nameAr: "الإيرادات", nameEn: "Revenue", type: "revenue", parentId: null, level: 1 },
+      { code: "5", nameAr: "المصروفات", nameEn: "Expenses", type: "expense", parentId: null, level: 1 },
+
+      // ── Level 2: Assets ──
+      { code: "11", nameAr: "الأصول المتداولة", nameEn: "Current Assets", type: "asset", parentCode: "1", level: 2 },
+      { code: "12", nameAr: "الأصول الثابتة", nameEn: "Fixed Assets", type: "asset", parentCode: "1", level: 2 },
+      { code: "13", nameAr: "الأصول الأخرى", nameEn: "Other Assets", type: "asset", parentCode: "1", level: 2 },
+
+      // ── Level 2: Liabilities ──
+      { code: "21", nameAr: "المطلوبات المتداولة", nameEn: "Current Liabilities", type: "liability", parentCode: "2", level: 2 },
+      { code: "22", nameAr: "المطلوبات طويلة الأجل", nameEn: "Long-term Liabilities", type: "liability", parentCode: "2", level: 2 },
+
+      // ── Level 2: Equity ──
+      { code: "31", nameAr: "رأس المال", nameEn: "Capital", type: "equity", parentCode: "3", level: 2 },
+      { code: "32", nameAr: "الأرباح المحتجزة", nameEn: "Retained Earnings", type: "equity", parentCode: "3", level: 2 },
+
+      // ── Level 2: Revenue ──
+      { code: "41", nameAr: "إيرادات المبيعات", nameEn: "Sales Revenue", type: "revenue", parentCode: "4", level: 2 },
+      { code: "42", nameAr: "إيرادات الخدمات", nameEn: "Service Revenue", type: "revenue", parentCode: "4", level: 2 },
+      { code: "43", nameAr: "إيرادات أخرى", nameEn: "Other Revenue", type: "revenue", parentCode: "4", level: 2 },
+
+      // ── Level 2: Expenses ──
+      { code: "51", nameAr: "تكلفة المبيعات", nameEn: "Cost of Sales", type: "expense", parentCode: "5", level: 2 },
+      { code: "52", nameAr: "مصروفات التشغيل", nameEn: "Operating Expenses", type: "expense", parentCode: "5", level: 2 },
+      { code: "53", nameAr: "مصروفات إدارية وعمومية", nameEn: "General & Admin Expenses", type: "expense", parentCode: "5", level: 2 },
+      { code: "54", nameAr: "مصروفات مالية", nameEn: "Financial Expenses", type: "expense", parentCode: "5", level: 2 },
+
+      // ── Level 3: Current Assets ──
+      { code: "1101", nameAr: "النقدية وما يعادلها", nameEn: "Cash & Equivalents", type: "asset", parentCode: "11", level: 3 },
+      { code: "1102", nameAr: "البنك الرئيسي", nameEn: "Main Bank Account", type: "asset", parentCode: "11", level: 3 },
+      { code: "1103", nameAr: "الصندوق النثري", nameEn: "Petty Cash", type: "asset", parentCode: "11", level: 3 },
+      { code: "1201", nameAr: "ذمم مدينة — عملاء", nameEn: "Accounts Receivable — Clients", type: "asset", parentCode: "11", level: 3 },
+      { code: "1202", nameAr: "ذمم مدينة — أخرى", nameEn: "Accounts Receivable — Other", type: "asset", parentCode: "11", level: 3 },
+      { code: "1301", nameAr: "المخزون", nameEn: "Inventory", type: "asset", parentCode: "11", level: 3 },
+      { code: "1401", nameAr: "مصروفات مدفوعة مقدماً", nameEn: "Prepaid Expenses", type: "asset", parentCode: "11", level: 3 },
+      { code: "1501", nameAr: "ضريبة القيمة المضافة — المدخلات", nameEn: "VAT Input", type: "asset", parentCode: "11", level: 3 },
+
+      // ── Level 3: Fixed Assets ──
+      { code: "1601", nameAr: "الأثاث والمعدات", nameEn: "Furniture & Equipment", type: "asset", parentCode: "12", level: 3 },
+      { code: "1602", nameAr: "السيارات والمركبات", nameEn: "Vehicles", type: "asset", parentCode: "12", level: 3 },
+      { code: "1603", nameAr: "أجهزة الحاسب الآلي", nameEn: "Computer Equipment", type: "asset", parentCode: "12", level: 3 },
+      { code: "1604", nameAr: "مجمع الاستهلاك", nameEn: "Accumulated Depreciation", type: "asset", parentCode: "12", level: 3 },
+
+      // ── Level 3: Current Liabilities ──
+      { code: "2101", nameAr: "ذمم دائنة — موردون", nameEn: "Accounts Payable — Suppliers", type: "liability", parentCode: "21", level: 3 },
+      { code: "2102", nameAr: "ذمم دائنة — أخرى", nameEn: "Accounts Payable — Other", type: "liability", parentCode: "21", level: 3 },
+      { code: "2201", nameAr: "ضريبة القيمة المضافة — المخرجات", nameEn: "VAT Output", type: "liability", parentCode: "21", level: 3 },
+      { code: "2202", nameAr: "ضريبة القيمة المضافة الصافية", nameEn: "VAT Payable (Net)", type: "liability", parentCode: "21", level: 3 },
+      { code: "2301", nameAr: "مستحقات الرواتب", nameEn: "Accrued Salaries", type: "liability", parentCode: "21", level: 3 },
+      { code: "2302", nameAr: "مستحقات GOSI", nameEn: "GOSI Payable", type: "liability", parentCode: "21", level: 3 },
+      { code: "2303", nameAr: "مكافأة نهاية الخدمة", nameEn: "End of Service Benefits", type: "liability", parentCode: "21", level: 3 },
+      { code: "2401", nameAr: "قروض قصيرة الأجل", nameEn: "Short-term Loans", type: "liability", parentCode: "21", level: 3 },
+      { code: "2501", nameAr: "إيرادات مؤجلة", nameEn: "Deferred Revenue", type: "liability", parentCode: "21", level: 3 },
+
+      // ── Level 3: Long-term Liabilities ──
+      { code: "2601", nameAr: "قروض طويلة الأجل", nameEn: "Long-term Loans", type: "liability", parentCode: "22", level: 3 },
+
+      // ── Level 3: Equity ──
+      { code: "3101", nameAr: "رأس مال الشركاء", nameEn: "Partners Capital", type: "equity", parentCode: "31", level: 3 },
+      { code: "3201", nameAr: "أرباح/خسائر العام الحالي", nameEn: "Current Year P&L", type: "equity", parentCode: "32", level: 3 },
+      { code: "3202", nameAr: "أرباح محتجزة سابقة", nameEn: "Prior Retained Earnings", type: "equity", parentCode: "32", level: 3 },
+
+      // ── Level 3: Revenue ──
+      { code: "4101", nameAr: "إيرادات عقود المقاولات", nameEn: "Contracting Revenue", type: "revenue", parentCode: "41", level: 3 },
+      { code: "4102", nameAr: "إيرادات الاستشارات الهندسية", nameEn: "Engineering Consulting Revenue", type: "revenue", parentCode: "41", level: 3 },
+      { code: "4103", nameAr: "إيرادات خدمات السلامة", nameEn: "Safety Services Revenue", type: "revenue", parentCode: "41", level: 3 },
+      { code: "4104", nameAr: "إيرادات الاستشارات البيئية", nameEn: "Environmental Consulting Revenue", type: "revenue", parentCode: "42", level: 3 },
+      { code: "4105", nameAr: "إيرادات التدريب", nameEn: "Training Revenue", type: "revenue", parentCode: "42", level: 3 },
+      { code: "4301", nameAr: "إيرادات فوائد بنكية", nameEn: "Bank Interest Income", type: "revenue", parentCode: "43", level: 3 },
+
+      // ── Level 3: Expenses ──
+      { code: "5101", nameAr: "تكلفة العمالة المباشرة", nameEn: "Direct Labor Cost", type: "expense", parentCode: "51", level: 3 },
+      { code: "5102", nameAr: "تكلفة المواد المباشرة", nameEn: "Direct Materials Cost", type: "expense", parentCode: "51", level: 3 },
+      { code: "5103", nameAr: "تكلفة المقاولين الثانويين", nameEn: "Subcontractors Cost", type: "expense", parentCode: "51", level: 3 },
+      { code: "5201", nameAr: "رواتب الموظفين", nameEn: "Employee Salaries", type: "expense", parentCode: "52", level: 3 },
+      { code: "5202", nameAr: "بدلات الموظفين", nameEn: "Employee Allowances", type: "expense", parentCode: "52", level: 3 },
+      { code: "5203", nameAr: "مكافآت وعمولات", nameEn: "Bonuses & Commissions", type: "expense", parentCode: "52", level: 3 },
+      { code: "5204", nameAr: "اشتراكات GOSI", nameEn: "GOSI Contributions", type: "expense", parentCode: "52", level: 3 },
+      { code: "5205", nameAr: "مصروفات التنقل والمواصلات", nameEn: "Travel & Transportation", type: "expense", parentCode: "52", level: 3 },
+      { code: "5206", nameAr: "مصروف استهلاك الأصول", nameEn: "Depreciation Expense", type: "expense", parentCode: "52", level: 3 },
+      { code: "5301", nameAr: "إيجارات المكاتب", nameEn: "Office Rent", type: "expense", parentCode: "53", level: 3 },
+      { code: "5302", nameAr: "مصروفات الاتصالات", nameEn: "Communications Expense", type: "expense", parentCode: "53", level: 3 },
+      { code: "5303", nameAr: "مصروفات الكهرباء والمياه", nameEn: "Utilities Expense", type: "expense", parentCode: "53", level: 3 },
+      { code: "5304", nameAr: "مصروفات القرطاسية والمستلزمات", nameEn: "Stationery & Supplies", type: "expense", parentCode: "53", level: 3 },
+      { code: "5305", nameAr: "مصروفات التأمين", nameEn: "Insurance Expense", type: "expense", parentCode: "53", level: 3 },
+      { code: "5306", nameAr: "مصروفات قانونية ومهنية", nameEn: "Legal & Professional Fees", type: "expense", parentCode: "53", level: 3 },
+      { code: "5307", nameAr: "مصروفات التسويق والإعلان", nameEn: "Marketing & Advertising", type: "expense", parentCode: "53", level: 3 },
+      { code: "5401", nameAr: "فوائد ومصاريف بنكية", nameEn: "Bank Charges & Interest", type: "expense", parentCode: "54", level: 3 },
+      { code: "5402", nameAr: "فروق العملة", nameEn: "Exchange Differences", type: "expense", parentCode: "54", level: 3 },
+    ];
+
+    // Build code→id map via two-pass insert
+    const codeToId: Record<string, number> = {};
+
+    // Pass 1: insert root (level 1) accounts
+    for (const acc of ACCOUNTS.filter(a => a.level === 1)) {
+      const [row] = await db.insert(chartOfAccounts).values({ companyId, code: acc.code, nameAr: acc.nameAr, nameEn: acc.nameEn, type: acc.type, parentId: null }).returning();
+      codeToId[acc.code] = row.id;
+    }
+    // Pass 2: insert level 2
+    for (const acc of ACCOUNTS.filter(a => a.level === 2)) {
+      const parentId = acc.parentCode ? (codeToId[acc.parentCode] ?? null) : null;
+      const [row] = await db.insert(chartOfAccounts).values({ companyId, code: acc.code, nameAr: acc.nameAr, nameEn: acc.nameEn, type: acc.type, parentId }).returning();
+      codeToId[acc.code] = row.id;
+    }
+    // Pass 3: insert level 3
+    for (const acc of ACCOUNTS.filter(a => a.level === 3)) {
+      const parentId = acc.parentCode ? (codeToId[acc.parentCode] ?? null) : null;
+      await db.insert(chartOfAccounts).values({ companyId, code: acc.code, nameAr: acc.nameAr, nameEn: acc.nameEn, type: acc.type, parentId });
+    }
+  }
+
+  app.get("/api/chart-of-accounts", async (req, res) => {
+    try {
+      const companyId = parseInt((req.query.companyId as string) || "1");
+      await seedChartOfAccounts(companyId);
+      const rows = await db.select().from(chartOfAccounts)
+        .where(eq(chartOfAccounts.companyId, companyId))
+        .orderBy(chartOfAccounts.code);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/chart-of-accounts", async (req, res) => {
+    try {
+      const b = req.body;
+      const companyId = b.companyId ? parseInt(b.companyId) : 1;
+      const [row] = await db.insert(chartOfAccounts).values({
+        companyId, code: b.code, nameAr: b.nameAr, nameEn: b.nameEn || null,
+        type: b.type, parentId: b.parentId ? parseInt(b.parentId) : null,
+        balance: b.balance ? String(b.balance) : "0",
+        currency: b.currency || "SAR", isActive: true,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/chart-of-accounts/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const updateData: any = {};
+      if (b.code !== undefined) updateData.code = b.code;
+      if (b.nameAr !== undefined) updateData.nameAr = b.nameAr;
+      if (b.nameEn !== undefined) updateData.nameEn = b.nameEn;
+      if (b.type !== undefined) updateData.type = b.type;
+      if (b.parentId !== undefined) updateData.parentId = b.parentId ? parseInt(b.parentId) : null;
+      if (b.isActive !== undefined) updateData.isActive = b.isActive;
+      if (b.balance !== undefined) updateData.balance = String(b.balance);
+      const [row] = await db.update(chartOfAccounts).set(updateData)
+        .where(eq(chartOfAccounts.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/chart-of-accounts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      // Check for children
+      const children = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.parentId, id));
+      if (children.length > 0) return res.status(400).json({ error: "Cannot delete account with sub-accounts" });
+      await db.delete(chartOfAccounts).where(eq(chartOfAccounts.id, id));
+      res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

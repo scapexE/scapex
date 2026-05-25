@@ -5,8 +5,9 @@ import { AccountingDashboard } from "@/components/accounting/AccountingDashboard
 import { JournalEntries } from "@/components/accounting/JournalEntries";
 import { InvoicesTab } from "@/components/accounting/InvoicesTab";
 import { PaymentsTab } from "@/components/accounting/PaymentsTab";
+import { ChartOfAccountsTab } from "@/components/accounting/ChartOfAccountsTab";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { Download, FileText, ArrowDownCircle, TreePine } from "lucide-react";
 
 export default function AccountingModule() {
   const { dir } = useLanguage();
@@ -75,8 +76,8 @@ export default function AccountingModule() {
               <JournalEntries />
             </TabsContent>
 
-            <TabsContent value="coa" className="h-full m-0 data-[state=active]:flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-xl bg-card/50">
-              <div className="text-muted-foreground">{isRtl ? "شجرة الحسابات قريباً" : "Chart of Accounts coming soon"}</div>
+            <TabsContent value="coa" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto pb-6">
+              <ChartOfAccountsTab />
             </TabsContent>
 
             <TabsContent value="reports" className="h-full m-0 data-[state=active]:flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-xl bg-card/50">
