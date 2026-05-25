@@ -28,6 +28,64 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 
 import { seedDefaultActivities as seedActivitiesShared, seedDefaultCompanies as seedCompaniesShared, seedDefaultCatalogs, DEFAULT_ACTIVITY_CATALOG } from "./seed";
+import { ACTIVITY_CATALOG, toCatalogId, toActivityId } from "@shared/activityCatalog";
+
+/**
+ * Syncs business_activities for a company based on its selected catalog IDs.
+ * - Creates missing activities (new selections)
+ * - Deletes removed activities (unchecked selections) + their memberships
+ * - Auto-assigns admin/manager users to all new activities
+ * Called after every company create/update.
+ */
+async function syncCompanyActivities(
+  companyId: number,
+  catalogIds: string[],
+  companyData: { nameAr: string; nameEn: string; logoUrl?: string | null }
+): Promise<void> {
+  const existing = await db.select().from(businessActivities)
+    .where(eq(businessActivities.companyId, companyId));
+
+  const existingByCatalogId = new Map(existing.map(a => [toCatalogId(a.id), a.id]));
+
+  // Delete activities no longer in the selection
+  for (const [catId, actId] of existingByCatalogId) {
+    if (!catalogIds.includes(catId)) {
+      await db.delete(activityMembers).where(eq(activityMembers.activityId, actId));
+      await db.delete(businessActivities).where(eq(businessActivities.id, actId));
+    }
+  }
+
+  // Create new activities for newly selected catalog types
+  const allUsersRows = await db.select().from(users);
+  for (const catId of catalogIds) {
+    if (existingByCatalogId.has(catId)) continue;
+    const cat = ACTIVITY_CATALOG.find(c => c.id === catId);
+    if (!cat) continue;
+    const actId = toActivityId(catId, companyId);
+    await db.insert(businessActivities).values({
+      id: actId,
+      companyId,
+      nameAr: cat.nameAr,
+      nameEn: cat.nameEn,
+      color: cat.color,
+      icon: cat.icon,
+      modules: cat.modules,
+      active: true,
+      companyNameAr: companyData.nameAr,
+      companyNameEn: companyData.nameEn,
+      companyLogoUrl: companyData.logoUrl ?? null,
+    }).onConflictDoNothing();
+    // Auto-assign admin and manager users
+    for (const u of allUsersRows) {
+      const roles = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
+      if (roles.has("admin") || roles.has("manager")) {
+        await db.insert(activityMembers)
+          .values({ activityId: actId, userId: u.id })
+          .onConflictDoNothing();
+      }
+    }
+  }
+}
 
 // Wrapper that adds the legacy app_data migration step on top of the shared
 // seed (the rebuild script doesn't need this — only the running server does
@@ -453,7 +511,8 @@ export async function registerRoutes(
     try {
       if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const data = req.body;
-      const result = await db.insert(companies).values({
+      const catalogIds: string[] = Array.isArray(data.settings?.activityIds) ? data.settings.activityIds : [];
+      const [newCompany] = await db.insert(companies).values({
         nameAr: data.nameAr,
         nameEn: data.nameEn,
         vatNumber: data.vatNumber || null,
@@ -468,7 +527,9 @@ export async function registerRoutes(
         settings: data.settings || null,
         isActive: data.isActive ?? true,
       }).returning();
-      res.json(result[0]);
+      // Sync business_activities based on selected catalog types
+      await syncCompanyActivities(newCompany.id, catalogIds, newCompany);
+      res.json(newCompany);
     } catch (err: any) {
       console.error("Create company error:", err);
       res.status(500).json({ error: "Server error" });
@@ -484,7 +545,7 @@ export async function registerRoutes(
       const [existing] = await db.select().from(companies).where(eq(companies.id, id));
       if (!existing) return res.status(404).json({ error: "Not found" });
       const mergedSettings = { ...(existing.settings as any || {}), ...(data.settings || {}) };
-      const result = await db.update(companies).set({
+      const [updated] = await db.update(companies).set({
         nameAr: data.nameAr ?? existing.nameAr,
         nameEn: data.nameEn ?? existing.nameEn,
         vatNumber: data.vatNumber ?? existing.vatNumber,
@@ -499,7 +560,10 @@ export async function registerRoutes(
         settings: mergedSettings,
         isActive: data.isActive ?? existing.isActive,
       }).where(eq(companies.id, id)).returning();
-      res.json(result[0]);
+      // Sync activities: add new, remove unchecked
+      const catalogIds: string[] = Array.isArray(mergedSettings.activityIds) ? mergedSettings.activityIds : [];
+      await syncCompanyActivities(id, catalogIds, updated);
+      res.json(updated);
     } catch (err: any) {
       console.error("Update company error:", err);
       res.status(500).json({ error: "Server error" });
@@ -510,6 +574,13 @@ export async function registerRoutes(
     try {
       if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
       const id = parseInt(req.params.id);
+      // Delete all activities and memberships for this company
+      const acts = await db.select({ id: businessActivities.id }).from(businessActivities)
+        .where(eq(businessActivities.companyId, id));
+      for (const a of acts) {
+        await db.delete(activityMembers).where(eq(activityMembers.activityId, a.id));
+      }
+      await db.delete(businessActivities).where(eq(businessActivities.companyId, id));
       await db.delete(branches).where(eq(branches.companyId, id));
       await db.delete(companies).where(eq(companies.id, id));
       res.json({ success: true });

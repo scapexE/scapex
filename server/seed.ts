@@ -20,24 +20,10 @@ import {
   users,
 } from "@shared/schema";
 import { seedDefaultUsers } from "./auth";
+import { ACTIVITY_CATALOG } from "@shared/activityCatalog";
 
-// ── 1) Default activity catalogue ─────────────────────────────────────────────
-// Mirror of `client/src/lib/activities.ts` DEFAULT_ACTIVITIES.
-export const DEFAULT_ACTIVITY_CATALOG: Array<{
-  id: string;
-  nameAr: string;
-  nameEn: string;
-  color: string;
-  icon: string;
-  modules: string[];
-}> = [
-  { id: "act_eng_consulting",    nameAr: "استشارات هندسية",  nameEn: "Engineering Consultancy",   color: "blue",    icon: "HardHat",     modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"] },
-  { id: "act_env_consulting",    nameAr: "استشارات بيئية",   nameEn: "Environmental Consultancy", color: "emerald", icon: "Leaf",        modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"] },
-  { id: "act_safety_consulting", nameAr: "استشارات سلامة",   nameEn: "Safety Consultancy",        color: "amber",   icon: "ShieldAlert", modules: ["dashboard","crm","sales","accounting","projects","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"] },
-  { id: "act_safety_services",   nameAr: "خدمات سلامة",      nameEn: "Safety Services",           color: "orange",  icon: "Flame",       modules: ["dashboard","crm","sales","accounting","purchases","equipment","smart_proposal","hse","attendance","mobile_app","hr","payroll","dms"] },
-  { id: "act_contracting",       nameAr: "مقاولات",          nameEn: "Contracting",               color: "violet",  icon: "Building2",   modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"] },
-  { id: "act_metal_recycling",   nameAr: "تدوير المعادن",    nameEn: "Metal Recycling",           color: "teal",    icon: "RefreshCcw",  modules: ["dashboard","crm","sales","accounting","purchases","inventory","equipment","smart_proposal","hr","payroll","attendance","hse","dms","bi"] },
-];
+export { ACTIVITY_CATALOG as DEFAULT_ACTIVITY_CATALOG };
+const DEFAULT_ACTIVITY_CATALOG = ACTIVITY_CATALOG;
 
 // ── 2) Default CRM pipeline (stored as app_data so admins can re-order it) ───
 const DEFAULT_DEAL_PIPELINE = [
@@ -165,10 +151,13 @@ export async function seedDefaultActivities(): Promise<void> {
   const cos = await db.select().from(companies);
   let inserted = 0;
   for (const company of cos) {
+    // Only create activities for catalog IDs explicitly listed in settings.
+    // No fallback to "all 6" — if activityIds is missing/empty we skip this
+    // company entirely. The admin sets activityIds when creating the company.
     const catalogIds: string[] =
       Array.isArray((company.settings as any)?.activityIds) && (company.settings as any).activityIds.length > 0
         ? (company.settings as any).activityIds
-        : DEFAULT_ACTIVITY_CATALOG.map((c) => c.id);
+        : [];
     for (const catId of catalogIds) {
       const cat = DEFAULT_ACTIVITY_CATALOG.find((x) => x.id === catId);
       if (!cat) continue;

@@ -3,6 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useBusinessActivity, type BusinessActivity } from "@/contexts/BusinessActivityContext";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ACTIVITY_CATALOG, toCatalogId } from "@shared/activityCatalog";
 import { getAllowedCompanyIds, getAllowedBranchIds, type SystemUser } from "@/lib/permissions";
 import { dbGetItem } from "@/lib/dbStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -196,7 +197,16 @@ function CompaniesContent() {
 
   function openEditCompany(c: Company) {
     setEditCompany(c);
-    setCompanyForm({ ...c, managerId: c.settings?.managerId || null } as any);
+    // Derive catalog IDs from existing DB activities for this company.
+    // This is always correct even if settings.activityIds is stale or missing.
+    const fromActivities = activities
+      .filter(a => a.companyId === parseInt(c.id))
+      .map(a => toCatalogId(a.id))
+      .filter(catId => ACTIVITY_CATALOG.some(cat => cat.id === catId));
+    // Also accept any catalog IDs already in settings (in case activities aren't loaded yet)
+    const fromSettings = (c.activityIds || []).filter(id => ACTIVITY_CATALOG.some(cat => cat.id === id));
+    const catalogIds = Array.from(new Set([...fromActivities, ...fromSettings]));
+    setCompanyForm({ ...c, activityIds: catalogIds, managerId: c.settings?.managerId || null } as any);
     setShowCompanyDialog(true);
   }
 
@@ -587,61 +597,31 @@ function CompaniesContent() {
                 </Select>
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <Label>{t("الأنشطة التجارية", "Business Activities")}</Label>
-                  {isAdmin && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowNewActivityDialog(true)}
-                      data-testid="button-add-activity-catalog"
-                      className="h-7 text-xs"
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      {t("إضافة نشاط جديد", "Add new activity")}
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mb-2">{t("اختر الأنشطة التي تعمل بها هذه الشركة", "Select the activities this company operates in")}</p>
-                <div className="grid grid-cols-2 gap-2 p-3 border rounded-md max-h-48 overflow-y-auto">
-                  {(() => {
-                    // Deduplicate by nameAr|nameEn so each unique activity shows
-                    // once even if it's been instantiated per company in the DB.
-                    const seen = new Set<string>();
-                    const unique = activities
-                      .filter(a => a.active)
-                      .filter(a => {
-                        const key = `${a.nameAr}|${a.nameEn}`;
-                        if (seen.has(key)) return false;
-                        seen.add(key);
-                        return true;
-                      });
-                    return unique.map(a => {
-                      // Treat all activities sharing this name as the same logical
-                      // catalog item: checking adds every matching id, unchecking
-                      // removes them all.
-                      const sameNameIds = activities
-                        .filter(x => x.nameAr === a.nameAr && x.nameEn === a.nameEn)
-                        .map(x => x.id);
-                      const checked = sameNameIds.some(id => (companyForm.activityIds || []).includes(id));
-                      return (
-                        <label key={a.id} className="flex items-center gap-2 cursor-pointer text-sm" data-testid={`checkbox-activity-${a.id}`}>
-                          <Checkbox checked={checked} onCheckedChange={(v) => {
+                <Label className="mb-1 block">{t("الأنشطة التجارية", "Business Activities")}</Label>
+                <p className="text-xs text-muted-foreground mb-2">{t("اختر الأنشطة التي تعمل بها هذه الشركة — سيُنشئ النظام تلقائياً نشاطاً خاصاً لكل اختيار", "Select the activities for this company — the system will auto-create a dedicated activity for each selection")}</p>
+                <div className="grid grid-cols-2 gap-2 p-3 border rounded-md">
+                  {ACTIVITY_CATALOG.map(cat => {
+                    const checked = (companyForm.activityIds || []).includes(cat.id);
+                    return (
+                      <label key={cat.id} className="flex items-center gap-2 cursor-pointer text-sm py-1" data-testid={`checkbox-activity-${cat.id}`}>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
                             setCompanyForm(p => {
                               const cur = p.activityIds || [];
-                              if (v) {
-                                const merged = Array.from(new Set([...cur, ...sameNameIds]));
-                                return { ...p, activityIds: merged };
-                              }
-                              return { ...p, activityIds: cur.filter(x => !sameNameIds.includes(x)) };
+                              return {
+                                ...p,
+                                activityIds: v
+                                  ? Array.from(new Set([...cur, cat.id]))
+                                  : cur.filter(x => x !== cat.id),
+                              };
                             });
-                          }} />
-                          <span>{isRtl ? a.nameAr : a.nameEn}</span>
-                        </label>
-                      );
-                    });
-                  })()}
+                          }}
+                        />
+                        <span>{isRtl ? cat.nameAr : cat.nameEn}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             </div>
