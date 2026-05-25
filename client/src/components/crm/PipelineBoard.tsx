@@ -61,6 +61,8 @@ export interface ProposalPrefill {
   clientEmail: string;
   clientContact: string;
   projectName: string;
+  contactId?: number | null;
+  dealId?: number | null;
 }
 
 const formatValue = (v: string | null, currency: string | null) => {
@@ -250,6 +252,8 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
       clientEmail: c?.email || "",
       clientContact: c?.phone || "",
       projectName: (isRtl ? d.titleAr : d.titleEn) || d.titleEn || d.titleAr || "",
+      contactId: d.contactId ?? null,
+      dealId: d.id ?? null,
     });
   };
 

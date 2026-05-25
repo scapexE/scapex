@@ -159,7 +159,7 @@ export function saveContract(contract: Contract): void {
   else list.unshift(contract);
   dbSetItem(CONTRACTS_KEY, JSON.stringify(list));
 }
-export async function saveContractToDB(contract: Contract, userId?: string): Promise<number | null> {
+export async function saveContractToDB(contract: Contract, userId?: string, contactId?: number): Promise<number | null> {
   try {
     const res = await fetch("/api/contracts", {
       method: "POST",
@@ -189,6 +189,7 @@ export async function saveContractToDB(contract: Contract, userId?: string): Pro
         startDate: contract.startDate,
         endDate: contract.endDate,
         companyId: 1,
+        contactId: contactId ?? null,
       }),
     });
     if (res.ok) {

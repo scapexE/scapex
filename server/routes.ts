@@ -3352,6 +3352,7 @@ export async function registerRoutes(
         companyId: b.companyId ?? 1,
         contractNumber: b.contractNumber,
         proposalId: b.proposalDbId ? parseInt(b.proposalDbId) : null,
+        contactId: b.contactId ? parseInt(b.contactId) : null,
         clientName: b.clientName,
         projectName: b.projectName,
         serviceType: b.serviceType,

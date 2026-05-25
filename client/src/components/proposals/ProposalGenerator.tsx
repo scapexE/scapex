@@ -366,6 +366,10 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
   const [projectSize, setProjectSize] = useState<ProjectSize>("medium");
   const [crmPrefill, setCrmPrefill] = useState<{ clientName: string; projectName?: string } | null>(null);
 
+  // ── CRM contact linkage from prefill ────────────────────────────────────────
+  const [crmContactId, setCrmContactId] = useState<number | null>(null);
+  const [crmDealId, setCrmDealId] = useState<number | null>(null);
+
   // Read CRM/Sales prefill — stay at step 1 so user picks service first
   useEffect(() => {
     try {
@@ -376,6 +380,8 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         if (data.clientContact) setClientContact(data.clientContact);
         if (data.clientEmail)   setClientEmail(data.clientEmail);
         if (data.projectName)   setProjectName(data.projectName);
+        if (data.contactId)     setCrmContactId(data.contactId);
+        if (data.dealId)        setCrmDealId(data.dealId);
         dbRemoveItem("scapex_proposal_prefill");
         setCrmPrefill({ clientName: data.clientName, projectName: data.projectName });
       }
@@ -897,9 +903,9 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
     const contract = generateContractFromProposal(saved);
     saved.convertedToContractId = contract.id;
     saveContract(contract);
-    // Also persist to PostgreSQL DB
+    // Also persist to PostgreSQL DB (with CRM contact linkage if available)
     const userId = (() => { try { const s = localStorage.getItem("session"); if (s) { const p = JSON.parse(s); return p.id || p.userId || ""; } } catch {} return ""; })();
-    saveContractToDB(contract, userId).catch(() => {});
+    saveContractToDB(contract, userId, crmContactId ?? undefined).catch(() => {});
     onSave(saved);
     setProposal(saved);
     // Auto-create a project linked to this contract

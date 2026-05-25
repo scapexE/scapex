@@ -68,6 +68,8 @@ export default function CRMModule() {
                     clientEmail:   data.clientEmail,
                     clientContact: data.clientContact,
                     projectName:   data.projectName,
+                    contactId:     data.contactId ?? null,
+                    dealId:        data.dealId ?? null,
                   }));
                 } catch {}
                 navigate("/smart-proposal");
@@ -75,9 +77,9 @@ export default function CRMModule() {
             </TabsContent>
 
             <TabsContent value="customers" className="h-full m-0 data-[state=active]:flex flex-col">
-              <CustomersList onCreateProposal={(clientName, email, phone) => {
+              <CustomersList onCreateProposal={(clientName, email, phone, contactId) => {
                 try {
-                  dbSetItem("scapex_proposal_prefill", JSON.stringify({ clientName, clientEmail: email, clientContact: phone }));
+                  dbSetItem("scapex_proposal_prefill", JSON.stringify({ clientName, clientEmail: email, clientContact: phone, contactId: contactId ?? null }));
                 } catch {}
                 navigate("/smart-proposal");
               }} />

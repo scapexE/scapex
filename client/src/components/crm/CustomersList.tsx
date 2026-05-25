@@ -78,7 +78,7 @@ export function CustomersList({
   onCreateProposal,
   openAddDialogSignal,
 }: {
-  onCreateProposal?: (clientName: string, email: string, phone: string) => void;
+  onCreateProposal?: (clientName: string, email: string, phone: string, contactId?: number) => void;
   openAddDialogSignal?: number;
 }) {
   const { t, dir } = useLanguage();
@@ -591,7 +591,7 @@ export function CustomersList({
                             className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
                             title={isRtl ? 'طلب عرض سعر' : 'Request Quote'}
                             data-testid={`button-quote-${customer.id}`}
-                            onClick={() => onCreateProposal(customer.name, customer.email, customer.phone)}>
+                            onClick={() => onCreateProposal(customer.name, customer.email, customer.phone, parseInt(customer.id) || undefined)}>
                             <FileText className="h-4 w-4" />
                           </Button>
                         )}
