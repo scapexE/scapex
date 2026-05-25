@@ -662,11 +662,11 @@ export function CustomersList({
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="cust-name-ar">{isRtl ? "الاسم (عربي)" : "Name (Arabic)"} *</Label>
+              <Label htmlFor="cust-name-ar">{isRtl ? "اسم الشركة / العميل (عربي)" : "Company / Client Name (Arabic)"} *</Label>
               <Input id="cust-name-ar" value={form.nameAr} onChange={e => setForm({ ...form, nameAr: e.target.value })} data-testid="input-customer-name-ar" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cust-name-en">{isRtl ? "الاسم (إنجليزي)" : "Name (English)"}</Label>
+              <Label htmlFor="cust-name-en">{isRtl ? "اسم الشركة / العميل (إنجليزي)" : "Company / Client Name (English)"}</Label>
               <Input id="cust-name-en" value={form.nameEn} onChange={e => setForm({ ...form, nameEn: e.target.value })} data-testid="input-customer-name-en" />
             </div>
             <div className="space-y-1.5">
