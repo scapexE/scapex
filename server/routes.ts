@@ -287,6 +287,9 @@ export async function registerRoutes(
   await db.execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS deal_id INTEGER`);
   await db.execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_content TEXT`);
   await db.execute(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS original_name TEXT`);
+  // Unified company identifier (CR number) for cross-activity deduplication
+  await db.execute(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS cr_number VARCHAR(20)`);
+  await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS contacts_company_cr_uniq ON contacts(company_id, cr_number) WHERE cr_number IS NOT NULL AND company_id IS NOT NULL`);
 
   await seedDefaultUsers();
   await seedDefaultCompanies();
@@ -805,20 +808,56 @@ export async function registerRoutes(
       const assignedTo = (req.query.assignedTo as string) || null;
       const conds: any[] = [eq(contacts.type, "customer")];
 
-      // Activity scoping
-      if (scope.activityId) conds.push(eq(contacts.activityId, scope.activityId));
-      else if (!scope.isPrivileged && scope.allowedIds && scope.allowedIds.length) {
-        conds.push(inArray(contacts.activityId, scope.allowedIds));
+      // ── Company-wide scoping (SAP/Odoo Business Partner model) ──────────────
+      // Contacts are shared across ALL activities of the same ERP company.
+      // Deals remain activity-scoped (see /api/deals). Only the profile is shared.
+      //
+      // Strategy:
+      //  1. Get the companyIds of the actor's allowed activities
+      //  2. Show contacts that belong to those companies (contacts.company_id)
+      //     OR belong to the actor's activities (contacts.activity_id) for backward-compat
+      //     with records created before this migration.
+      const activityFilter = scope.activityId
+        ? [scope.activityId]
+        : scope.allowedIds || [];
+
+      if (!scope.isPrivileged && activityFilter.length === 0) {
+        return res.json([]);
       }
 
-      // Ownership scoping:
-      // - Privileged (admin/manager) may pass ?assignedTo=<id> to view one employee's customers (Mine toggle)
-      // - Non-privileged employees see ALL customers in their activity (read-only for non-owners)
-      if (assignedTo) {
-        conds.push(eq(contacts.assignedTo, assignedTo));
+      // Get companyIds from the actor's activities
+      let companyIds: number[] = [];
+      if (scope.isPrivileged) {
+        // Privileged users see all companies
+      } else if (activityFilter.length > 0) {
+        const actRows = await db.select({ companyId: businessActivities.companyId })
+          .from(businessActivities)
+          .where(inArray(businessActivities.id, activityFilter));
+        companyIds = actRows.map(a => a.companyId).filter((c): c is number => c !== null);
       }
-      // No additional filter for non-privileged: activity scoping above is sufficient;
-      // edit/delete restrictions are enforced in PATCH and DELETE.
+
+      if (!scope.isPrivileged) {
+        // Show contacts that match:
+        // (a) company_id IN [actor's companies]  — new shared model
+        // (b) activity_id IN [actor's activities] — backward compat for old records without company_id
+        const companyFilter = companyIds.length > 0
+          ? inArray(contacts.companyId, companyIds)
+          : null;
+        const activityScope = activityFilter.length > 0
+          ? inArray(contacts.activityId, activityFilter)
+          : null;
+
+        if (companyFilter && activityScope) {
+          conds.push(or(companyFilter, activityScope));
+        } else if (companyFilter) {
+          conds.push(companyFilter);
+        } else if (activityScope) {
+          conds.push(activityScope);
+        }
+      }
+      // Privileged users: no additional filter (see all contacts)
+
+      if (assignedTo) conds.push(eq(contacts.assignedTo, assignedTo));
 
       const where = conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.createdAt));
@@ -837,18 +876,39 @@ export async function registerRoutes(
       if (!d.nameEn && !d.nameAr) {
         return res.status(400).json({ error: "Name is required" });
       }
-      // Force activityId to the request scope. Privileged callers may pick the activity
-      // explicitly via body.activityId, but it is REQUIRED — we will not create
-      // unscoped (NULL) records, otherwise the row is invisible to non-privileged users
-      // and breaks tenant isolation.
       const writeActivityId = scope.isPrivileged
         ? (d.activityId || scope.activityId || null)
         : scope.activityId;
       if (!writeActivityId) {
         return res.status(400).json({ error: "activityId is required to create a customer" });
       }
+
+      // Resolve companyId from the activity (for cross-activity sharing)
+      let resolvedCompanyId = d.companyId ? Number(d.companyId) : null;
+      if (!resolvedCompanyId && writeActivityId) {
+        const [act] = await db.select({ companyId: businessActivities.companyId })
+          .from(businessActivities).where(eq(businessActivities.id, writeActivityId));
+        resolvedCompanyId = act?.companyId ?? null;
+      }
+
+      // Deduplication by CR number (السجل التجاري / الرقم الموحد):
+      // If a contact with the same CR number already exists for this company,
+      // return the existing record instead of creating a duplicate.
+      const crNumber = d.crNumber?.trim() || null;
+      if (crNumber && resolvedCompanyId) {
+        const [existing] = await db.select().from(contacts)
+          .where(and(
+            eq(contacts.type, "customer"),
+            eq((contacts as any).crNumber, crNumber),
+            eq(contacts.companyId, resolvedCompanyId),
+          )).limit(1);
+        if (existing) {
+          return res.json({ ...existing, _linked: true });
+        }
+      }
+
       const result = await db.insert(contacts).values({
-        companyId: d.companyId ?? null,
+        companyId: resolvedCompanyId,
         nameAr: d.nameAr || d.nameEn || null,
         nameEn: d.nameEn || d.nameAr || null,
         email: d.email || null,
@@ -866,7 +926,8 @@ export async function registerRoutes(
         activityId: writeActivityId,
         assignedTo: d.assignedTo || d.createdBy || scope.actor.id,
         createdBy: d.createdBy || scope.actor.id,
-      }).returning();
+        crNumber,
+      } as any).returning();
       res.json(result[0]);
     } catch (err: any) {
       console.error("Create customer error:", err);
@@ -942,8 +1003,9 @@ export async function registerRoutes(
         activityId: nextActivityId,
         assignedTo: d.assignedTo ?? existing.assignedTo,
         serviceEmployeeIds: nextServiceIds,
+        crNumber: d.crNumber !== undefined ? (d.crNumber?.trim() || null) : (existing as any).crNumber,
         updatedAt: new Date(),
-      }).where(eq(contacts.id, id)).returning();
+      } as any).where(eq(contacts.id, id)).returning();
       res.json(result[0]);
     } catch (err: any) {
       console.error("Update customer error:", err);

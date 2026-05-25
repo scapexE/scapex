@@ -169,9 +169,11 @@ export const contacts = pgTable("contacts", {
   portalEnabled: boolean("portal_enabled").default(false),
   portalPasswordHash: text("portal_password_hash"),
   portalLastLogin: timestamp("portal_last_login"),
+  // Unified company identifier — Saudi CR number (السجل التجاري / الرقم الموحد)
+  // Used for cross-activity deduplication: same company across multiple activities = one record
+  crNumber: varchar("cr_number", { length: 20 }),
 }, (t) => ({
   // Enforce: a national ID is unique within a single business activity.
-  // Partial index — only rows that actually have a nationalId participate.
   uxActivityNationalId: uniqueIndex("contacts_activity_national_id_uniq")
     .on(t.activityId, t.nationalId)
     .where(sql`${t.nationalId} IS NOT NULL`),

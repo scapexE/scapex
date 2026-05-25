@@ -107,7 +107,7 @@ export function CustomersList({
   const [assignServiceIds, setAssignServiceIds] = useState<string[]>([]);
   const [form, setForm] = useState({
     nameAr: "", nameEn: "", organization: "", position: "",
-    email: "", phone: "", city: "", address: "", source: "active", notes: "",
+    email: "", phone: "", city: "", address: "", source: "active", notes: "", crNumber: "",
   });
 
   useEffect(() => { seedDemoSurveys(); }, []);
@@ -226,7 +226,7 @@ export function CustomersList({
 
   const resetForm = () => setForm({
     nameAr: "", nameEn: "", organization: "", position: "",
-    email: "", phone: "", city: "", address: "", source: "active", notes: "",
+    email: "", phone: "", city: "", address: "", source: "active", notes: "", crNumber: "",
   });
 
   const handleSave = async () => {
@@ -238,14 +238,23 @@ export function CustomersList({
       setSaving(true);
       const res = await apiRequest("POST", "/api/customers", {
         ...form,
-        // activityId omitted intentionally — the server will scope to the
-        // caller's active or first-assigned activity (see resolveActivityScope).
         ...(activeActivity ? { activityId: activeActivity.id } : {}),
         createdBy: currentUser?.id || null,
         assignedTo: currentUser?.id || null,
       });
       if (!res.ok) throw new Error("save failed");
-      toast({ title: isRtl ? "تم إضافة العميل وإسناده لك" : "Customer added and assigned to you" });
+      const data = await res.json();
+      if (data._linked) {
+        // CR number matched an existing company — linked instead of duplicated
+        toast({
+          title: isRtl ? "✅ شركة موجودة مسبقاً — تم الربط" : "✅ Company already exists — linked",
+          description: isRtl
+            ? "السجل التجاري موجود في النظام، تم ربطك بالملف الموجود لتجنب التكرار."
+            : "CR number already in the system. You were linked to the existing profile.",
+        });
+      } else {
+        toast({ title: isRtl ? "تم إضافة العميل وإسناده لك" : "Customer added and assigned to you" });
+      }
       setAddOpen(false);
       resetForm();
       await fetchData();
@@ -513,9 +522,14 @@ export function CustomersList({
                           <Building className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <div className="font-semibold text-foreground flex items-center gap-2">
+                          <div className="font-semibold text-foreground flex items-center gap-2 flex-wrap">
                             {customer.name}
                             {customer.rating === 5 && <Star className="w-3 h-3 fill-amber-400 text-amber-400" />}
+                            {(dbRow as any)?.crNumber && (
+                              <span className="text-[10px] font-mono font-normal bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded px-1.5 py-0.5">
+                                CR {(dbRow as any).crNumber}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <MapPin className="w-3 h-3" />
@@ -668,6 +682,22 @@ export function CustomersList({
             <div className="space-y-1.5">
               <Label htmlFor="cust-name-en">{isRtl ? "اسم الشركة / العميل (إنجليزي)" : "Company / Client Name (English)"}</Label>
               <Input id="cust-name-en" value={form.nameEn} onChange={e => setForm({ ...form, nameEn: e.target.value })} data-testid="input-customer-name-en" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cust-cr-number" className="flex items-center gap-1.5">
+                {isRtl ? "السجل التجاري / الرقم الموحد" : "CR Number / Unified ID"}
+                <span className="text-[10px] font-normal text-muted-foreground border border-border rounded px-1">
+                  {isRtl ? "يمنع التكرار" : "prevents duplicates"}
+                </span>
+              </Label>
+              <Input
+                id="cust-cr-number"
+                value={form.crNumber}
+                onChange={e => setForm({ ...form, crNumber: e.target.value })}
+                placeholder={isRtl ? "مثال: 1010XXXXXX" : "e.g. 1010XXXXXX"}
+                dir="ltr"
+                data-testid="input-customer-cr-number"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cust-org">{isRtl ? "القطاع / الصناعة" : "Industry / Sector"}</Label>
