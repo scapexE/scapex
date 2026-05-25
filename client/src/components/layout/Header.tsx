@@ -6,20 +6,45 @@ import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Search, Globe, Menu, Moon, Sun, Check, Trash2, X } from "lucide-react";
+import { Bell, Search, Globe, Menu, Moon, Sun, Check, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ActivityIcon } from "@/components/ActivityIcon";
-import {
-  getNotifications, markAsRead, markAllRead, clearNotifications, getUnreadCount,
-  seedDemoNotifications, TYPE_STYLES, type AppNotification,
-} from "@/lib/notifications";
 
 function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(" ");
 }
+
+interface ServerNotification {
+  id: number;
+  titleAr: string | null;
+  titleEn: string | null;
+  message: string | null;
+  messageAr: string | null;
+  type: string | null;
+  module: string | null;
+  link: string | null;
+  isRead: boolean | null;
+  createdAt: string | null;
+}
+
+const TYPE_ICONS: Record<string, string> = {
+  info: "ℹ️",
+  success: "✅",
+  warning: "⚠️",
+  error: "🔴",
+  due_soon: "⏰",
+};
+
+const TYPE_BG: Record<string, string> = {
+  info: "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20",
+  success: "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20",
+  warning: "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20",
+  error: "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20",
+  due_soon: "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20",
+};
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { t, language, toggleLanguage, dir } = useLanguage();
@@ -27,23 +52,30 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { settings } = useSettings();
   const { activeActivity } = useBusinessActivity();
   const [showNotif, setShowNotif] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [unread, setUnread] = useState(0);
+  const [notifications, setNotifications] = useState<ServerNotification[]>([]);
+  const [loading, setLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRtl = dir === "rtl";
 
-  const refresh = useCallback(() => {
-    setNotifications(getNotifications());
-    setUnread(getUnreadCount());
+  const unread = notifications.filter((n) => !n.isRead).length;
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setNotifications(data);
+    } catch {}
   }, []);
 
   useEffect(() => {
-    seedDemoNotifications();
-    refresh();
-    const handler = () => refresh();
-    window.addEventListener("scapex_notification_update", handler);
-    return () => window.removeEventListener("scapex_notification_update", handler);
-  }, [refresh]);
+    fetchNotifications();
+    pollRef.current = setInterval(fetchNotifications, 30000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [fetchNotifications]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -54,6 +86,31 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     if (showNotif) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showNotif]);
+
+  const handleMarkRead = async (id: number) => {
+    try {
+      await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
+    } catch {}
+  };
+
+  const handleMarkAllRead = async () => {
+    setLoading(true);
+    try {
+      await fetch("/api/notifications/read-all", { method: "PATCH" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch {}
+    setLoading(false);
+  };
+
+  const handleClearAll = async () => {
+    setLoading(true);
+    try {
+      await fetch("/api/notifications", { method: "DELETE" });
+      setNotifications([]);
+    } catch {}
+    setLoading(false);
+  };
 
   const colors = activeActivity
     ? ACTIVITY_COLOR_MAP[activeActivity.color as ActivityColor]
@@ -72,7 +129,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     : ((activityNameEn || activityNameAr) || (globalNameEn || globalNameAr));
   const hasCompanyInfo    = displayLogoUrl || displayName;
 
-  const formatTime = (ts: string) => {
+  const formatTime = (ts: string | null) => {
+    if (!ts) return "";
     const d = new Date(ts);
     const diff = Date.now() - d.getTime();
     const mins = Math.floor(diff / 60000);
@@ -186,12 +244,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <h3 className="text-sm font-semibold">{t("notif.title")} {unread > 0 && `(${unread})`}</h3>
                 <div className="flex gap-1">
                   {unread > 0 && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { markAllRead(); refresh(); }}>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleMarkAllRead} disabled={loading}>
                       <Check className="w-3 h-3 me-1" /> {t("notif.mark_all")}
                     </Button>
                   )}
                   {notifications.length > 0 && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => { clearNotifications(); refresh(); }}>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={handleClearAll} disabled={loading}>
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   )}
@@ -206,33 +264,35 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   </div>
                 ) : (
                   notifications.slice(0, 20).map((n) => {
-                    const style = TYPE_STYLES[n.type];
+                    const typeKey = n.type || "info";
+                    const icon = TYPE_ICONS[typeKey] || "ℹ️";
+                    const titleText = isRtl ? (n.titleAr || n.titleEn) : (n.titleEn || n.titleAr);
+                    const bodyText = isRtl ? (n.messageAr || n.message) : (n.message || n.messageAr);
                     return (
                       <div
                         key={n.id}
                         className={cn(
                           "px-4 py-3 border-b last:border-0 cursor-pointer transition-colors hover:bg-muted/40",
-                          !n.read && "bg-primary/5"
+                          !n.isRead && "bg-primary/5"
                         )}
                         onClick={() => {
-                          markAsRead(n.id);
-                          refresh();
+                          handleMarkRead(n.id);
                           if (n.link) window.location.href = n.link;
                         }}
                         data-testid={`notification-${n.id}`}
                       >
                         <div className="flex gap-3">
-                          <span className="text-base shrink-0 mt-0.5">{style.icon}</span>
+                          <span className="text-base shrink-0 mt-0.5">{icon}</span>
                           <div className="flex-1 min-w-0">
-                            <p className={cn("text-sm font-medium", !n.read && "font-semibold")}>
-                              {isRtl ? n.titleAr : n.titleEn}
+                            <p className={cn("text-sm font-medium", !n.isRead && "font-semibold")}>
+                              {titleText || (isRtl ? "إشعار" : "Notification")}
                             </p>
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                              {isRtl ? n.bodyAr : n.bodyEn}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground mt-1">{formatTime(n.timestamp)}</p>
+                            {bodyText && (
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{bodyText}</p>
+                            )}
+                            <p className="text-[10px] text-muted-foreground mt-1">{formatTime(n.createdAt)}</p>
                           </div>
-                          {!n.read && (
+                          {!n.isRead && (
                             <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
                           )}
                         </div>

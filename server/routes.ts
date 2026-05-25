@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, notifications, portalRequests } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings } from "@shared/schema";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
@@ -542,7 +542,6 @@ export async function registerRoutes(
         city: data.city || null,
         address: data.address || null,
         phone: data.phone || null,
-        managerId: data.managerId || null,
         managerName: data.managerName || data.manager || null,
         isActive: data.isActive ?? true,
       }).returning();
@@ -564,7 +563,6 @@ export async function registerRoutes(
         city: data.city,
         address: data.address,
         phone: data.phone,
-        managerId: data.managerId ?? null,
         managerName: data.managerName || data.manager,
         isActive: data.isActive,
       }).where(eq(branches.id, id)).returning();
@@ -1521,6 +1519,30 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/notifications/read-all", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, scope.actor.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Mark all notifications read error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/notifications", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      await db.delete(notifications).where(eq(notifications.userId, scope.actor.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete all notifications error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -2098,6 +2120,452 @@ export async function registerRoutes(
       console.error("Portal status error:", err);
       res.status(500).json({ error: "Server error" });
     }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HR — EMPLOYEES
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/employees", async (_req, res) => {
+    try { res.json(await db.select().from(employees).orderBy(employees.createdAt)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/employees", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(employees).values({
+        nameAr: b.nameAr, nameEn: b.nameEn, employeeNumber: b.employeeNumber,
+        nationalId: b.nationalId, nationality: b.nationality, phone: b.phone,
+        email: b.email, joinDate: b.joinDate, departmentName: b.departmentName,
+        jobTitle: b.jobTitle, jobTitleAr: b.jobTitleAr, contractType: b.contractType,
+        basicSalary: b.basicSalary, housingAllowance: b.housingAllowance,
+        transportAllowance: b.transportAllowance, status: b.status || "active",
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/employees/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const b = req.body;
+      const [row] = await db.update(employees).set({
+        nameAr: b.nameAr, nameEn: b.nameEn, employeeNumber: b.employeeNumber,
+        nationalId: b.nationalId, nationality: b.nationality, phone: b.phone,
+        email: b.email, joinDate: b.joinDate, departmentName: b.departmentName,
+        jobTitle: b.jobTitle, jobTitleAr: b.jobTitleAr, contractType: b.contractType,
+        basicSalary: b.basicSalary, housingAllowance: b.housingAllowance,
+        transportAllowance: b.transportAllowance, status: b.status,
+        updatedAt: new Date(),
+      }).where(eq(employees.id, id)).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/employees/:id", async (req, res) => {
+    try { await db.delete(employees).where(eq(employees.id, parseInt(req.params.id))); res.json({ success: true }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HR — DEPARTMENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/departments", async (_req, res) => {
+    try { res.json(await db.select().from(departments)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/departments", async (req, res) => {
+    try {
+      const [row] = await db.insert(departments).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, isActive: true }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/departments/:id", async (req, res) => {
+    try {
+      const [row] = await db.update(departments).set({ nameAr: req.body.nameAr, nameEn: req.body.nameEn }).where(eq(departments.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/departments/:id", async (req, res) => {
+    try { await db.delete(departments).where(eq(departments.id, parseInt(req.params.id))); res.json({ success: true }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INVENTORY
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/warehouses", async (_req, res) => {
+    try { res.json(await db.select().from(warehouses)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/warehouses", async (req, res) => {
+    try {
+      const [row] = await db.insert(warehouses).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, location: req.body.location, isActive: true }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/inventory-items", async (_req, res) => {
+    try { res.json(await db.select().from(inventoryItems).orderBy(inventoryItems.createdAt)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/inventory-items", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(inventoryItems).values({
+        sku: b.sku || b.code, nameAr: b.nameAr, nameEn: b.nameEn || b.nameAr,
+        category: b.category, unit: b.unit,
+        currentQty: String(b.currentQty ?? b.onHand ?? 0),
+        minQty: String(b.minQty ?? b.minStock ?? 0),
+        unitCost: String(b.unitCost ?? 0),
+        totalValue: String((b.currentQty ?? b.onHand ?? 0) * (b.unitCost ?? 0)),
+        isActive: true,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/inventory-items/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(inventoryItems).set({
+        sku: b.sku || b.code, nameAr: b.nameAr, nameEn: b.nameEn || b.nameAr,
+        category: b.category, unit: b.unit,
+        currentQty: String(b.currentQty ?? b.onHand ?? 0),
+        minQty: String(b.minQty ?? b.minStock ?? 0),
+        unitCost: String(b.unitCost ?? 0),
+        totalValue: String((b.currentQty ?? b.onHand ?? 0) * (b.unitCost ?? 0)),
+        updatedAt: new Date(),
+      }).where(eq(inventoryItems.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/inventory-items/:id", async (req, res) => {
+    try { await db.delete(inventoryItems).where(eq(inventoryItems.id, parseInt(req.params.id))); res.json({ success: true }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/stock-movements", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(stockMovements).values({ itemId: b.itemId, type: b.type, qty: String(b.qty), reference: b.reference, notes: b.notes }).returning();
+      const item = await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.itemId));
+      if (item[0]) {
+        const cur = parseFloat(item[0].currentQty as string) || 0;
+        const delta = b.type === "in" ? parseFloat(b.qty) : -parseFloat(b.qty);
+        const newQty = Math.max(0, cur + delta);
+        await db.update(inventoryItems).set({ currentQty: String(newQty), totalValue: String(newQty * (parseFloat(item[0].unitCost as string) || 0)), updatedAt: new Date() }).where(eq(inventoryItems.id, b.itemId));
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/stock-movements", async (_req, res) => {
+    try { res.json(await db.select().from(stockMovements).orderBy(desc(stockMovements.createdAt)).limit(200)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VENDORS & PURCHASE ORDERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/vendors", async (_req, res) => {
+    try { res.json(await db.select().from(vendors).orderBy(vendors.createdAt)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/vendors", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(vendors).values({ nameAr: b.nameAr, nameEn: b.nameEn, contactPerson: b.contactPerson, email: b.email, phone: b.phone, vatNumber: b.vatNumber || b.vatNo, address: b.address, category: b.category, rating: b.rating || 0, isActive: b.status !== "inactive" }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/vendors/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(vendors).set({ nameAr: b.nameAr, nameEn: b.nameEn, contactPerson: b.contactPerson, email: b.email, phone: b.phone, vatNumber: b.vatNumber || b.vatNo, category: b.category, rating: b.rating, isActive: b.status !== "inactive" }).where(eq(vendors.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/vendors/:id", async (req, res) => {
+    try { await db.delete(vendors).where(eq(vendors.id, parseInt(req.params.id))); res.json({ success: true }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/purchase-orders", async (_req, res) => {
+    try { res.json(await db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/purchase-orders", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(purchaseOrders).values({ poNumber: b.poNumber, vendorId: b.vendorId ? parseInt(b.vendorId) : null, total: String(b.total || 0), status: b.status || "draft", deliveryDate: b.deliveryDate || b.expectedDate, notes: b.notes }).returning();
+      if (b.items?.length) {
+        await db.insert(purchaseOrderItems).values(b.items.map((it: any) => ({ poId: row.id, descAr: it.name, descEn: it.name, qty: String(it.qty || 1), unit: it.unit, unitPrice: String(it.unitPrice || 0), total: String((it.qty || 1) * (it.unitPrice || 0)) })));
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/purchase-orders/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(purchaseOrders).set({ status: b.status, notes: b.notes, deliveryDate: b.deliveryDate || b.expectedDate, total: String(b.total || 0), updatedAt: new Date() }).where(eq(purchaseOrders.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/purchase-orders/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, id));
+      await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/purchase-orders/:id/items", async (req, res) => {
+    try { res.json(await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.poId, parseInt(req.params.id)))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ASSETS & EQUIPMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/asset-categories", async (_req, res) => {
+    try { res.json(await db.select().from(assetCategories)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/asset-categories", async (req, res) => {
+    try {
+      const [row] = await db.insert(assetCategories).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, type: req.body.type }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/assets", async (_req, res) => {
+    try { res.json(await db.select().from(assets).orderBy(assets.createdAt)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/assets", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(assets).values({
+        assetCode: b.assetCode || b.assetNo, nameAr: b.nameAr, nameEn: b.nameEn || b.nameAr,
+        brand: b.brand, model: b.model, serialNumber: b.serialNumber || b.serial,
+        plateNumber: b.plateNumber || b.plate, location: b.location,
+        purchaseDate: b.purchaseDate, purchaseCost: b.purchaseCost ? String(b.purchaseCost) : null,
+        status: b.status || "available", condition: b.condition || "good",
+        lastMaintenanceDate: b.lastMaintenanceDate || b.lastMaintenance || null,
+        nextMaintenanceDate: b.nextMaintenanceDate || b.nextMaintenance || null,
+        notes: b.notes,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/assets/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(assets).set({
+        assetCode: b.assetCode || b.assetNo, nameAr: b.nameAr, nameEn: b.nameEn || b.nameAr,
+        brand: b.brand, model: b.model, serialNumber: b.serialNumber || b.serial,
+        plateNumber: b.plateNumber || b.plate, location: b.location,
+        purchaseCost: b.purchaseCost ? String(b.purchaseCost) : null,
+        status: b.status, condition: b.condition || "good",
+        lastMaintenanceDate: b.lastMaintenanceDate || b.lastMaintenance || null,
+        nextMaintenanceDate: b.nextMaintenanceDate || b.nextMaintenance || null,
+        notes: b.notes, updatedAt: new Date(),
+      }).where(eq(assets.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/assets/:id", async (req, res) => {
+    try { await db.delete(assets).where(eq(assets.id, parseInt(req.params.id))); res.json({ success: true }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/maintenance-records", async (_req, res) => {
+    try { res.json(await db.select().from(maintenanceRecords).orderBy(desc(maintenanceRecords.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/maintenance-records", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(maintenanceRecords).values({ assetId: parseInt(b.assetId), type: b.type || "preventive", date: b.date, description: b.description, cost: b.cost ? String(b.cost) : null, vendor: b.vendor, technician: b.technician, nextDate: b.nextDate, status: "completed" }).returning();
+      if (b.nextDate) await db.update(assets).set({ lastMaintenanceDate: b.date, nextMaintenanceDate: b.nextDate, updatedAt: new Date() }).where(eq(assets.id, parseInt(b.assetId)));
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PAYROLL
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/payroll-batches", async (_req, res) => {
+    try { res.json(await db.select().from(payrollBatches).orderBy(desc(payrollBatches.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/payroll-batches", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(payrollBatches).values({ month: b.month, year: b.year, status: b.status || "draft", totalGross: String(b.totalGross || 0), totalDeductions: String(b.totalDeductions || 0), totalNet: String(b.totalNet || 0), employeeCount: b.employeeCount || 0 }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/payroll-batches/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(payrollBatches).set({ status: b.status, totalGross: String(b.totalGross || 0), totalDeductions: String(b.totalDeductions || 0), totalNet: String(b.totalNet || 0), employeeCount: b.employeeCount }).where(eq(payrollBatches.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/payroll-batches/:id/items", async (req, res) => {
+    try { res.json(await db.select().from(payrollItems).where(eq(payrollItems.batchId, parseInt(req.params.id)))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HSE — INCIDENTS & INSPECTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/incidents", async (_req, res) => {
+    try { res.json(await db.select().from(incidents).orderBy(desc(incidents.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/incidents", async (req, res) => {
+    try {
+      const b = req.body;
+      const year = new Date().getFullYear();
+      const count = (await db.select().from(incidents)).length;
+      const incidentNumber = `INC-${year}-${String(count + 1).padStart(3, "0")}`;
+      const [row] = await db.insert(incidents).values({ incidentNumber: b.incidentNumber || incidentNumber, titleAr: b.titleAr || b.description || b.type, titleEn: b.titleEn || b.description || b.type, type: b.type, severity: b.severity || "low", date: b.date, location: b.location, description: b.description, correctiveAction: b.correctiveAction, status: b.status || "open" }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/incidents/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(incidents).set({ type: b.type, severity: b.severity, date: b.date, location: b.location, description: b.description, correctiveAction: b.correctiveAction, status: b.status, updatedAt: new Date() }).where(eq(incidents.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/incidents/:id", async (req, res) => {
+    try { await db.delete(incidents).where(eq(incidents.id, parseInt(req.params.id))); res.json({ success: true }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/inspections", async (_req, res) => {
+    try { res.json(await db.select().from(inspections).orderBy(desc(inspections.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/inspections", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(inspections).values({ titleAr: b.titleAr || b.type, titleEn: b.titleEn || b.type, type: b.type, date: b.date, location: b.location || b.site, score: b.score || 0, status: b.status || "scheduled", findings: b.findings }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/inspections/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(inspections).set({ type: b.type, date: b.date, location: b.location || b.site, score: b.score, status: b.status, findings: b.findings }).where(eq(inspections.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERMITS & GOVERNMENT ENTITIES
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/government-entities", async (_req, res) => {
+    try { res.json(await db.select().from(governmentEntities)); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/government-entities", async (req, res) => {
+    try {
+      const [row] = await db.insert(governmentEntities).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, type: req.body.type, phone: req.body.phone, email: req.body.email }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/permits", async (_req, res) => {
+    try { res.json(await db.select().from(permits).orderBy(desc(permits.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/permits", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(permits).values({ permitNumber: b.permitNumber, titleAr: b.titleAr || b.title, titleEn: b.titleEn || b.title, type: b.type, issueDate: b.issueDate, expiryDate: b.expiryDate, status: b.status || "active", fees: b.fees ? String(b.fees) : null, notes: b.notes }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/permits/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(permits).set({ titleAr: b.titleAr || b.title, titleEn: b.titleEn || b.title, type: b.type, issueDate: b.issueDate, expiryDate: b.expiryDate, status: b.status, fees: b.fees ? String(b.fees) : null, notes: b.notes }).where(eq(permits.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/permits/:id", async (req, res) => {
+    try { await db.delete(permits).where(eq(permits.id, parseInt(req.params.id))); res.json({ success: true }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SAFETY TRAININGS
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/safety-trainings", async (_req, res) => {
+    try { res.json(await db.select().from(safetyTrainings).orderBy(desc(safetyTrainings.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/safety-trainings", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(safetyTrainings).values({ titleAr: b.titleAr || b.title, titleEn: b.titleEn || b.title, type: b.type, date: b.date, duration: b.duration, location: b.location, attendeesCount: b.attendeesCount || 0, status: b.status || "scheduled", notes: b.notes }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ANALYTICS — aggregated summary for BI dashboard
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/analytics/summary", async (_req, res) => {
+    try {
+      const [empRows, projRows, incidentRows, invRows, vendorRows, poRows, assetRows, contactRows, permitRows] = await Promise.all([
+        db.select().from(employees),
+        db.select().from(projects),
+        db.select().from(incidents),
+        db.select().from(inventoryItems),
+        db.select().from(vendors),
+        db.select().from(purchaseOrders),
+        db.select().from(assets),
+        db.select().from(contacts),
+        db.select().from(permits),
+      ]);
+      const totalInventoryValue = invRows.reduce((s, i) => s + (parseFloat(i.totalValue as string) || 0), 0);
+      const totalPOValue = poRows.reduce((s, o) => s + (parseFloat(o.total as string) || 0), 0);
+      const activeProjects = projRows.filter(p => p.status === "active").length;
+      const activeEmployees = empRows.filter(e => e.status === "active").length;
+      const openIncidents = incidentRows.filter(i => i.status === "open" || i.status === "investigating").length;
+      const lowStockItems = invRows.filter(i => parseFloat(i.currentQty as string) <= parseFloat(i.minQty as string)).length;
+      const now = new Date();
+      const in30days = new Date(now.getTime() + 30 * 864e5);
+      const expiringPermits = permitRows.filter(p => p.expiryDate && new Date(p.expiryDate) <= in30days && p.status === "active").length;
+      const expiringAssets = assetRows.filter(a => a.insuranceExpiry && new Date(a.insuranceExpiry) <= in30days).length;
+      res.json({
+        employees: { total: empRows.length, active: activeEmployees },
+        projects: { total: projRows.length, active: activeProjects },
+        incidents: { total: incidentRows.length, open: openIncidents },
+        inventory: { items: invRows.length, totalValue: totalInventoryValue, lowStock: lowStockItems },
+        purchases: { vendors: vendorRows.length, orders: poRows.length, totalValue: totalPOValue },
+        assets: { total: assetRows.length, active: assetRows.filter(a => a.status === "available" || a.status === "active").length },
+        clients: { total: contactRows.length },
+        permits: { total: permitRows.length, expiring: expiringPermits },
+        alerts: { expiringPermits, expiringAssets, lowStockItems, openIncidents },
+      });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LEAVE REQUESTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/leave-requests", async (_req, res) => {
+    try { res.json(await db.select().from(leaveRequests).orderBy(desc(leaveRequests.createdAt))); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/leave-requests", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(leaveRequests).values({ employeeId: parseInt(b.employeeId), startDate: b.startDate, endDate: b.endDate, days: parseInt(b.days || 1), reason: b.reason, status: "pending" }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/leave-requests/:id", async (req, res) => {
+    try {
+      const [row] = await db.update(leaveRequests).set({ status: req.body.status, notes: req.body.notes }).where(eq(leaveRequests.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   app.post("/api/auth/change-password", async (req, res) => {

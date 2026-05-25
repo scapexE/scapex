@@ -1,5 +1,5 @@
 import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,10 +56,17 @@ export default function AttendanceModule() {
   const [records, setRecords] = useState<AttendanceRecord[]>(()=>load(STORAGE_ATT, SEED_ATT));
   const [leaves, setLeaves] = useState<LeaveRequest[]>(()=>load(STORAGE_LEAVES, SEED_LEAVES));
   const [dateFilter, setDateFilter] = useState(TODAY);
+  const [empFilter, setEmpFilter] = useState("");
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [leaveForm, setLeaveForm] = useState<Partial<LeaveRequest>>({});
 
-  const dayRecords = records.filter(r=>r.date===dateFilter);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const emp = params.get("emp");
+    if (emp) setEmpFilter(emp);
+  }, []);
+
+  const dayRecords = records.filter(r=>r.date===dateFilter && (!empFilter || r.empNo.toLowerCase().includes(empFilter.toLowerCase()) || r.empName.toLowerCase().includes(empFilter.toLowerCase())));
   const stats = {
     present: dayRecords.filter(r=>r.status==="present").length,
     absent: dayRecords.filter(r=>r.status==="absent").length,
@@ -121,9 +128,14 @@ export default function AttendanceModule() {
           </TabsList>
 
           <TabsContent value="daily" className="mt-4 space-y-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <CalendarDays className="w-4 h-4 text-muted-foreground shrink-0"/>
               <Input type="date" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} className="h-9 w-40 bg-secondary/30"/>
+              <div className="relative flex-1 min-w-[160px]">
+                <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground"/>
+                <Input placeholder={isRtl?"بحث بالموظف...":"Search employee..."} value={empFilter} onChange={e=>setEmpFilter(e.target.value)} className="h-9 ps-8 bg-secondary/30"/>
+              </div>
+              {empFilter && <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={()=>setEmpFilter("")}>{isRtl?"إلغاء الفلتر":"Clear filter"}</Button>}
             </div>
             <Card className="border-border/50 overflow-hidden">
               <div className="overflow-x-auto">
