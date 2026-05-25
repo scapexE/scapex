@@ -1,11 +1,13 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useActiveRole } from "@/contexts/ActiveRoleContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContractsList } from "@/components/sales/ContractsList";
 import { ContractPaymentSchedule } from "@/components/sales/ContractPaymentSchedule";
+import { PartnerAccounts } from "@/components/sales/PartnerAccounts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Bot, CheckCircle2, Send, Clock, TrendingUp, CalendarCheck } from "lucide-react";
+import { Plus, FileText, Bot, CheckCircle2, Send, Clock, TrendingUp, CalendarCheck, Handshake } from "lucide-react";
 import { useLocation } from "wouter";
 import { getProposals, STATUS_META, SERVICE_META, type Proposal } from "@/lib/proposals";
 import { useState, useEffect } from "react";
@@ -117,6 +119,11 @@ export default function SalesModule() {
   const { t, dir } = useLanguage();
   const isRtl = dir === "rtl";
   const [, navigate] = useLocation();
+  const { currentUser } = useActiveRole();
+
+  const isAdmin = currentUser?.role === "admin" || (currentUser?.roles ?? []).includes("admin");
+  const isManager = currentUser?.role === "manager" || (currentUser?.roles ?? []).includes("manager");
+  const canSeePartners = isAdmin || isManager;
 
   const handleNewProposal = () => {
     navigate("/smart-proposal");
@@ -143,14 +150,26 @@ export default function SalesModule() {
         </div>
 
         <Tabs defaultValue="quotations" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="w-full sm:w-auto self-start border-border/50 bg-secondary/50">
-            <TabsTrigger value="quotations" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('sales.tab.quotations')}</TabsTrigger>
-            <TabsTrigger value="orders" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('sales.tab.orders')}</TabsTrigger>
-            <TabsTrigger value="contracts" className="flex-1 sm:flex-none data-[state=active]:bg-background">{t('sales.tab.contracts')}</TabsTrigger>
+          <TabsList className="w-full sm:w-auto self-start border-border/50 bg-secondary/50 flex-wrap gap-0">
+            <TabsTrigger value="quotations" className="flex-1 sm:flex-none data-[state=active]:bg-background">
+              {t('sales.tab.quotations')}
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="flex-1 sm:flex-none data-[state=active]:bg-background">
+              {t('sales.tab.orders')}
+            </TabsTrigger>
+            <TabsTrigger value="contracts" className="flex-1 sm:flex-none data-[state=active]:bg-background">
+              {t('sales.tab.contracts')}
+            </TabsTrigger>
             <TabsTrigger value="payments" className="flex-1 sm:flex-none data-[state=active]:bg-background gap-1.5">
               <CalendarCheck className="w-3.5 h-3.5" />
               {isRtl ? "جدول الدفعات" : "Payment Schedule"}
             </TabsTrigger>
+            {canSeePartners && (
+              <TabsTrigger value="partners" className="flex-1 sm:flex-none data-[state=active]:bg-background gap-1.5" data-testid="tab-partner-accounts">
+                <Handshake className="w-3.5 h-3.5" />
+                {isRtl ? "حسابات الشركاء" : "Partner Accounts"}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <div className="flex-1 mt-4 overflow-hidden relative">
@@ -169,6 +188,12 @@ export default function SalesModule() {
             <TabsContent value="payments" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto pb-6">
               <ContractPaymentSchedule />
             </TabsContent>
+
+            {canSeePartners && (
+              <TabsContent value="partners" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto pb-6">
+                <PartnerAccounts />
+              </TabsContent>
+            )}
           </div>
         </Tabs>
       </div>

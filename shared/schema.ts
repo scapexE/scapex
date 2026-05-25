@@ -1262,6 +1262,29 @@ export type EmployeeViolation = typeof employeeViolations.$inferSelect;
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONTRACT PAYMENT SCHEDULES
 // ═══════════════════════════════════════════════════════════════════════════════
+// ─── Partner Accounts ────────────────────────────────────────────────────────
+export const partnerAccounts = pgTable("partner_accounts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).default(1),
+  contractNumber: text("contract_number").notNull(),
+  clientName: text("client_name").notNull(),
+  contractType: text("contract_type").notNull().default("عقد صيانة"),
+  contractValue: numeric("contract_value", { precision: 14, scale: 2 }).notNull().default("0"),
+  companySharePct: numeric("company_share_pct", { precision: 6, scale: 2 }).notNull().default("30"),
+  receivedAmount: numeric("received_amount", { precision: 14, scale: 2 }).default("0"),
+  receivedDate: date("received_date"),
+  paymentMethod: text("payment_method").default("cash"),
+  notes: text("notes"),
+  status: text("status").default("pending"),
+  activityId: text("activity_id"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertPartnerAccountSchema = createInsertSchema(partnerAccounts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPartnerAccount = z.infer<typeof insertPartnerAccountSchema>;
+export type PartnerAccount = typeof partnerAccounts.$inferSelect;
+
 export const contractPaymentSchedules = pgTable("contract_payment_schedules", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").references(() => companies.id),

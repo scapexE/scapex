@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts } from "@shared/schema";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
@@ -256,6 +256,25 @@ export async function registerRoutes(
   await db.execute(`CREATE TABLE IF NOT EXISTS app_data (
     key TEXT PRIMARY KEY,
     value JSONB NOT NULL,
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`);
+
+  await db.execute(`CREATE TABLE IF NOT EXISTS partner_accounts (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    contract_number TEXT NOT NULL,
+    client_name TEXT NOT NULL,
+    contract_type TEXT NOT NULL DEFAULT 'عقد صيانة',
+    contract_value NUMERIC(14,2) NOT NULL DEFAULT 0,
+    company_share_pct NUMERIC(6,2) NOT NULL DEFAULT 30,
+    received_amount NUMERIC(14,2) DEFAULT 0,
+    received_date DATE,
+    payment_method TEXT DEFAULT 'cash',
+    notes TEXT,
+    status TEXT DEFAULT 'pending',
+    activity_id TEXT,
+    created_by TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
   )`);
 
@@ -3299,6 +3318,90 @@ export async function registerRoutes(
       const children = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.parentId, id));
       if (children.length > 0) return res.status(400).json({ error: "Cannot delete account with sub-accounts" });
       await db.delete(chartOfAccounts).where(eq(chartOfAccounts.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PARTNER ACCOUNTS — Manager/Admin only
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function resolveUserRole(userId: string): Promise<string | null> {
+    const rows = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    return rows[0]?.role ?? null;
+  }
+  function isManagerOrAdmin(role: string | null): boolean {
+    return role === "admin" || role === "manager";
+  }
+
+  app.get("/api/partner-accounts", async (req, res) => {
+    try {
+      const staffId = (req.header("x-user-id") || "").trim();
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const companyId = parseInt((req.query.companyId as string) || "1");
+      const rows = await db.select().from(partnerAccounts)
+        .where(eq(partnerAccounts.companyId, companyId))
+        .orderBy(desc(partnerAccounts.createdAt));
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/partner-accounts", async (req, res) => {
+    try {
+      const staffId = (req.header("x-user-id") || "").trim();
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const b = req.body;
+      const [row] = await db.insert(partnerAccounts).values({
+        companyId: b.companyId ?? 1,
+        contractNumber: b.contractNumber,
+        clientName: b.clientName,
+        contractType: b.contractType ?? "عقد صيانة",
+        contractValue: b.contractValue?.toString() ?? "0",
+        companySharePct: b.companySharePct?.toString() ?? "30",
+        receivedAmount: b.receivedAmount?.toString() ?? "0",
+        receivedDate: b.receivedDate || null,
+        paymentMethod: b.paymentMethod ?? "cash",
+        notes: b.notes ?? null,
+        status: b.status ?? "pending",
+        activityId: b.activityId ?? null,
+        createdBy: staffId || null,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/partner-accounts/:id", async (req, res) => {
+    try {
+      const staffId = (req.header("x-user-id") || "").trim();
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const id = parseInt(req.params.id);
+      const b = req.body;
+      const [row] = await db.update(partnerAccounts).set({
+        contractNumber: b.contractNumber,
+        clientName: b.clientName,
+        contractType: b.contractType,
+        contractValue: b.contractValue?.toString(),
+        companySharePct: b.companySharePct?.toString(),
+        receivedAmount: b.receivedAmount?.toString(),
+        receivedDate: b.receivedDate || null,
+        paymentMethod: b.paymentMethod,
+        notes: b.notes,
+        status: b.status,
+        updatedAt: new Date(),
+      }).where(eq(partnerAccounts.id, id)).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/partner-accounts/:id", async (req, res) => {
+    try {
+      const staffId = (req.header("x-user-id") || "").trim();
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const id = parseInt(req.params.id);
+      await db.delete(partnerAccounts).where(eq(partnerAccounts.id, id));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
