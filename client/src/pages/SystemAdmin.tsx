@@ -749,6 +749,7 @@ function SystemAdminContent() {
   const [editActivity, setEditActivity] = useState<BusinessActivity | null>(null);
   const [deleteActivity, setDeleteActivity] = useState<BusinessActivity | null>(null);
   const [initialForm, setInitialForm] = useState<Partial<BusinessActivity>>(emptyActivity());
+  const [actCompanyFilter, setActCompanyFilter] = useState<number | null>(null);
 
   // Company assignment for the activity (NEW: per-company activities)
   const [addCompanyId, setAddCompanyId] = useState<number | null>(null);
@@ -884,86 +885,103 @@ function SystemAdminContent() {
 
         {/* ── Activities ─────────────────────── */}
         <TabsContent value="activities" className="mt-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{activities.length} {t("sa.activities_count")}</p>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">{activities.length} {t("sa.activities_count")}</p>
+              {apiCompanies.length > 1 && (
+                <select
+                  className="text-xs border border-border/50 rounded-md px-2 py-1 bg-background"
+                  value={actCompanyFilter ?? ""}
+                  onChange={(e) => setActCompanyFilter(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">{isRtl ? "كل الشركات" : "All companies"}</option>
+                  {apiCompanies.map((c) => <option key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</option>)}
+                </select>
+              )}
+            </div>
             <Button onClick={() => setAddOpen(true)} className="gap-2" data-testid="button-add-activity">
               <Plus className="w-4 h-4" /> {t("sa.add_activity")}
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {activities.map((act) => {
-              const c = ACTIVITY_COLOR_MAP[(act.color as ActivityColor)] ?? ACTIVITY_COLOR_MAP.blue;
-              const assignedCount = getActivityUserIds(act.id).length;
-              const hasCompany = act.companyNameAr || act.companyNameEn || act.companyLogoUrl;
-              return (
-                <Card key={act.id} data-testid={`activity-card-${act.id}`}
-                  className={cn("border-2 transition-all", act.active ? c.border : "border-border/40 opacity-60")}>
-                  <CardContent className="p-4">
-                    {hasCompany && (
-                      <div className={cn("flex items-center gap-2 mb-3 p-2 rounded-lg", c.bg)}>
-                        {act.companyLogoUrl && (
-                          <img src={act.companyLogoUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 border border-border/30" />
-                        )}
-                        <div className="min-w-0">
-                          {act.companyNameAr && <p className={cn("text-[11px] font-bold truncate", c.text)}>{act.companyNameAr}</p>}
-                          {act.companyNameEn && <p className="text-[10px] text-muted-foreground truncate">{act.companyNameEn}</p>}
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-start gap-3">
-                      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", c.badge)}>
-                        <ActivityIcon name={act.icon} className={cn("w-6 h-6", c.text)} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h3 className="font-bold text-sm">{isRtl ? act.nameAr : act.nameEn}</h3>
-                            <p className="text-xs text-muted-foreground">{isRtl ? act.nameEn : act.nameAr}</p>
+          {(actCompanyFilter
+            ? apiCompanies.filter((c) => c.id === actCompanyFilter)
+            : apiCompanies
+          ).map((company) => {
+            const compActs = activities.filter((a) => a.companyId === company.id);
+            if (compActs.length === 0) return null;
+            return (
+              <div key={company.id} className="space-y-3">
+                <div className="flex items-center gap-2 pt-2">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-muted-foreground">{isRtl ? company.nameAr : company.nameEn}</h3>
+                  <div className="flex-1 h-px bg-border/50" />
+                  <Badge variant="secondary" className="text-xs">{compActs.length}</Badge>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {compActs.map((act) => {
+                    const c = ACTIVITY_COLOR_MAP[(act.color as ActivityColor)] ?? ACTIVITY_COLOR_MAP.blue;
+                    const assignedCount = getActivityUserIds(act.id).length;
+                    return (
+                      <Card key={act.id} data-testid={`activity-card-${act.id}`}
+                        className={cn("border-2 transition-all", act.active ? c.border : "border-border/40 opacity-60")}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", c.badge)}>
+                              <ActivityIcon name={act.icon} className={cn("w-6 h-6", c.text)} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h3 className="font-bold text-sm">{isRtl ? act.nameAr : act.nameEn}</h3>
+                                  <p className="text-xs text-muted-foreground">{isRtl ? act.nameEn : act.nameAr}</p>
+                                </div>
+                                <Switch checked={act.active} onCheckedChange={() => handleToggleActive(act)} />
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                <Badge variant="outline" className={cn("border-transparent text-xs", c.badge, c.text)}>
+                                  {act.modules.length} {t("sa.units")}
+                                </Badge>
+                                <Badge variant="outline" className="border-transparent text-xs bg-secondary text-muted-foreground">
+                                  <Users className="w-3 h-3 mr-1" />{assignedCount} {t("sa.users_count")}
+                                </Badge>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {act.modules.slice(0, 5).map((mid) => {
+                                  const mod = ALL_MODULES.find((m) => m.id === mid);
+                                  return mod ? (
+                                    <span key={mid} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
+                                      {isRtl ? mod.labelAr : (mod.labelEn ?? mod.labelAr)}
+                                    </span>
+                                  ) : null;
+                                })}
+                                {act.modules.length > 5 && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
+                                    +{act.modules.length - 5}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <Switch checked={act.active} onCheckedChange={() => handleToggleActive(act)} />
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          <Badge variant="outline" className={cn("border-transparent text-xs", c.badge, c.text)}>
-                            {act.modules.length} {t("sa.units")}
-                          </Badge>
-                          <Badge variant="outline" className="border-transparent text-xs bg-secondary text-muted-foreground">
-                            <Users className="w-3 h-3 mr-1" />{assignedCount} {t("sa.users_count")}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {act.modules.slice(0, 5).map((mid) => {
-                            const mod = ALL_MODULES.find((m) => m.id === mid);
-                            return mod ? (
-                              <span key={mid} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
-                                {isRtl ? mod.labelAr : (mod.labelEn ?? mod.labelAr)}
-                              </span>
-                            ) : null;
-                          })}
-                          {act.modules.length > 5 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
-                              +{act.modules.length - 5}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
-                      <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs h-8"
-                        onClick={() => openEdit(act)} data-testid={`button-edit-activity-${act.id}`}>
-                        <Pencil className="w-3.5 h-3.5" /> {t("sa.edit")}
-                      </Button>
-                      <Button size="sm" variant="outline"
-                        className="gap-1 text-xs h-8 text-destructive border-destructive/30 hover:bg-destructive/10"
-                        onClick={() => setDeleteActivity(act)} data-testid={`button-delete-activity-${act.id}`}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                          <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
+                            <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs h-8"
+                              onClick={() => openEdit(act)} data-testid={`button-edit-activity-${act.id}`}>
+                              <Pencil className="w-3.5 h-3.5" /> {t("sa.edit")}
+                            </Button>
+                            <Button size="sm" variant="outline"
+                              className="gap-1 text-xs h-8 text-destructive border-destructive/30 hover:bg-destructive/10"
+                              onClick={() => setDeleteActivity(act)} data-testid={`button-delete-activity-${act.id}`}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </TabsContent>
 
         {/* ── Company Services ──────────────── */}

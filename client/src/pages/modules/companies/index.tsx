@@ -653,7 +653,7 @@ function CompaniesContent() {
             <DialogHeader>
               <DialogTitle>{t("إضافة نشاط جديد", "Add new activity")}</DialogTitle>
             </DialogHeader>
-            <ActivityForm ref={newActivityFormRef} initialValue={emptyActivity} t={t} isRtl={isRtl} />
+            <ActivityForm ref={newActivityFormRef} initialForm={emptyActivity()} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowNewActivityDialog(false)}>
                 {t("إلغاء", "Cancel")}

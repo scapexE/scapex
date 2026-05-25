@@ -2568,6 +2568,84 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  // ─────── Documents (DMS) ────────────────────────────────────────────────────
+  app.get("/api/documents", async (req, res) => {
+    try {
+      const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
+      const category = req.query.category as string | undefined;
+      const folder = req.query.folder as string | undefined;
+      let query = db.select().from(documents).orderBy(desc(documents.createdAt));
+      const rows = await query;
+      let filtered = rows;
+      if (companyId) filtered = filtered.filter((d) => d.companyId === companyId);
+      if (category && category !== "all") filtered = filtered.filter((d) => d.category === category);
+      if (folder && folder !== "all") filtered = filtered.filter((d) => d.folder === folder);
+      res.json(filtered);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/documents", async (req, res) => {
+    try {
+      const actorId = (req.header("x-user-id") || "").trim();
+      const actor = actorId ? await resolveStaffUser(actorId) : null;
+      const body = req.body;
+      const year = new Date().getFullYear();
+      const countResult = await db.select().from(documents);
+      const seq = String(countResult.length + 1).padStart(3, "0");
+      const [doc] = await db.insert(documents).values({
+        titleAr: body.titleAr,
+        titleEn: body.titleEn || null,
+        docNo: body.docNo || `DOC-${year}-${seq}`,
+        category: body.category || "general",
+        folder: body.folder || "root",
+        status: body.status || "draft",
+        type: body.type || null,
+        version: body.version ? Number(body.version) : 1,
+        accessLevel: body.accessLevel || "internal",
+        tags: body.tags || [],
+        description: body.description || null,
+        uploadedBy: actor ? actorId : null,
+        uploadedByName: actor ? ((actor as any).name || (actor as any).username || null) : null,
+        companyId: body.companyId ? Number(body.companyId) : null,
+        projectId: body.projectId ? Number(body.projectId) : null,
+        activityId: body.activityId || null,
+        fileSize: body.fileSize ? Number(body.fileSize) : null,
+        fileUrl: body.fileUrl || null,
+      }).returning();
+      res.json(doc);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/documents/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const body = req.body;
+      const [doc] = await db.update(documents).set({
+        titleAr: body.titleAr,
+        titleEn: body.titleEn || null,
+        category: body.category || "general",
+        folder: body.folder || "root",
+        status: body.status || "draft",
+        type: body.type || null,
+        version: body.version ? Number(body.version) : 1,
+        accessLevel: body.accessLevel || "internal",
+        tags: body.tags || [],
+        description: body.description || null,
+        updatedAt: new Date(),
+      }).where(eq(documents.id, id)).returning();
+      if (!doc) return res.status(404).json({ error: "Not found" });
+      res.json(doc);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/documents/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(documents).where(eq(documents.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   app.post("/api/auth/change-password", async (req, res) => {
     try {
       const { userId, newPassword } = req.body;
