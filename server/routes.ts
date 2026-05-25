@@ -775,12 +775,23 @@ export async function registerRoutes(
       if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const assignedTo = (req.query.assignedTo as string) || null;
       const conds: any[] = [eq(contacts.type, "customer")];
+
+      // Activity scoping
       if (scope.activityId) conds.push(eq(contacts.activityId, scope.activityId));
       else if (!scope.isPrivileged && scope.allowedIds && scope.allowedIds.length) {
-        // Defence-in-depth: should never hit because scope was rejected, but constrain anyway
         conds.push(inArray(contacts.activityId, scope.allowedIds));
       }
-      if (assignedTo) conds.push(eq(contacts.assignedTo, assignedTo));
+
+      // Ownership scoping:
+      // - Privileged (admin/manager) may pass ?assignedTo=<id> to filter to one employee (Mine toggle)
+      // - Non-privileged employees ONLY see customers currently assigned to them
+      //   (after a transfer they lose access to what they handed off)
+      if (assignedTo) {
+        conds.push(eq(contacts.assignedTo, assignedTo));
+      } else if (!scope.isPrivileged) {
+        conds.push(eq(contacts.assignedTo, scope.actor.id));
+      }
+
       const where = conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.createdAt));
       res.json(rows);
@@ -852,7 +863,9 @@ export async function registerRoutes(
       if (!isPrivileged && existing.activityId && !(scope.allowedIds || []).includes(existing.activityId)) {
         return res.status(403).json({ error: "Forbidden: record is in a different activity" });
       }
-      const isOwner = existing.assignedTo === actorId || existing.createdBy === actorId;
+      // Ownership = currently assigned employee (after a transfer the previous
+      // holder loses the right to edit — they are no longer the assignee).
+      const isOwner = existing.assignedTo === actorId;
 
       // Reassignment-only flow: only assignedTo provided
       const isAssignOnly = Object.keys(d).length === 1 && "assignedTo" in d;
@@ -910,8 +923,8 @@ export async function registerRoutes(
       if (!scope.isPrivileged && existing.activityId && !(scope.allowedIds || []).includes(existing.activityId)) {
         return res.status(403).json({ error: "Forbidden: record is in a different activity" });
       }
-      // Only privileged or owner may delete
-      const isOwner = existing.assignedTo === scope.actor.id || existing.createdBy === scope.actor.id;
+      // Only privileged or currently-assigned employee may delete
+      const isOwner = existing.assignedTo === scope.actor.id;
       if (!scope.isPrivileged && !isOwner) {
         return res.status(403).json({ error: "Forbidden" });
       }

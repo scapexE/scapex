@@ -109,10 +109,6 @@ export function CustomersList({
   useEffect(() => { seedDemoSurveys(); }, []);
 
   const fetchData = useCallback(async () => {
-    // Privileged users (admin/manager) may view "All Activities" — when no
-    // activity is selected we still fetch (server returns the unfiltered set).
-    // Non-privileged users with no activity get an empty list (the banner
-    // tells them what to do).
     const isPriv = isAdmin || isManager;
     if (!activeActivity && !isPriv) {
       setRows([]);
@@ -123,7 +119,10 @@ export function CustomersList({
       setLoading(true);
       const params = new URLSearchParams();
       if (activeActivity?.id) params.set("activityId", activeActivity.id);
-      const url = params.toString() ? `/api/customers?${params.toString()}` : "/api/customers";
+      // Privileged viewing "Mine": server filters by assignedTo
+      // Non-privileged: server always enforces assignedTo = me automatically
+      if (isPriv && !showAll && currentUser?.id) params.set("assignedTo", currentUser.id);
+      const url = `/api/customers${params.toString() ? `?${params.toString()}` : ""}`;
       const [r, u] = await Promise.all([
         scopedFetch(url).then(x => x.json()),
         scopedFetch("/api/users").then(x => x.json()),
@@ -139,7 +138,7 @@ export function CustomersList({
     } finally {
       setLoading(false);
     }
-  }, [toast, isRtl, activeActivity]);
+  }, [toast, isRtl, activeActivity, isAdmin, isManager, showAll, currentUser?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -149,37 +148,12 @@ export function CustomersList({
     }
   }, [openAddDialogSignal]);
 
-  // Users available for assignment within this activity
-  const activityUserIds = useMemo(() => {
-    if (!activeActivity) return new Set<string>();
-    return new Set(getActivityUserIds(activeActivity.id));
-  }, [activeActivity, getActivityUserIds]);
-
-  const assignableUsers = useMemo(() => {
-    const base = users.filter(u => {
-      if (!activityUserIds.has(u.id)) return false;
-      const roles = new Set<string>([u.role || "", ...(u.roles || [])]);
-      // Exclude pure clients/viewers from assignment targets
-      if (roles.has("client") || roles.has("viewer")) return false;
-      return true;
-    });
-    const currentAssigneeId = assignTarget?.assignedTo;
-    if (currentAssigneeId && !base.some(u => u.id === currentAssigneeId)) {
-      const cur = users.find(u => u.id === currentAssigneeId);
-      if (cur) return [cur, ...base];
-    }
-    return base;
-  }, [users, activityUserIds, assignTarget?.assignedTo]);
-
   const userById = (id: string | null | undefined) =>
     id ? users.find(u => u.id === id) : null;
 
-  // Visibility: admin/manager see all, others see only their assignments
-  const visibleRows = useMemo(() => {
-    if (canSeeAll && showAll) return rows;
-    if (!currentUser?.id) return [];
-    return rows.filter(r => r.assignedTo === currentUser.id || r.createdBy === currentUser.id);
-  }, [rows, canSeeAll, showAll, currentUser?.id]);
+  // Server now enforces ownership — rows already contain only what this user may see.
+  // For privileged users, showAll/Mine is also server-enforced via ?assignedTo=.
+  const visibleRows = rows;
 
   const customers = visibleRows.map((r) => toCustomer(r, isRtl));
 
@@ -280,9 +254,11 @@ export function CustomersList({
     }
   };
 
+  // Owner = currently assigned employee. After a transfer the original holder
+  // loses ownership, so we only check assignedTo (not createdBy).
   const canReassign = (c: DbContact) => {
     if (isAdmin || isManager) return true;
-    return c.assignedTo === currentUser?.id || c.createdBy === currentUser?.id;
+    return c.assignedTo === currentUser?.id;
   };
 
   const openAssignDialog = (c: DbContact) => {
@@ -312,7 +288,9 @@ export function CustomersList({
 
   const handleAssign = async () => {
     if (!assignTarget) return;
-    const activityChanged = isAdmin && assignActivity && assignActivity !== assignTarget.activityId;
+    // Admin and manager can change activity; regular employees can only reassign within same activity
+    const canChangeActivity = isAdmin || isManager;
+    const activityChanged = canChangeActivity && assignActivity && assignActivity !== assignTarget.activityId;
     if (!assignTo) {
       toast({ title: isRtl ? "اختر موظفاً" : "Choose an employee", variant: "destructive" });
       return;
@@ -694,7 +672,8 @@ export function CustomersList({
             </DialogDescription>
           </DialogHeader>
           <div className="py-2 space-y-3">
-            {isAdmin && (
+            {/* Activity picker: visible to admin and manager */}
+            {(isAdmin || isManager) && (
               <div className="space-y-1.5">
                 <Label htmlFor="assign-activity">{isRtl ? "النشاط التجاري" : "Business activity"}</Label>
                 <select
@@ -714,7 +693,7 @@ export function CustomersList({
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="assign-to">{isRtl ? "الموظف المسؤول" : "Responsible employee"}</Label>
+              <Label htmlFor="assign-to">{isRtl ? "الموظف المسؤول الجديد" : "New responsible employee"}</Label>
               <select
                 id="assign-to"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -723,18 +702,26 @@ export function CustomersList({
                 data-testid="select-assign-to"
               >
                 <option value="">{isRtl ? "— اختر موظفاً —" : "— Choose —"}</option>
-                {(isAdmin ? usersForActivity : assignableUsers).map(u => (
+                {usersForActivity.map(u => (
                   <option key={u.id} value={u.id}>
                     {u.name} {u.role ? `(${u.role})` : ""}
                   </option>
                 ))}
               </select>
-              {(isAdmin ? usersForActivity : assignableUsers).length === 0 && (
+              {usersForActivity.length === 0 && (
                 <p className="text-xs text-amber-600">
                   {isRtl ? "لا يوجد موظفون مرتبطون بهذا النشاط." : "No employees assigned to this activity."}
                 </p>
               )}
             </div>
+            {/* Warning for regular employees: transfer is one-way */}
+            {!isAdmin && !isManager && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2">
+                {isRtl
+                  ? "⚠️ بعد النقل لن تتمكن من رؤية هذا العميل أو تعديل بياناته — يصبح مسؤولية الموظف الجديد."
+                  : "⚠️ After transfer you will no longer have access to this customer — ownership moves to the new employee."}
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignTarget(null)} data-testid="button-cancel-assign">
