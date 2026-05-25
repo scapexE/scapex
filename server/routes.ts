@@ -2918,6 +2918,171 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  // ─────── CRM Analytics ───────────────────────────────────────────────────────
+  app.get("/api/crm/analytics", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+
+      // Activity filter for deal / invoice / payment scoping
+      const activityFilter = scope.activityId
+        ? [scope.activityId]
+        : scope.allowedIds || [];
+
+      // 1. All customers (contacts) in scope
+      const customerConds: any[] = [eq(contacts.type, "customer")];
+      if (!scope.isPrivileged && activityFilter.length > 0) {
+        const actRows = await db.select({ companyId: businessActivities.companyId })
+          .from(businessActivities)
+          .where(inArray(businessActivities.id, activityFilter));
+        const compIds = actRows.map(a => a.companyId).filter((c): c is number => c !== null);
+        const cFilter = compIds.length > 0 ? inArray(contacts.companyId, compIds) : null;
+        const aFilter = activityFilter.length > 0 ? inArray(contacts.activityId, activityFilter) : null;
+        if (cFilter && aFilter) customerConds.push(or(cFilter, aFilter));
+        else if (cFilter) customerConds.push(cFilter);
+        else if (aFilter) customerConds.push(aFilter);
+        else return res.json({ kpis: {}, employees: [] });
+      }
+      const allCustomers = await db.select({
+        id: contacts.id,
+        assignedTo: contacts.assignedTo,
+        createdAt: contacts.createdAt,
+        isActive: contacts.isActive,
+      }).from(contacts).where(customerConds.length > 1 ? and(...customerConds) : customerConds[0]);
+
+      // 2. Deals in scope
+      const dealConds: any[] = [];
+      if (!scope.isPrivileged && activityFilter.length > 0)
+        dealConds.push(inArray(deals.activityId, activityFilter));
+      const allDeals = await db.select({
+        id: deals.id,
+        assignedTo: deals.assignedTo,
+        contactId: deals.contactId,
+        value: deals.value,
+        status: deals.status,
+        createdAt: deals.createdAt,
+      }).from(deals).where(dealConds.length ? dealConds[0] : undefined);
+
+      // 3. Proposals in scope
+      const propConds: any[] = [];
+      if (!scope.isPrivileged && activityFilter.length > 0)
+        propConds.push(inArray(proposals.activityId, activityFilter));
+      const allProposals = await db.select({
+        id: proposals.id,
+        contactId: proposals.contactId,
+        createdBy: proposals.createdBy,
+        total: proposals.total,
+        status: proposals.status,
+        createdAt: proposals.createdAt,
+      }).from(proposals).where(propConds.length ? propConds[0] : undefined);
+
+      // 4. Payments received in scope
+      const payConds: any[] = [eq(payments.type, "received")];
+      if (!scope.isPrivileged && activityFilter.length > 0) {
+        // payments don't have activityId — scope by contactId matching in-scope customers
+        const custIds = allCustomers.map(c => c.id);
+        if (custIds.length > 0) payConds.push(inArray(payments.contactId, custIds));
+        else return res.json({ kpis: {}, employees: [] });
+      }
+      const allPayments = await db.select({
+        id: payments.id,
+        contactId: payments.contactId,
+        amount: payments.amount,
+        createdBy: payments.createdBy,
+        date: payments.date,
+      }).from(payments).where(and(...payConds));
+
+      // 5. All active users
+      const allUsers = await db.select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+      }).from(users).where(eq(users.isActive, true));
+
+      // ── Aggregate per employee ──────────────────────────────────────────────
+      const custByAssignee = new Map<string, number[]>();
+      allCustomers.forEach(c => {
+        if (!c.assignedTo) return;
+        if (!custByAssignee.has(c.assignedTo)) custByAssignee.set(c.assignedTo, []);
+        custByAssignee.get(c.assignedTo)!.push(c.id);
+      });
+
+      const employeeStats = allUsers.map(user => {
+        const myContactIds = new Set(custByAssignee.get(user.id) || []);
+        const myDeals = allDeals.filter(d => d.assignedTo === user.id || (d.contactId && myContactIds.has(d.contactId)));
+        const myProposals = allProposals.filter(p =>
+          p.createdBy === user.id || (p.contactId && myContactIds.has(p.contactId))
+        );
+        const myPayments = allPayments.filter(p => p.contactId && myContactIds.has(p.contactId));
+
+        const dealsWonValue = myDeals.filter(d => d.status === "won").reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
+        const dealsPipelineValue = myDeals.filter(d => d.status === "open").reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
+        const proposalsValue = myProposals.reduce((s, p) => s + parseFloat(p.total ?? "0"), 0);
+        const proposalsApproved = myProposals.filter(p => p.status === "approved").length;
+        const collectedAmount = myPayments.reduce((s, p) => s + parseFloat(p.amount ?? "0"), 0);
+
+        if (myContactIds.size === 0 && myDeals.length === 0 && myProposals.length === 0) return null;
+
+        return {
+          userId: user.id,
+          name: user.name || user.email || user.id,
+          role: user.role,
+          customersCount: myContactIds.size,
+          dealsCount: myDeals.length,
+          dealsWonValue,
+          dealsPipelineValue,
+          proposalsCount: myProposals.length,
+          proposalsApproved,
+          proposalsValue,
+          collectedAmount,
+        };
+      }).filter(Boolean);
+
+      // ── KPIs ────────────────────────────────────────────────────────────────
+      const totalCollected = allPayments.reduce((s, p) => s + parseFloat(p.amount ?? "0"), 0);
+      const totalPipeline = allDeals.filter(d => d.status === "open").reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
+      const totalWon = allDeals.filter(d => d.status === "won").reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
+      const totalProposals = allProposals.reduce((s, p) => s + parseFloat(p.total ?? "0"), 0);
+
+      // Monthly trend: payments per month (last 6 months)
+      const now = new Date();
+      const months: { label: string; collected: number; deals: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const label = d.toLocaleString("default", { month: "short" }) + " " + d.getFullYear();
+        const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
+        const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        const collected = allPayments
+          .filter(p => p.date && new Date(p.date) >= mStart && new Date(p.date) <= mEnd)
+          .reduce((s, p) => s + parseFloat(p.amount ?? "0"), 0);
+        const dealsWon = allDeals
+          .filter(d2 => d2.status === "won" && d2.createdAt && new Date(d2.createdAt) >= mStart && new Date(d2.createdAt) <= mEnd)
+          .reduce((s, d2) => s + parseFloat(d2.value ?? "0"), 0);
+        months.push({ label, collected, deals: dealsWon });
+      }
+
+      res.json({
+        kpis: {
+          totalCustomers: allCustomers.length,
+          activeCustomers: allCustomers.filter(c => c.isActive).length,
+          totalPipeline,
+          totalWon,
+          totalCollected,
+          totalProposals,
+          totalProposalsCount: allProposals.length,
+          totalDeals: allDeals.length,
+          wonDeals: allDeals.filter(d => d.status === "won").length,
+        },
+        employees: employeeStats,
+        trend: months,
+      });
+    } catch (err: any) {
+      console.error("CRM analytics error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   // ─────── CRM Documents (linked to contacts + deals) ─────────────────────────
   app.get("/api/crm-documents", async (req, res) => {
     try {
