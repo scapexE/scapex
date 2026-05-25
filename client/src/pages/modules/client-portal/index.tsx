@@ -530,8 +530,19 @@ export default function ClientPortalModule() {
                               </div>
                               <Chev className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0 mt-1" />
                             </div>
+                            {p.currentStageAr && (
+                              <div className="mt-2">
+                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-medium" data-testid={`badge-current-stage-${p.id}`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                  {p.currentStageAr}
+                                </span>
+                              </div>
+                            )}
                             <div className="mt-3 flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">{p.status || "—"}</span>
+                              <span className="text-muted-foreground">{t(
+                                p.status === "active" ? "نشط" : p.status === "planning" ? "تخطيط" : p.status === "completed" ? "مكتمل" : p.status === "on_hold" ? "متوقف" : (p.status || "—"),
+                                p.status === "active" ? "Active" : p.status === "planning" ? "Planning" : p.status === "completed" ? "Completed" : p.status === "on_hold" ? "On hold" : (p.status || "—"),
+                              )}</span>
                               <span className="font-medium tabular-nums">{p.progress ?? 0}%</span>
                             </div>
                             <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">

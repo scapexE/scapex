@@ -1986,6 +1986,25 @@ export async function registerRoutes(
     if (!me) return;
     try {
       const rows = await db.select().from(projects).where(eq(projects.contactId, me.id));
+      // For each project pull the first in_progress stage (or first pending if none in progress)
+      // to show as the "current stage" on the portal project card without a full stages fetch.
+      const projectIds = rows.map(p => p.id);
+      let stageMap: Record<number, string | null> = {};
+      if (projectIds.length > 0) {
+        const allStages = await db.select({
+          projectId: projectMilestones.projectId,
+          titleAr: projectMilestones.titleAr,
+          titleEn: projectMilestones.titleEn,
+          status: projectMilestones.status,
+          sortOrder: projectMilestones.sortOrder,
+        }).from(projectMilestones).where(inArray(projectMilestones.projectId, projectIds));
+        // Group by project, pick the best "current" stage
+        for (const pid of projectIds) {
+          const stgs = allStages.filter(s => s.projectId === pid).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+          const active = stgs.find(s => s.status === "in_progress") || stgs.find(s => s.status === "pending");
+          stageMap[pid] = active ? (active.titleAr || active.titleEn || null) : null;
+        }
+      }
       res.json(rows.map((p) => ({
         id: p.id, projectCode: p.projectCode,
         nameAr: p.nameAr, nameEn: p.nameEn,
@@ -1993,6 +2012,7 @@ export async function registerRoutes(
         startDate: p.startDate, endDate: p.endDate,
         progress: p.progress, city: p.city, location: p.location,
         description: p.description,
+        currentStageAr: stageMap[p.id] ?? null,
       })));
     } catch (err: any) {
       console.error("Portal projects error:", err);

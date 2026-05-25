@@ -12,6 +12,7 @@ import {
   Building, Mail, Phone, MapPin, Star, FileText, Briefcase,
   Receipt, CheckCircle2, Clock, AlertTriangle, ExternalLink,
   Plus, TrendingUp, Calendar, ArrowRight, Shield, FileCheck, ClipboardCheck,
+  Users, UserCheck,
 } from "lucide-react";
 import { getProposals, getContracts, STATUS_META, SERVICE_META, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
@@ -32,6 +33,8 @@ export interface Customer {
   phone: string;
   status: string;
   rating: number;
+  assignedTo?: string | null;
+  serviceEmployeeIds?: string[] | null;
 }
 
 interface CustomerCardProps {
@@ -146,6 +149,27 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                 <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /><span dir="ltr">{customer.phone}</span></span>
                 <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />Riyadh, KSA</span>
               </div>
+              {/* Account manager + service team */}
+              {(customer.assignedTo || (customer.serviceEmployeeIds?.length ?? 0) > 0) && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {customer.assignedTo && (() => {
+                    const mgr = usersList.find(u => u.id === customer.assignedTo);
+                    const mgrName = mgr ? (mgr.name || `${(mgr as any).firstName || ""} ${(mgr as any).lastName || ""}`.trim() || customer.assignedTo) : customer.assignedTo;
+                    return (
+                      <span className="inline-flex items-center gap-1.5 text-xs bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/50 px-2 py-0.5 rounded-full" data-testid="badge-assigned-manager">
+                        <UserCheck className="w-3 h-3" />
+                        {isRtl ? "المسؤول:" : "Manager:"} {mgrName}
+                      </span>
+                    );
+                  })()}
+                  {(customer.serviceEmployeeIds?.length ?? 0) > 0 && (
+                    <span className="inline-flex items-center gap-1.5 text-xs bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/50 px-2 py-0.5 rounded-full" data-testid="badge-service-team">
+                      <Users className="w-3 h-3" />
+                      {isRtl ? "فريق الخدمة:" : "Service team:"} {customer.serviceEmployeeIds!.length} {isRtl ? "موظف" : "staff"}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -153,7 +177,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
           <div className="grid grid-cols-4 gap-3 mt-4">
             <KPIBox icon={<FileText className="w-4 h-4" />} label={isRtl ? "العروض" : "Proposals"} value={proposals.length} color="blue" />
             <KPIBox icon={<FileCheck className="w-4 h-4" />} label={isRtl ? "العقود" : "Contracts"} value={contracts.length} color="violet" />
-            <KPIBox icon={<Briefcase className="w-4 h-4" />} label={isRtl ? "المشاريع" : "Projects"} value={projects.length} color="emerald" />
+            <KPIBox icon={<Briefcase className="w-4 h-4" />} label={isRtl ? "المشاريع" : "Projects"} value={apiProjects.length} color="emerald" />
             <KPIBox
               icon={<TrendingUp className="w-4 h-4" />}
               label={isRtl ? "إجمالي العقود" : "Total Value"}
@@ -374,8 +398,13 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                         </div>
                         <Progress value={p.progress ?? 0} className="h-1.5" />
                       </div>
-                      {(p.startDate || p.endDate) && (
-                        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                      {(p.startDate || p.endDate || p.managerId) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                          {p.managerId && (() => {
+                            const mgr = usersList.find(u => u.id === p.managerId);
+                            const mgrName = mgr ? (mgr.name || `${(mgr as any).firstName || ""} ${(mgr as any).lastName || ""}`.trim() || p.managerId) : p.managerId;
+                            return <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400"><UserCheck className="w-3 h-3" /> {mgrName}</span>;
+                          })()}
                           {p.startDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {p.startDate}</span>}
                           {p.endDate && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {p.endDate}</span>}
                         </div>

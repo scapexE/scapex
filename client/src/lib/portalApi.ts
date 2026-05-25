@@ -28,6 +28,7 @@ export interface PortalProject {
   progress: number | null;
   city: string | null;
   location: string | null;
+  currentStageAr: string | null;
 }
 
 export interface PortalStage {

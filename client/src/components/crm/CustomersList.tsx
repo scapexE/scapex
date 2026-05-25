@@ -69,6 +69,8 @@ function toCustomer(c: DbContact, isRtl: boolean): Customer {
     phone: c.phone || c.mobile || "",
     status: c.isActive === false ? "inactive" : (c.source === "lead" ? "lead" : "active"),
     rating: 4,
+    assignedTo: c.assignedTo || null,
+    serviceEmployeeIds: Array.isArray(c.serviceEmployeeIds) ? c.serviceEmployeeIds : null,
   };
 }
 
