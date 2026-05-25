@@ -55,11 +55,18 @@ async function syncCompanyActivities(
     }
   }
 
+  // Load custom catalog items from app_data and merge with built-in
+  const [customRow] = await db.select().from(appData)
+    .where(eq(appData.key, "scapex_activity_catalog_custom"));
+  const customCatalog: Array<{ id: string; nameAr: string; nameEn: string; color: string; icon: string; modules: string[] }> =
+    Array.isArray(customRow?.value) ? (customRow.value as any[]) : [];
+  const fullCatalog = [...ACTIVITY_CATALOG, ...customCatalog];
+
   // Create new activities for newly selected catalog types
   const allUsersRows = await db.select().from(users);
   for (const catId of catalogIds) {
     if (existingByCatalogId.has(catId)) continue;
-    const cat = ACTIVITY_CATALOG.find(c => c.id === catId);
+    const cat = fullCatalog.find(c => c.id === catId);
     if (!cat) continue;
     const actId = toActivityId(catId, companyId);
     await db.insert(businessActivities).values({
@@ -389,6 +396,61 @@ export async function registerRoutes(
       console.error("Create activity error:", err);
       res.status(500).json({ error: "Server error" });
     }
+  });
+
+  // ═══ Custom Activity Catalog CRUD (admin only) ═══════════════════════════
+  app.get("/api/activity-catalog", async (_req, res) => {
+    try {
+      const [row] = await db.select().from(appData)
+        .where(eq(appData.key, "scapex_activity_catalog_custom"));
+      const custom = Array.isArray(row?.value) ? (row.value as any[]) : [];
+      res.json({ builtin: ACTIVITY_CATALOG, custom });
+    } catch { res.status(500).json({ error: "Server error" }); }
+  });
+
+  app.post("/api/activity-catalog", async (req, res) => {
+    try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+      const { nameAr, nameEn, color, icon, modules } = req.body;
+      if (!nameAr || !nameEn) return res.status(400).json({ error: "nameAr and nameEn required" });
+      const id = `act_custom_${Date.now()}`;
+      const newItem = {
+        id, nameAr, nameEn,
+        color: color || "blue",
+        icon: icon || "HardHat",
+        modules: Array.isArray(modules) && modules.length ? modules : [
+          "dashboard","crm","sales","accounting","purchases","projects",
+          "engineering","approvals","government","smart_proposal","equipment",
+          "inventory","hr","payroll","attendance","hse","dms","mobile_app","bi",
+        ],
+      };
+      const [row] = await db.select().from(appData)
+        .where(eq(appData.key, "scapex_activity_catalog_custom"));
+      const items: any[] = Array.isArray(row?.value) ? [...(row.value as any[])] : [];
+      items.push(newItem);
+      await db.insert(appData)
+        .values({ key: "scapex_activity_catalog_custom", value: items })
+        .onConflictDoUpdate({ target: appData.key, set: { value: items, updatedAt: new Date() } });
+      res.json(newItem);
+    } catch (err) {
+      console.error("Add catalog item error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.delete("/api/activity-catalog/:id", async (req, res) => {
+    try {
+      if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+      const id = req.params.id;
+      const [row] = await db.select().from(appData)
+        .where(eq(appData.key, "scapex_activity_catalog_custom"));
+      if (!row) return res.json({ success: true });
+      const items = (row.value as any[]).filter((x: any) => x.id !== id);
+      await db.update(appData)
+        .set({ value: items, updatedAt: new Date() })
+        .where(eq(appData.key, "scapex_activity_catalog_custom"));
+      res.json({ success: true });
+    } catch { res.status(500).json({ error: "Server error" }); }
   });
 
   app.patch("/api/activities/:id", async (req, res) => {

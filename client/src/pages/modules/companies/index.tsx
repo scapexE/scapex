@@ -110,6 +110,25 @@ function CompaniesContent() {
   const [showNewActivityDialog, setShowNewActivityDialog] = useState(false);
   const newActivityFormRef = useRef<ActivityFormHandle>(null);
 
+  // Custom catalog management
+  type CustomCatalogItem = { id: string; nameAr: string; nameEn: string; color: string; icon: string; modules: string[] };
+  const [customCatalog, setCustomCatalog] = useState<CustomCatalogItem[]>([]);
+  const [showCatalogDialog, setShowCatalogDialog] = useState(false);
+  const [catalogForm, setCatalogForm] = useState<{ nameAr: string; nameEn: string; color: string }>({ nameAr: "", nameEn: "", color: "blue" });
+  const [savingCatalog, setSavingCatalog] = useState(false);
+
+  const fetchCatalog = useCallback(async () => {
+    try {
+      const res = await fetch("/api/activity-catalog");
+      if (res.ok) {
+        const d = await res.json();
+        setCustomCatalog(Array.isArray(d.custom) ? d.custom : []);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchCatalog(); }, [fetchCatalog]);
+
   const fetchData = useCallback(async () => {
     try {
       const [cRes, bRes] = await Promise.all([
@@ -162,6 +181,33 @@ function CompaniesContent() {
 
   const t = (ar: string, en: string) => isRtl ? ar : en;
 
+  const addToCatalog = useCallback(async () => {
+    if (!catalogForm.nameAr || !catalogForm.nameEn) return;
+    setSavingCatalog(true);
+    try {
+      const res = await fetch("/api/activity-catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(catalogForm),
+      });
+      if (res.ok) {
+        await fetchCatalog();
+        setCatalogForm({ nameAr: "", nameEn: "", color: "blue" });
+        setShowCatalogDialog(false);
+        toast({ title: isRtl ? "تمت الإضافة للكتالوج" : "Added to catalog" });
+      }
+    } finally { setSavingCatalog(false); }
+  }, [catalogForm, fetchCatalog, toast, isRtl]);
+
+  const deleteFromCatalog = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/activity-catalog/${id}`, { method: "DELETE" });
+      await fetchCatalog();
+      setCompanyForm(p => ({ ...p, activityIds: (p.activityIds || []).filter(x => x !== id) }));
+      toast({ title: isRtl ? "تم حذفه من الكتالوج" : "Removed from catalog" });
+    } catch {}
+  }, [fetchCatalog, toast, isRtl]);
+
   const userScopedCompanies = allowedCompanyIds === null
     ? companies
     : companies.filter(c => allowedCompanyIds.includes(c.id));
@@ -199,12 +245,16 @@ function CompaniesContent() {
     setEditCompany(c);
     // Derive catalog IDs from existing DB activities for this company.
     // This is always correct even if settings.activityIds is stale or missing.
+    const fullCatalogIds = new Set([
+      ...ACTIVITY_CATALOG.map(c => c.id),
+      ...customCatalog.map(c => c.id),
+    ]);
     const fromActivities = activities
       .filter(a => a.companyId === parseInt(c.id))
       .map(a => toCatalogId(a.id))
-      .filter(catId => ACTIVITY_CATALOG.some(cat => cat.id === catId));
+      .filter(catId => fullCatalogIds.has(catId));
     // Also accept any catalog IDs already in settings (in case activities aren't loaded yet)
-    const fromSettings = (c.activityIds || []).filter(id => ACTIVITY_CATALOG.some(cat => cat.id === id));
+    const fromSettings = (c.activityIds || []).filter(id => fullCatalogIds.has(id));
     const catalogIds = Array.from(new Set([...fromActivities, ...fromSettings]));
     setCompanyForm({ ...c, activityIds: catalogIds, managerId: c.settings?.managerId || null } as any);
     setShowCompanyDialog(true);
@@ -597,29 +647,44 @@ function CompaniesContent() {
                 </Select>
               </div>
               <div>
-                <Label className="mb-1 block">{t("الأنشطة التجارية", "Business Activities")}</Label>
-                <p className="text-xs text-muted-foreground mb-2">{t("اختر الأنشطة التي تعمل بها هذه الشركة — سيُنشئ النظام تلقائياً نشاطاً خاصاً لكل اختيار", "Select the activities for this company — the system will auto-create a dedicated activity for each selection")}</p>
-                <div className="grid grid-cols-2 gap-2 p-3 border rounded-md">
-                  {ACTIVITY_CATALOG.map(cat => {
+                <div className="flex items-center justify-between mb-1">
+                  <Label>{t("الأنشطة التجارية", "Business Activities")}</Label>
+                  {isAdmin && (
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1"
+                      onClick={() => { setCatalogForm({ nameAr: "", nameEn: "", color: "blue" }); setShowCatalogDialog(true); }}
+                      data-testid="button-add-catalog-type">
+                      <Plus className="w-3 h-3" />{t("نوع جديد", "New type")}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">{t("اختر الأنشطة التي تعمل بها هذه الشركة — النظام ينشئ نشاطاً لكل اختيار تلقائياً", "Select activities — system auto-creates one per selection")}</p>
+                <div className="grid grid-cols-2 gap-1.5 p-3 border rounded-md max-h-52 overflow-y-auto">
+                  {[...ACTIVITY_CATALOG, ...customCatalog].map(cat => {
+                    const isCustom = customCatalog.some(c => c.id === cat.id);
                     const checked = (companyForm.activityIds || []).includes(cat.id);
                     return (
-                      <label key={cat.id} className="flex items-center gap-2 cursor-pointer text-sm py-1" data-testid={`checkbox-activity-${cat.id}`}>
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => {
-                            setCompanyForm(p => {
-                              const cur = p.activityIds || [];
-                              return {
-                                ...p,
-                                activityIds: v
-                                  ? Array.from(new Set([...cur, cat.id]))
-                                  : cur.filter(x => x !== cat.id),
-                              };
-                            });
-                          }}
-                        />
-                        <span>{isRtl ? cat.nameAr : cat.nameEn}</span>
-                      </label>
+                      <div key={cat.id} className="flex items-center gap-2 group">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm flex-1 py-0.5" data-testid={`checkbox-activity-${cat.id}`}>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              setCompanyForm(p => {
+                                const cur = p.activityIds || [];
+                                return { ...p, activityIds: v ? Array.from(new Set([...cur, cat.id])) : cur.filter(x => x !== cat.id) };
+                              });
+                            }}
+                          />
+                          <span className="flex-1">{isRtl ? cat.nameAr : cat.nameEn}</span>
+                          {isCustom && <Badge variant="secondary" className="text-[10px] px-1 py-0">{t("مخصص", "Custom")}</Badge>}
+                        </label>
+                        {isAdmin && isCustom && (
+                          <button type="button" onClick={() => deleteFromCatalog(cat.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600"
+                            data-testid={`button-delete-catalog-${cat.id}`} title={t("حذف من الكتالوج", "Remove from catalog")}>
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -679,6 +744,74 @@ function CompaniesContent() {
                 }}
               >
                 {t("حفظ", "Save")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add new custom activity TYPE to catalog */}
+        <Dialog open={showCatalogDialog} onOpenChange={setShowCatalogDialog}>
+          <DialogContent className="max-w-md" dir={dir}>
+            <DialogHeader>
+              <DialogTitle>{t("إضافة نوع نشاط جديد للكتالوج", "Add New Activity Type to Catalog")}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                {t("أضف نوع نشاط تجاري جديد يمكن تفعيله لأي شركة لاحقاً.", "Add a new business activity type that can later be assigned to any company.")}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>{t("الاسم بالعربي", "Name (Arabic)")}</Label>
+                  <Input
+                    value={catalogForm.nameAr}
+                    onChange={e => setCatalogForm(p => ({ ...p, nameAr: e.target.value }))}
+                    placeholder={t("مثال: التقنية والبرمجة", "e.g. Technology & Software")}
+                    data-testid="input-catalog-name-ar"
+                    dir="rtl"
+                  />
+                </div>
+                <div>
+                  <Label>{t("الاسم بالإنجليزي", "Name (English)")}</Label>
+                  <Input
+                    value={catalogForm.nameEn}
+                    onChange={e => setCatalogForm(p => ({ ...p, nameEn: e.target.value }))}
+                    placeholder="e.g. Technology & Software"
+                    data-testid="input-catalog-name-en"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="mb-2 block">{t("اللون", "Color")}</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(["blue","emerald","amber","orange","violet","teal","red","pink","indigo","sky","lime","purple"] as const).map(color => {
+                    const c = ACTIVITY_COLOR_MAP[color];
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setCatalogForm(p => ({ ...p, color }))}
+                        className={cn(
+                          "w-7 h-7 rounded-full border-2 transition-all",
+                          c.bg,
+                          catalogForm.color === color ? "border-foreground scale-110" : "border-transparent"
+                        )}
+                        data-testid={`color-${color}`}
+                        title={color}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCatalogDialog(false)}>{t("إلغاء", "Cancel")}</Button>
+              <Button
+                onClick={addToCatalog}
+                disabled={savingCatalog || !catalogForm.nameAr || !catalogForm.nameEn}
+                data-testid="button-save-catalog-type"
+              >
+                {savingCatalog ? t("جاري الحفظ...", "Saving...") : t("إضافة للكتالوج", "Add to Catalog")}
               </Button>
             </DialogFooter>
           </DialogContent>
