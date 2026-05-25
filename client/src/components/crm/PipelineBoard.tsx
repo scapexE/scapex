@@ -69,9 +69,7 @@ export interface ProposalPrefill {
 const formatValue = (v: string | null, currency: string | null) => {
   const n = parseFloat(v || "0");
   if (!n) return `0 ${currency || "SAR"}`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M ${currency || "SAR"}`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K ${currency || "SAR"}`;
-  return `${n.toFixed(0)} ${currency || "SAR"}`;
+  return `${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ${currency || "SAR"}`;
 };
 
 const formatDate = (s: string | null, isRtl: boolean) => {
