@@ -51,11 +51,12 @@ interface ContractSummary {
 }
 
 interface LocalContract {
-  id: string;
+  id: string | number;
+  contractNumber?: string;
   proposalNumber?: string;
   clientName: string;
   projectName?: string;
-  total: number;
+  total: number | string;
   currency?: string;
   serviceType?: string;
   status?: string;
@@ -359,9 +360,10 @@ function AddContractDialog({ open, onClose, onAdd, localContracts, isRtl }: {
 
   const handleAdd = () => {
     if (mode === "local") {
-      const c = localContracts.find(x => x.id === selectedId);
+      const c = localContracts.find(x => String(x.id) === selectedId);
       if (!c) return;
-      onAdd({ contractRef: c.id, contractName: c.projectName || c.id, clientName: c.clientName, contractTotal: c.total });
+      const ref = c.contractNumber || String(c.id);
+      onAdd({ contractRef: ref, contractName: c.projectName || ref, clientName: c.clientName, contractTotal: typeof c.total === "string" ? parseFloat(c.total) : c.total });
     } else {
       if (!manual.contractRef || !manual.contractName || !manual.clientName) return;
       onAdd({ contractRef: manual.contractRef, contractName: manual.contractName, clientName: manual.clientName, contractTotal: parseFloat(manual.contractTotal || "0") });
@@ -395,12 +397,16 @@ function AddContractDialog({ open, onClose, onAdd, localContracts, isRtl }: {
             {localContracts.length === 0
               ? <p className="text-center text-sm text-muted-foreground py-6">{lbl("لا توجد عقود من العروض", "No contracts from proposals")}</p>
               : localContracts.map(c => (
-                <div key={c.id} onClick={() => setSelectedId(c.id)}
-                  className={cn("flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all", selectedId === c.id ? "border-primary bg-primary/5" : "border-border/50 hover:border-primary/30")}>
-                  <div className={cn("w-2 h-2 rounded-full border-2 flex-shrink-0", selectedId === c.id ? "bg-primary border-primary" : "border-border")} />
+                <div key={String(c.id)} onClick={() => setSelectedId(String(c.id))}
+                  className={cn("flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all", selectedId === String(c.id) ? "border-primary bg-primary/5" : "border-border/50 hover:border-primary/30")}>
+                  <div className={cn("w-2 h-2 rounded-full border-2 flex-shrink-0", selectedId === String(c.id) ? "bg-primary border-primary" : "border-border")} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{c.projectName || c.id}</p>
-                    <p className="text-xs text-muted-foreground">{c.clientName} · <span className="font-mono">{c.total.toLocaleString()} {c.currency || "SAR"}</span></p>
+                    <p className="text-sm font-medium truncate">{c.projectName || c.contractNumber || String(c.id)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-mono text-primary">{c.contractNumber}</span>
+                      {" · "}{c.clientName}
+                      {" · "}<span className="font-mono">{(typeof c.total === "number" ? c.total : parseFloat(c.total as string) || 0).toLocaleString()} {c.currency || "SAR"}</span>
+                    </p>
                   </div>
                 </div>
               ))
@@ -736,13 +742,24 @@ export function ContractPaymentSchedule() {
   const [showPaymentDlg, setShowPaymentDlg] = useState(false);
   const [paymentInst, setPaymentInst] = useState<Installment | null>(null);
 
-  // Load contracts from localStorage (proposals→contracts)
-  const localContracts = useMemo<LocalContract[]>(() => {
-    try {
-      const raw = localStorage.getItem("scapex_contracts");
-      if (!raw) return [];
-      return JSON.parse(raw) as LocalContract[];
-    } catch { return []; }
+  // Load contracts from DB API
+  const [localContracts, setLocalContracts] = useState<LocalContract[]>([]);
+  useEffect(() => {
+    fetch("/api/contracts").then(r => r.ok ? r.json() : []).then(data => {
+      if (Array.isArray(data)) {
+        setLocalContracts(data.map((c: any) => ({
+          id: c.id,
+          contractNumber: c.contractNumber,
+          proposalNumber: c.proposalNumber,
+          clientName: c.clientName,
+          projectName: c.projectName,
+          total: parseFloat(c.total) || 0,
+          currency: c.currency,
+          serviceType: c.serviceType,
+          status: c.status,
+        })));
+      }
+    }).catch(() => {});
   }, []);
 
   // Fetch all summaries

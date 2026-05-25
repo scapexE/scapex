@@ -20,7 +20,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems } from "@shared/schema";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
@@ -3300,6 +3300,174 @@ export async function registerRoutes(
       if (children.length > 0) return res.status(400).json({ error: "Cannot delete account with sub-accounts" });
       await db.delete(chartOfAccounts).where(eq(chartOfAccounts.id, id));
       res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONTRACTS (DB-backed — migrated from localStorage)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/contracts", async (req, res) => {
+    try {
+      const companyId = parseInt((req.query.companyId as string) || "1");
+      const rows = await db.select().from(contracts)
+        .where(eq(contracts.companyId, companyId))
+        .orderBy(desc(contracts.createdAt));
+      // Parse 'terms' JSON blob for full contract data
+      const parsed = rows.map(r => {
+        let extra: any = {};
+        try { if (r.terms) extra = JSON.parse(r.terms); } catch {}
+        return { ...r, ...extra, id: r.id };
+      });
+      res.json(parsed);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/contracts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [row] = await db.select().from(contracts).where(eq(contracts.id, id));
+      if (!row) return res.status(404).json({ error: "Not found" });
+      let extra: any = {};
+      try { if (row.terms) extra = JSON.parse(row.terms); } catch {}
+      res.json({ ...row, ...extra, id: row.id });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/contracts", async (req, res) => {
+    try {
+      const b = req.body;
+      const staffId = (req.header("x-user-id") || "").trim();
+      // Store all rich data (clauses, items, paymentSchedule, etc.) in terms as JSON
+      const extra = {
+        localId: b.localId,
+        proposalNumber: b.proposalNumber,
+        clientContact: b.clientContact,
+        clientEmail: b.clientEmail,
+        projectDesc: b.projectDesc,
+        clauses: b.clauses ?? [],
+        paymentSchedule: b.paymentSchedule ?? [],
+        items: b.items ?? [],
+      };
+      const [row] = await db.insert(contracts).values({
+        companyId: b.companyId ?? 1,
+        contractNumber: b.contractNumber,
+        proposalId: b.proposalDbId ? parseInt(b.proposalDbId) : null,
+        clientName: b.clientName,
+        projectName: b.projectName,
+        serviceType: b.serviceType,
+        subtotal: b.subtotal?.toString() ?? "0",
+        vatRate: b.vatRate?.toString() ?? "15",
+        vatAmount: b.vatAmount?.toString() ?? "0",
+        total: b.total?.toString() ?? "0",
+        currency: b.currency ?? "SAR",
+        status: b.status ?? "draft",
+        startDate: b.startDate,
+        endDate: b.endDate,
+        terms: JSON.stringify(extra),
+        createdBy: staffId || null,
+        activityId: b.activityId ?? null,
+      }).returning();
+      let parsedExtra: any = {};
+      try { if (row.terms) parsedExtra = JSON.parse(row.terms); } catch {}
+      res.json({ ...row, ...parsedExtra, id: row.id });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/contracts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const b = req.body;
+      // Fetch existing to merge terms
+      const [existing] = await db.select().from(contracts).where(eq(contracts.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      let prevExtra: any = {};
+      try { if (existing.terms) prevExtra = JSON.parse(existing.terms); } catch {}
+      const extra = {
+        ...prevExtra,
+        localId: b.localId ?? prevExtra.localId,
+        proposalNumber: b.proposalNumber ?? prevExtra.proposalNumber,
+        clientContact: b.clientContact ?? prevExtra.clientContact,
+        clientEmail: b.clientEmail ?? prevExtra.clientEmail,
+        projectDesc: b.projectDesc ?? prevExtra.projectDesc,
+        clauses: b.clauses ?? prevExtra.clauses ?? [],
+        paymentSchedule: b.paymentSchedule ?? prevExtra.paymentSchedule ?? [],
+        items: b.items ?? prevExtra.items ?? [],
+      };
+      const [row] = await db.update(contracts).set({
+        clientName: b.clientName ?? existing.clientName,
+        projectName: b.projectName ?? existing.projectName,
+        serviceType: b.serviceType ?? existing.serviceType,
+        subtotal: b.subtotal?.toString() ?? existing.subtotal,
+        vatRate: b.vatRate?.toString() ?? existing.vatRate,
+        vatAmount: b.vatAmount?.toString() ?? existing.vatAmount,
+        total: b.total?.toString() ?? existing.total,
+        currency: b.currency ?? existing.currency,
+        status: b.status ?? existing.status,
+        startDate: b.startDate ?? existing.startDate,
+        endDate: b.endDate ?? existing.endDate,
+        signedAt: b.signedAt ? new Date(b.signedAt) : existing.signedAt,
+        signedBy: b.signedBy ?? existing.signedBy,
+        terms: JSON.stringify(extra),
+        updatedAt: new Date(),
+      }).where(eq(contracts.id, id)).returning();
+      let parsedExtra: any = {};
+      try { if (row.terms) parsedExtra = JSON.parse(row.terms); } catch {}
+      res.json({ ...row, ...parsedExtra, id: row.id });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/contracts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db.delete(contractItems).where(eq(contractItems.contractId, id));
+      await db.delete(contracts).where(eq(contracts.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Bulk migrate from localStorage — idempotent (skip duplicates by contractNumber)
+  app.post("/api/contracts/migrate", async (req, res) => {
+    try {
+      const list: any[] = req.body.contracts ?? [];
+      const staffId = (req.header("x-user-id") || "").trim();
+      const companyId = parseInt((req.body.companyId as string) || "1");
+      const existing = await db.select({ contractNumber: contracts.contractNumber })
+        .from(contracts).where(eq(contracts.companyId, companyId));
+      const existingNums = new Set(existing.map(r => r.contractNumber));
+      let imported = 0;
+      for (const c of list) {
+        if (existingNums.has(c.contractNumber)) continue;
+        const extra = {
+          localId: c.id,
+          proposalNumber: c.proposalNumber,
+          clientContact: c.clientContact,
+          clientEmail: c.clientEmail,
+          projectDesc: c.projectDesc,
+          clauses: c.clauses ?? [],
+          paymentSchedule: c.paymentSchedule ?? [],
+          items: c.items ?? [],
+        };
+        await db.insert(contracts).values({
+          companyId,
+          contractNumber: c.contractNumber,
+          clientName: c.clientName,
+          projectName: c.projectName,
+          serviceType: c.serviceType,
+          subtotal: c.subtotal?.toString() ?? "0",
+          vatRate: c.vatRate?.toString() ?? "15",
+          vatAmount: c.vatAmount?.toString() ?? "0",
+          total: c.total?.toString() ?? "0",
+          currency: c.currency ?? "SAR",
+          status: c.status ?? "draft",
+          startDate: c.startDate,
+          endDate: c.endDate,
+          terms: JSON.stringify(extra),
+          createdBy: staffId || null,
+          createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+        });
+        imported++;
+      }
+      res.json({ imported, skipped: list.length - imported });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

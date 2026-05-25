@@ -27,7 +27,7 @@ import {
   SERVICE_META, STATUS_META, REGION_META, SIZE_META,
   generateAITemplate, generateId, generateProposalNumber,
   saveProposal, getProposals, deleteProposal,
-  generateContractFromProposal, saveContract, getContracts,
+  generateContractFromProposal, saveContract, saveContractToDB, getContracts,
   getPriceSuggestions, analyzeProposalPrices, getSmartPricing,
   printProposal, printContract,
 } from "@/lib/proposals";
@@ -897,6 +897,9 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
     const contract = generateContractFromProposal(saved);
     saved.convertedToContractId = contract.id;
     saveContract(contract);
+    // Also persist to PostgreSQL DB
+    const userId = (() => { try { const s = localStorage.getItem("session"); if (s) { const p = JSON.parse(s); return p.id || p.userId || ""; } } catch {} return ""; })();
+    saveContractToDB(contract, userId).catch(() => {});
     onSave(saved);
     setProposal(saved);
     // Auto-create a project linked to this contract

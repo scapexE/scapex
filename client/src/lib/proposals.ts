@@ -159,6 +159,45 @@ export function saveContract(contract: Contract): void {
   else list.unshift(contract);
   dbSetItem(CONTRACTS_KEY, JSON.stringify(list));
 }
+export async function saveContractToDB(contract: Contract, userId?: string): Promise<number | null> {
+  try {
+    const res = await fetch("/api/contracts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(userId ? { "x-user-id": userId } : {}),
+      },
+      body: JSON.stringify({
+        localId: contract.id,
+        contractNumber: contract.contractNumber,
+        proposalNumber: contract.proposalNumber,
+        clientName: contract.clientName,
+        clientContact: contract.clientContact,
+        clientEmail: contract.clientEmail,
+        projectName: contract.projectName,
+        projectDesc: contract.projectDesc,
+        serviceType: contract.serviceType,
+        items: contract.items,
+        subtotal: contract.subtotal,
+        vatRate: contract.vatRate,
+        vatAmount: contract.vatAmount,
+        total: contract.total,
+        currency: contract.currency,
+        status: contract.status,
+        clauses: contract.clauses,
+        paymentSchedule: contract.paymentSchedule,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        companyId: 1,
+      }),
+    });
+    if (res.ok) {
+      const row = await res.json();
+      return row.id as number;
+    }
+  } catch {}
+  return null;
+}
 export function generateContractNumber(): string {
   const year = new Date().getFullYear();
   const count = getContracts().length + 1;
