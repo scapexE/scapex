@@ -201,8 +201,21 @@ export function CustomersList({
 
   const handleCopyData = () => {
     if (!selectedIds.length) return;
-    navigator.clipboard.writeText(selectedCustomers.map(c => `${c.name} | ${c.contact} | ${c.email} | ${c.phone}`).join('\n')).then(() => {
-      toast({ title: isRtl ? 'تم النسخ' : 'Copied', description: isRtl ? `تم نسخ ${selectedIds.length} عميل.` : `Copied ${selectedIds.length} customers.` });
+    const header = isRtl
+      ? "الاسم\t\tجهة الاتصال\t\tالبريد الإلكتروني\t\tالهاتف\t\tالمدينة\t\tالحالة"
+      : "Name\t\tContact\t\tEmail\t\tPhone\t\tCity\t\tStatus";
+    const csvRows = selectedCustomers.map(c => {
+      const dbRow = rows.find(r => String(r.id) === c.id);
+      return [c.name, c.contact, c.email || "—", c.phone || "—", dbRow?.city || "—", c.status].join("\t\t");
+    });
+    const text = [header, ...csvRows].join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: isRtl ? "✅ تم النسخ" : "✅ Copied",
+        description: isRtl
+          ? `تم نسخ بيانات ${selectedIds.length} عميل — يمكنك لصقها في Excel أو Word`
+          : `Copied ${selectedIds.length} customer(s) — paste into Excel or Word`,
+      });
     });
   };
 
@@ -364,6 +377,32 @@ export function CustomersList({
                   <span className="ms-2 text-xs text-primary">· {isRtl ? activeActivity.nameAr : activeActivity.nameEn}</span>
                 )}
               </div>
+              {filtered.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={() => {
+                    if (selectedIds.length === filtered.length) {
+                      setSelectedIds([]);
+                    } else {
+                      setSelectedIds(filtered.map(c => c.id));
+                    }
+                  }}
+                  data-testid="button-select-all-customers"
+                >
+                  <input
+                    type="checkbox"
+                    readOnly
+                    className="w-3.5 h-3.5 accent-primary pointer-events-none"
+                    checked={selectedIds.length === filtered.length && filtered.length > 0}
+                    ref={el => { if (el) el.indeterminate = selectedIds.length > 0 && selectedIds.length < filtered.length; }}
+                  />
+                  {selectedIds.length === filtered.length && filtered.length > 0
+                    ? (isRtl ? "إلغاء التحديد" : "Deselect all")
+                    : (isRtl ? "تحديد الكل" : "Select all")}
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="bg-primary hover:bg-primary/90 gap-1.5"
@@ -385,10 +424,14 @@ export function CustomersList({
               {selectedIds.length} {t('crm.cust.selected')}
             </Badge>
             <div className="flex items-center gap-2">
-              <WhatsAppAction selectedCount={selectedIds.length} isBulk
+              <WhatsAppAction
+                selectedCount={selectedIds.length} isBulk
+                customers={selectedCustomers.map(c => ({ name: c.name, phone: c.phone || "" }))}
                 trigger={<Button size="sm" variant="outline" className="h-8 gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950"><MessageSquare className="w-3 h-3" /><span className="hidden sm:inline">{t('crm.cust.bulk_whatsapp')}</span></Button>}
               />
-              <EmailAction selectedCount={selectedIds.length} isBulk
+              <EmailAction
+                selectedCount={selectedIds.length} isBulk
+                customers={selectedCustomers.map(c => ({ name: c.name, email: c.email || "" }))}
                 trigger={<Button size="sm" variant="outline" className="h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950"><Mail className="w-3 h-3" /><span className="hidden sm:inline">{t('crm.cust.bulk_email')}</span></Button>}
               />
               <SurveyAction selectedCount={selectedIds.length} isBulk
