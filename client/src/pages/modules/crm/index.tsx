@@ -1,9 +1,8 @@
-import { dbSetItem } from "@/lib/dbStorage";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMDashboard } from "@/components/crm/CRMDashboard";
-import { PipelineBoard, type ProposalPrefill } from "@/components/crm/PipelineBoard";
+import { PipelineBoard } from "@/components/crm/PipelineBoard";
 import { CustomersList } from "@/components/crm/CustomersList";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -13,7 +12,6 @@ import { useActivityScope } from "@/hooks/useActivityScope";
 export default function CRMModule() {
   const { t, dir } = useLanguage();
   const isRtl = dir === "rtl";
-  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("pipeline");
   const [addLeadSignal, setAddLeadSignal] = useState(0);
   // Activity scope: data is filtered by the active activity automatically.
