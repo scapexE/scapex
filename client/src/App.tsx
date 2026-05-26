@@ -40,6 +40,7 @@ import MobileAppModule from "@/pages/modules/mobile-app/index";
 import AboutModule from "@/pages/modules/about/index";
 import AuditLogModule from "@/pages/modules/audit-log/index";
 import CompanySettingsModule from "@/pages/modules/company-settings/index";
+import Profile from "@/pages/Profile";
 
 function Router() {
   return (
@@ -82,6 +83,7 @@ function Router() {
       <Route path="/company-settings" component={CompanySettingsModule} />
       <Route path="/about" component={AboutModule} />
       <ProtectedRoute path="/audit-log" component={AuditLogModule} page="audit_log" />
+      <Route path="/profile" component={Profile} />
 
       <Route component={NotFound} />
     </Switch>

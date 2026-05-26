@@ -20,6 +20,8 @@ export interface SystemUser {
   branchIds?: string[];
   /** Server-persisted last selected business activity (for auto-restore on login) */
   lastActivityId?: string | null;
+  /** Mobile phone number */
+  phone?: string;
 }
 
 /** Returns the list of company IDs a user can access. Admins return null = unrestricted. */

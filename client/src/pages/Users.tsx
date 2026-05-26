@@ -24,7 +24,7 @@ import {
 import {
   Plus, Search, Pencil, Trash2, Shield, ShieldCheck,
   Users as UsersIcon, Filter, Eye, EyeOff, RefreshCw,
-  UserCheck, UserX, Clock,
+  UserCheck, UserX, Clock, Phone, IdCard, Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -400,6 +400,7 @@ export default function Users() {
   const [apiCompanies, setApiCompanies] = useState<{ id: string; nameAr: string; nameEn: string; activityIds: string[] }[]>([]);
   const [apiBranches, setApiBranches] = useState<{ id: string; companyId: string; nameAr: string; nameEn: string }[]>([]);
   const [availableActivities, setAvailableActivities] = useState<{ id: string; nameAr: string; nameEn: string }[]>([]);
+  const [employees, setEmployees] = useState<{ id: string|number; name: string; nameEn?: string; nationalId?: string; email?: string; position?: string; department?: string }[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -426,6 +427,21 @@ export default function Users() {
           setAvailableActivities(stored.filter((a: any) => a.active).map((a: any) => ({ id: a.id, nameAr: a.nameAr, nameEn: a.nameEn })));
         }
       } catch {}
+      try {
+        const eRes = await fetch("/api/employees");
+        if (eRes.ok) {
+          const eData: any[] = await eRes.json();
+          setEmployees(eData.map((e) => ({
+            id: e.id,
+            name: e.name || e.nameAr || "",
+            nameEn: e.nameEn || "",
+            nationalId: e.nationalId || e.national_id || "",
+            email: e.email || "",
+            position: e.position || "",
+            department: e.department || "",
+          })));
+        }
+      } catch {}
     })();
   }, []);
 
@@ -449,6 +465,7 @@ export default function Users() {
           name: u.name || "",
           email: u.email || "",
           password: "",
+          phone: u.phone || "",
           role,
           roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [role],
           permissions: perms,
@@ -571,6 +588,7 @@ export default function Users() {
           email: form.email,
           password: form.password,
           nationalId: form.nationalId,
+          phone: form.phone || "",
           role: primary,
           roles,
           permissions,
@@ -619,6 +637,7 @@ export default function Users() {
         name: form.name,
         email: form.email,
         nationalId: form.nationalId,
+        phone: form.phone || "",
         role: primary,
         roles,
         permissions,
@@ -703,7 +722,7 @@ export default function Users() {
 
   const openEdit = (user: SystemUser) => {
     const roles = user.roles && user.roles.length > 0 ? user.roles : [user.role];
-    setForm({ nationalId: user.nationalId ?? "", name: user.name, email: user.email, password: "", role: user.role, roles, permissions: [...user.permissions], active: user.active, companyIds: [...(user.companyIds || [])], branchIds: [...(user.branchIds || [])] });
+    setForm({ nationalId: user.nationalId ?? "", name: user.name, email: user.email, password: "", phone: user.phone || "", role: user.role, roles, permissions: [...user.permissions], active: user.active, companyIds: [...(user.companyIds || [])], branchIds: [...(user.branchIds || [])] });
     setEditUser(user);
   };
 
@@ -802,7 +821,9 @@ export default function Users() {
               <TableHeader className="bg-secondary/50">
                 <TableRow className="border-border/50 hover:bg-transparent">
                   <TableHead className="text-right">{t("users.col.user")}</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">{t("users.col.national_id")}</TableHead>
+                  <TableHead className="text-right hidden xl:table-cell">{t("users.col.national_id")}</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">{isRtl ? "الجوال" : "Phone"}</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">{isRtl ? "الموظف المرتبط" : "Linked Employee"}</TableHead>
                   <TableHead className="text-right">{t("users.col.roles")}</TableHead>
                   <TableHead className="text-right hidden md:table-cell">{t("users.col.permissions")}</TableHead>
                   <TableHead className="text-right hidden sm:table-cell">{t("users.col.created")}</TableHead>
@@ -813,7 +834,7 @@ export default function Users() {
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                       {t("users.no_results")}
                     </TableCell>
                   </TableRow>
@@ -832,10 +853,38 @@ export default function Users() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right hidden lg:table-cell">
+                    <TableCell className="text-right hidden xl:table-cell">
                       <span className="text-xs font-mono bg-secondary px-2 py-0.5 rounded text-muted-foreground">
                         {user.nationalId || "—"}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-right hidden lg:table-cell">
+                      {user.phone ? (
+                        <span className="text-xs font-mono flex items-center gap-1 justify-end text-muted-foreground">
+                          <Phone className="w-3 h-3" />{user.phone}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right hidden lg:table-cell">
+                      {(() => {
+                        const emp = employees.find((e) =>
+                          (user.nationalId && e.nationalId && e.nationalId === user.nationalId) ||
+                          (user.email && e.email && e.email.toLowerCase() === user.email.toLowerCase())
+                        );
+                        return emp ? (
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <Link2 className="w-3 h-3 text-blue-500 shrink-0" />
+                            <div className="text-right">
+                              <p className="text-xs font-medium leading-tight">{emp.name}</p>
+                              {emp.position && <p className="text-[10px] text-muted-foreground leading-tight">{emp.position}</p>}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <RoleBadges user={user} />
@@ -1062,6 +1111,14 @@ function UserForm({ form, setForm, showPass, setShowPass, isNew = false, compani
         <Label htmlFor="email">{t("users.form.email")}</Label>
         <Input id="email" data-testid="input-user-email" type="email" placeholder="user@scapex.sa"
           value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="phone">{isRtl ? "رقم الجوال (اختياري)" : "Phone Number (optional)"}</Label>
+        <Input id="phone" data-testid="input-user-phone"
+          placeholder="+966 5X XXX XXXX"
+          style={{ direction: "ltr", textAlign: "left" }}
+          value={form.phone || ""}
+          onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/[^\d+\s\-]/g, "") })} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">{isNew ? t("users.form.password_new") : t("users.form.password_edit")}</Label>

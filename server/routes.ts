@@ -3398,15 +3398,40 @@ export async function registerRoutes(
 
   app.post("/api/auth/change-password", async (req, res) => {
     try {
-      const { userId, newPassword } = req.body;
+      const { userId, newPassword, currentPassword } = req.body;
       if (!userId || !newPassword) {
         return res.status(400).json({ error: "userId and newPassword are required" });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "New password must be at least 6 characters" });
+      }
+      const user = await findUserById(userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      if (currentPassword) {
+        const valid = await verifyPassword(currentPassword, user.password);
+        if (!valid) return res.status(401).json({ error: "Current password is incorrect" });
       }
       const updated = await updateUser(userId, { password: newPassword });
       if (!updated) return res.status(404).json({ error: "User not found" });
       res.json({ success: true });
     } catch (err: any) {
       console.error("Change password error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/users/:id/phone", async (req, res) => {
+    try {
+      const { phone } = req.body;
+      if (phone !== undefined && typeof phone !== "string") {
+        return res.status(400).json({ error: "phone must be a string" });
+      }
+      const updated = await updateUser(req.params.id, { phone: phone || "" });
+      if (!updated) return res.status(404).json({ error: "User not found" });
+      const { password, ...safeUser } = updated;
+      res.json(safeUser);
+    } catch (err: any) {
+      console.error("Update phone error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });

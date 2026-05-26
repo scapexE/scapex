@@ -245,33 +245,40 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
         {/* Footer Area */}
         <div className="p-4 border-t border-sidebar-border mt-auto flex-shrink-0">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-sidebar-accent/50 mb-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 font-bold text-primary text-sm">
-              {currentUser?.name?.charAt(0).toUpperCase() ?? <HardHat className="w-4 h-4" />}
+          <Link href="/profile">
+            <div className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg mb-2 cursor-pointer transition-colors",
+              location === "/profile"
+                ? "bg-primary/10 border border-primary/20"
+                : "bg-sidebar-accent/50 hover:bg-sidebar-accent"
+            )}>
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 font-bold text-primary text-sm">
+                {currentUser?.name?.charAt(0).toUpperCase() ?? <HardHat className="w-4 h-4" />}
+              </div>
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">
+                  {currentUser?.name ?? "Guest"}
+                </p>
+                <p className="text-xs text-sidebar-foreground/50 truncate">
+                  {activeRole
+                    ? (isRtl ? ROLE_LABELS[activeRole]?.ar : ROLE_LABELS[activeRole]?.en)
+                    : currentUser
+                      ? (isRtl ? ROLE_LABELS[currentUser.role]?.ar : ROLE_LABELS[currentUser.role]?.en)
+                      : ""}
+                  {isMultiRole && <span className="opacity-60"> · {isRtl ? "متعدد الأدوار" : "Multi-role"}</span>}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-sidebar-foreground/50 hover:text-destructive shrink-0"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleLogout(); }}
+                title={isRtl ? "تسجيل الخروج" : "Logout"}
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {currentUser?.name ?? "Guest"}
-              </p>
-              <p className="text-xs text-sidebar-foreground/50 truncate">
-                {activeRole
-                  ? (isRtl ? ROLE_LABELS[activeRole]?.ar : ROLE_LABELS[activeRole]?.en)
-                  : currentUser
-                    ? (isRtl ? ROLE_LABELS[currentUser.role]?.ar : ROLE_LABELS[currentUser.role]?.en)
-                    : ""}
-                {isMultiRole && <span className="opacity-60"> · {isRtl ? "متعدد الأدوار" : "Multi-role"}</span>}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-sidebar-foreground/50 hover:text-sidebar-foreground shrink-0"
-              onClick={handleLogout}
-              title="تسجيل الخروج"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
+          </Link>
           <div className="text-center text-[10px] opacity-40 text-sidebar-foreground">
             © 2026 Scapex {__APP_VERSION__} · Smart Business Platform
           </div>
