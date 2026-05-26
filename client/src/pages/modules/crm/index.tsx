@@ -6,8 +6,7 @@ import { CRMDashboard } from "@/components/crm/CRMDashboard";
 import { PipelineBoard, type ProposalPrefill } from "@/components/crm/PipelineBoard";
 import { CustomersList } from "@/components/crm/CustomersList";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText } from "lucide-react";
-import { useLocation } from "wouter";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useActivityScope } from "@/hooks/useActivityScope";
 
@@ -21,10 +20,6 @@ export default function CRMModule() {
   // We only disable creation when no activity is selected (rare; admins on "All").
   const { activityId } = useActivityScope();
   const blockingForCreate = !activityId;
-
-  const handleNewProposal = () => {
-    navigate("/smart-proposal");
-  };
 
   const handleNewLead = () => {
     if (blockingForCreate) return;
@@ -41,10 +36,6 @@ export default function CRMModule() {
             <p className="text-muted-foreground mt-1 text-sm">{t('crm.desc')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="gap-1.5 border-primary/40 text-primary hover:bg-primary/5" onClick={handleNewProposal} data-testid="button-new-proposal-from-crm">
-              <FileText className="w-4 h-4" />
-              {isRtl ? "إنشاء عرض سعر" : "Create Proposal"}
-            </Button>
             <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={handleNewLead} disabled={blockingForCreate} data-testid="button-new-lead">
               <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {t('crm.new_lead')}
@@ -61,28 +52,11 @@ export default function CRMModule() {
 
           <div className="flex-1 mt-4 overflow-hidden relative">
             <TabsContent value="pipeline" className="h-full m-0 data-[state=active]:flex flex-col">
-              <PipelineBoard openAddDialogSignal={addLeadSignal} onCreateProposal={(data: ProposalPrefill) => {
-                try {
-                  dbSetItem("scapex_proposal_prefill", JSON.stringify({
-                    clientName:    data.clientName,
-                    clientEmail:   data.clientEmail,
-                    clientContact: data.clientContact,
-                    projectName:   data.projectName,
-                    contactId:     data.contactId ?? null,
-                    dealId:        data.dealId ?? null,
-                  }));
-                } catch {}
-                navigate("/smart-proposal");
-              }} />
+              <PipelineBoard openAddDialogSignal={addLeadSignal} onCreateProposal={() => {}} />
             </TabsContent>
 
             <TabsContent value="customers" className="h-full m-0 data-[state=active]:flex flex-col">
-              <CustomersList onCreateProposal={(clientName, email, phone, contactId) => {
-                try {
-                  dbSetItem("scapex_proposal_prefill", JSON.stringify({ clientName, clientEmail: email, clientContact: phone, contactId: contactId ?? null }));
-                } catch {}
-                navigate("/smart-proposal");
-              }} />
+              <CustomersList onCreateProposal={() => {}} />
             </TabsContent>
 
             <TabsContent value="dashboard" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto pr-2">

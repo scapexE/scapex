@@ -22,7 +22,6 @@ import NotFound from "@/pages/not-found";
 import CRMModule from "@/pages/modules/crm/index";
 import ProjectsModule from "@/pages/modules/projects/index";
 import ProjectDetailPage from "@/pages/modules/projects/detail";
-import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 import SalesModule from "@/pages/modules/sales/index";
 import AccountingModule from "@/pages/modules/accounting/index";
 import ClientPortalModule from "@/pages/modules/client-portal/index";
@@ -34,13 +33,9 @@ import InventoryModule from "@/pages/modules/inventory/index";
 import EquipmentModule from "@/pages/modules/equipment/index";
 import HSEModule from "@/pages/modules/hse/index";
 import DMSModule from "@/pages/modules/dms/index";
-import EngineeringModule from "@/pages/modules/engineering/index";
-import GovernmentModule from "@/pages/modules/government/index";
 import BIModule from "@/pages/modules/bi/index";
 import AIControlModule from "@/pages/modules/ai-control/index";
-import ServiceCatalogModule from "@/pages/modules/service-catalog/index";
 import CompaniesModule from "@/pages/modules/companies/index";
-import ApprovalsModule from "@/pages/modules/approvals/index";
 import MobileAppModule from "@/pages/modules/mobile-app/index";
 import AboutModule from "@/pages/modules/about/index";
 import AuditLogModule from "@/pages/modules/audit-log/index";
@@ -71,13 +66,6 @@ function Router() {
       <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/inventory" component={InventoryModule} />
       <Route path="/equipment" component={EquipmentModule} />
-
-      {/* Engineering */}
-      <Route path="/engineering" component={EngineeringModule} />
-      <Route path="/approvals" component={ApprovalsModule} />
-      <Route path="/government" component={GovernmentModule} />
-      <Route path="/smart-proposal" component={SmartProposalModule} />
-      <Route path="/service-catalog" component={ServiceCatalogModule} />
 
       {/* HR & Personnel */}
       <Route path="/hr" component={HRModule} />

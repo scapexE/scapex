@@ -61,32 +61,32 @@ export const DEFAULT_ACTIVITIES: BusinessActivity[] = [
   {
     id: generateId("eng_consulting"), nameAr: "استشارات هندسية", nameEn: "Engineering Consultancy",
     color: "blue", icon: "HardHat", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"],
+    modules: ["dashboard","crm","sales","accounting","purchases","projects","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"],
   },
   {
     id: generateId("env_consulting"), nameAr: "استشارات بيئية", nameEn: "Environmental Consultancy",
     color: "emerald", icon: "Leaf", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"],
+    modules: ["dashboard","crm","sales","accounting","purchases","projects","hse","dms","hr","payroll","attendance","bi"],
   },
   {
     id: generateId("safety_consulting"), nameAr: "استشارات سلامة", nameEn: "Safety Consultancy",
     color: "amber", icon: "ShieldAlert", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","projects","government","smart_proposal","hse","dms","hr","payroll","attendance","bi"],
+    modules: ["dashboard","crm","sales","accounting","projects","hse","dms","hr","payroll","attendance","bi"],
   },
   {
     id: generateId("safety_services"), nameAr: "خدمات سلامة", nameEn: "Safety Services",
     color: "orange", icon: "Flame", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","equipment","smart_proposal","hse","attendance","mobile_app","hr","payroll","dms"],
+    modules: ["dashboard","crm","sales","accounting","purchases","equipment","hse","attendance","mobile_app","hr","payroll","dms"],
   },
   {
     id: generateId("contracting"), nameAr: "مقاولات", nameEn: "Contracting",
     color: "violet", icon: "Building2", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","projects","engineering","approvals","government","smart_proposal","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"],
+    modules: ["dashboard","crm","sales","accounting","purchases","projects","equipment","inventory","hr","payroll","attendance","hse","dms","mobile_app","bi"],
   },
   {
     id: generateId("metal_recycling"), nameAr: "تدوير المعادن", nameEn: "Metal Recycling",
     color: "teal", icon: "RefreshCcw", active: true, createdAt: new Date().toISOString(),
-    modules: ["dashboard","crm","sales","accounting","purchases","inventory","equipment","smart_proposal","hr","payroll","attendance","hse","dms","bi"],
+    modules: ["dashboard","crm","sales","accounting","purchases","inventory","equipment","hr","payroll","attendance","hse","dms","bi"],
   },
 ];
 

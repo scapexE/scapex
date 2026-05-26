@@ -118,7 +118,7 @@ service_categories, services
 - `scapex_signatures` — electronic signature records per document (proposal/contract) per party
 - `scapex_default_signature` — saved default signature image for quick reuse
 
-## Modules — All 22 Built & Functional
+## Modules — 17 Active Modules
 
 ### Core & Analytics
 - **Dashboard** (`/dashboard`) — Overview, KPIs, recent activity
@@ -129,7 +129,7 @@ service_categories, services
 
 ### Business & Finance
 - **CRM** (`/crm`) — Pipeline board + Customers list + Dashboard
-- **Sales** (`/sales`) — Quotations (linked to proposals) + Contracts
+- **Sales** (`/sales`) — Quotations + Contracts
 - **Purchases** (`/purchases`) — Purchase orders + Vendor management (CRUD)
 - **Accounting** (`/accounting`) — Financial views, invoices
 
@@ -137,13 +137,6 @@ service_categories, services
 - **Projects** (`/projects`) — Project tracking
 - **Inventory** (`/inventory`) — Stock items, warehouses, movements (CRUD)
 - **Equipment & Fleet** (`/equipment`) — Assets, vehicles, maintenance logs (CRUD)
-
-### Engineering & Compliance
-- **Engineering Drawings** (`/engineering`) — CAD drawings, revisions, approval workflow (CRUD)
-- **Approvals Center** (`/approvals`) — Centralized multi-level approval workflows for all modules
-- **Government Entities** (`/government`) — Permits, licenses, expiry tracking (CRUD)
-- **Smart Proposal Generator** (`/smart-proposal`) — Full AI-powered system with Market Benchmark pricing
-- **Service Catalog** (`/service-catalog`) — 11 detailed sub-services with pricing
 
 ### Human Resources
 - **HR** (`/hr`) — Employee directory, departments, CRUD with Saudi-specific fields
@@ -167,18 +160,6 @@ service_categories, services
 - **Notifications System** (`client/src/lib/notifications.ts`) — In-app notification bell with real-time badge count, mark as read, clear all. Demo notifications seeded once.
 - **PDF Export** (`client/src/lib/pdfExport.ts`) — Print-ready HTML reports with Scapex branding, bilingual support, HTML escaping.
 - **Enhanced Dashboard** — Shows total users, active modules, today's actions, system health. Includes recent activity log and action distribution chart.
-
-## Smart Proposal Generator Features
-- **6 service type templates**: Engineering Consulting, Environmental, Safety Consulting, Safety Services, Contracting, Metal Recycling
-- **11 sub-service templates**: Fire alarm install/maintenance, equipment supply, emergency training, building/road/government construction, infrastructure maintenance, humanization
-- **AI item generation**: Auto-generates bilingual (AR/EN) line items with Saudi market pricing
-- **Price suggestions**: Historical price analytics from past proposals (min/avg/max + item suggestions)
-- **3-step create wizard**: Service type → Client info → Project details
-- **Status workflow**: Draft → Sent → Approved → Contract/Invoice
-- **Contract generation**: Auto-generates 8-article bilingual legal contract with payment schedule
-- **Electronic Signature**: Canvas-based signature pad for drawing signatures. Per-document storage with first/second party. Signatures embedded in printed PDFs for proposals and contracts. Default signature can be saved and reused.
-- **PDF printing**: `printProposal()` and `printContract()` generate styled HTML + auto-print. Proposal PDF uses company footer (address, email, phone, website) + custom template text from system settings. Signatures appear automatically when signed.
-- **CRM/Sales integration**: `scapex_proposal_prefill` localStorage key for client prefill
 
 ## Module File Locations
 All modules: `client/src/pages/modules/<module-name>/index.tsx`

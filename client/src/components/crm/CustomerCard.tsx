@@ -273,10 +273,6 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-primary">{p.total.toLocaleString()} {p.currency}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary"
-                              onClick={() => { onClose(); navigate("/smart-proposal"); }}>
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Button>
                           </div>
                         </div>
                         {p.convertedToContractId && (

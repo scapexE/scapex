@@ -48,8 +48,6 @@ const EMPTY_FORM: FormState = {
 
 const CATS = [
   { id: "contracts", ar: "عقود", en: "Contracts", link: "/sales" },
-  { id: "proposals", ar: "عروض أسعار", en: "Proposals", link: "/smart-proposal" },
-  { id: "engineering", ar: "وثائق هندسية", en: "Engineering", link: "/engineering" },
   { id: "hr", ar: "الموارد البشرية", en: "HR Documents", link: "/hr" },
   { id: "legal", ar: "قانونية", en: "Legal", link: null },
   { id: "financial", ar: "مالية", en: "Financial", link: "/accounting" },
@@ -394,8 +392,6 @@ export default function DMSModule() {
               {[
                 { icon: Users, label: isRtl ? "الموارد البشرية" : "HR Documents", cat: "hr", link: "/hr", count: docs.filter((d) => d.category === "hr").length, color: "text-purple-500" },
                 { icon: Briefcase, label: isRtl ? "عقود العملاء" : "Client Contracts", cat: "contracts", link: "/sales", count: docs.filter((d) => d.category === "contracts").length, color: "text-blue-500" },
-                { icon: FileText, label: isRtl ? "عروض الأسعار" : "Proposals", cat: "proposals", link: "/smart-proposal", count: docs.filter((d) => d.category === "proposals").length, color: "text-emerald-500" },
-                { icon: FileImage, label: isRtl ? "وثائق هندسية" : "Engineering", cat: "engineering", link: "/engineering", count: docs.filter((d) => d.category === "engineering").length, color: "text-amber-500" },
                 { icon: FileSpreadsheet, label: isRtl ? "التقارير المالية" : "Financial Reports", cat: "financial", link: "/accounting", count: docs.filter((d) => d.category === "financial").length, color: "text-rose-500" },
                 { icon: Lock, label: isRtl ? "وثائق السلامة (HSE)" : "HSE Documents", cat: "hse", link: "/hse", count: docs.filter((d) => d.category === "hse").length, color: "text-orange-500" },
               ].map((item) => (

@@ -14,7 +14,6 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.cat.core': { en: 'Core & Analytics', ar: 'الأساسيات والتحليلات' },
   'nav.cat.business': { en: 'Business & Finance', ar: 'الأعمال والمالية' },
   'nav.cat.operations': { en: 'Operations', ar: 'العمليات' },
-  'nav.cat.engineering': { en: 'Engineering', ar: 'الهندسة' },
   'nav.cat.hr': { en: 'Human Resources', ar: 'الموارد البشرية' },
   'nav.cat.system': { en: 'System & Portals', ar: 'النظام والبوابات' },
 
@@ -32,12 +31,6 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.projects': { en: 'Project Management', ar: 'إدارة المشاريع' },
   'nav.inventory': { en: 'Inventory', ar: 'المخازن' },
   'nav.equipment': { en: 'Equipment & Fleet', ar: 'المعدات والمركبات' },
-  
-  'nav.engineering': { en: 'Engineering Drawings', ar: 'الرسومات الهندسية' },
-  'nav.approvals': { en: 'Approvals', ar: 'الموافقات' },
-  'nav.government': { en: 'Government Entities', ar: 'الجهات الحكومية' },
-  'nav.smart_proposal': { en: 'Smart Proposal', ar: 'المقترحات الذكية' },
-  'nav.service_catalog': { en: 'Service Catalog', ar: 'كتالوج الخدمات' },
   
   'nav.hr': { en: 'HR', ar: 'الموارد البشرية' },
   'nav.payroll': { en: 'Payroll', ar: 'مسيرات الرواتب' },

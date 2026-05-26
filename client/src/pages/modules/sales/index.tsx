@@ -7,8 +7,7 @@ import { ContractPaymentSchedule } from "@/components/sales/ContractPaymentSched
 import { PartnerAccounts } from "@/components/sales/PartnerAccounts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Bot, CheckCircle2, Send, Clock, TrendingUp, CalendarCheck, Handshake } from "lucide-react";
-import { useLocation } from "wouter";
+import { Plus, FileText, CheckCircle2, Send, Clock, TrendingUp, CalendarCheck, Handshake } from "lucide-react";
 import { getProposals, STATUS_META, SERVICE_META, type Proposal } from "@/lib/proposals";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -118,16 +117,11 @@ function ProposalQuotationsList({ isRtl, onNewProposal, onViewProposal }: {
 export default function SalesModule() {
   const { t, dir } = useLanguage();
   const isRtl = dir === "rtl";
-  const [, navigate] = useLocation();
   const { currentUser } = useActiveRole();
 
   const isAdmin = currentUser?.role === "admin" || (currentUser?.roles ?? []).includes("admin");
   const isManager = currentUser?.role === "manager" || (currentUser?.roles ?? []).includes("manager");
   const canSeePartners = isAdmin || isManager;
-
-  const handleNewProposal = () => {
-    navigate("/smart-proposal");
-  };
 
   return (
     <MainLayout>
@@ -138,10 +132,6 @@ export default function SalesModule() {
             <p className="text-muted-foreground mt-1 text-sm">{t('sales.desc')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="gap-1.5 border-primary/40 text-primary hover:bg-primary/5" onClick={handleNewProposal} data-testid="button-new-proposal-from-sales">
-              <Bot className="w-4 h-4" />
-              {isRtl ? "إنشاء عرض سعر" : "Create Proposal"}
-            </Button>
             <Button size="sm" className="bg-primary hover:bg-primary/90" data-testid="button-new-sale">
               <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {t('action.create_new')}
@@ -174,7 +164,7 @@ export default function SalesModule() {
 
           <div className="flex-1 mt-4 overflow-hidden relative">
             <TabsContent value="quotations" className="h-full m-0 data-[state=active]:flex flex-col">
-              <ProposalQuotationsList isRtl={isRtl} onNewProposal={handleNewProposal} onViewProposal={(id) => navigate(`/smart-proposal?view=${id}`)} />
+              <ProposalQuotationsList isRtl={isRtl} onNewProposal={() => {}} onViewProposal={() => {}} />
             </TabsContent>
 
             <TabsContent value="orders" className="h-full m-0 data-[state=active]:flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-xl bg-card/50">

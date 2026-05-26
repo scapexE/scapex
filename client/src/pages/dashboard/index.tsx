@@ -9,7 +9,6 @@ import {
   BrainCircuit, MapPin, Clock, AlertTriangle,
   Wallet, Package, ShoppingCart, Building2,
   FileText, Globe, PieChart, Settings, Banknote,
-  PenTool, CheckSquare, Landmark, Lightbulb,
   UserCog, ShieldAlert, Smartphone,
   Activity, Download, BarChart3, Shield, Heart,
 } from "lucide-react";
@@ -30,10 +29,6 @@ const ALL_APPS = [
   { id: "projects",      icon: Briefcase,    color: "bg-purple-100 dark:bg-purple-900/40",  iconColor: "text-purple-600 dark:text-purple-400",  path: "/projects" },
   { id: "inventory",     icon: Package,      color: "bg-cyan-100 dark:bg-cyan-900/40",    iconColor: "text-cyan-600 dark:text-cyan-400",    path: "/inventory" },
   { id: "equipment",     icon: Settings,     color: "bg-slate-100 dark:bg-slate-800/60",   iconColor: "text-slate-600 dark:text-slate-400",   path: "/equipment" },
-  { id: "engineering",   icon: PenTool,      color: "bg-teal-100 dark:bg-teal-900/40",    iconColor: "text-teal-600 dark:text-teal-400",    path: "/engineering" },
-  { id: "approvals",     icon: CheckSquare,  color: "bg-lime-100 dark:bg-lime-900/40",    iconColor: "text-lime-600 dark:text-lime-400",    path: "/approvals" },
-  { id: "government",    icon: Landmark,     color: "bg-rose-100 dark:bg-rose-900/40",    iconColor: "text-rose-600 dark:text-rose-400",    path: "/government" },
-  { id: "smart_proposal",icon: Lightbulb,    color: "bg-yellow-100 dark:bg-yellow-900/40",  iconColor: "text-yellow-600 dark:text-yellow-400",  path: "/smart-proposal" },
   { id: "hr",            icon: Users,        color: "bg-rose-100 dark:bg-rose-900/40",    iconColor: "text-rose-600 dark:text-rose-400",    path: "/hr" },
   { id: "payroll",       icon: Banknote,     color: "bg-orange-100 dark:bg-orange-900/40",  iconColor: "text-orange-600 dark:text-orange-400",  path: "/payroll" },
   { id: "attendance",    icon: MapPin,       color: "bg-fuchsia-100 dark:bg-fuchsia-900/40", iconColor: "text-fuchsia-600 dark:text-fuchsia-400", path: "/attendance" },

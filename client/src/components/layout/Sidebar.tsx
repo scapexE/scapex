@@ -6,9 +6,6 @@ import {
   LayoutDashboard,
   Users,
   Briefcase,
-  PenTool,
-  CheckSquare,
-  Landmark,
   Smartphone,
   MapPin,
   Settings,
@@ -16,7 +13,6 @@ import {
   FileText,
   PieChart,
   BrainCircuit,
-  Lightbulb,
   ShoppingCart,
   Truck,
   Wallet,
@@ -29,7 +25,6 @@ import {
   LogOut,
   UserCog,
   UserCheck,
-  Zap,
   HelpCircle,
   Activity,
 } from "lucide-react";
@@ -67,16 +62,6 @@ const menuCategories = [
       { id: "projects", icon: Briefcase, path: "/projects" },
       { id: "inventory", icon: Package, path: "/inventory" },
       { id: "equipment", icon: Settings, path: "/equipment" },
-    ],
-  },
-  {
-    id: "engineering",
-    items: [
-      { id: "engineering", icon: PenTool, path: "/engineering" },
-      { id: "approvals", icon: CheckSquare, path: "/approvals" },
-      { id: "government", icon: Landmark, path: "/government" },
-      { id: "smart_proposal", icon: Lightbulb, path: "/smart-proposal" },
-      { id: "service_catalog", icon: Zap, path: "/service-catalog" },
     ],
   },
   {

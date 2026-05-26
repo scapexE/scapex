@@ -79,13 +79,13 @@ export function seedDemoNotifications(): void {
   const now = Date.now();
   const demos: Omit<AppNotification, "id" | "timestamp" | "read">[] = [
     {
-      titleEn: "New approval request",
-      titleAr: "طلب موافقة جديد",
-      bodyEn: "Project PRJ-2024-042 requires your approval",
-      bodyAr: "المشروع PRJ-2024-042 يحتاج موافقتك",
+      titleEn: "New project task assigned",
+      titleAr: "مهمة مشروع جديدة",
+      bodyEn: "Project PRJ-2024-042 has a new task assigned to you",
+      bodyAr: "المشروع PRJ-2024-042 لديه مهمة جديدة مسندة إليك",
       type: "warning",
-      module: "approvals",
-      link: "/approvals",
+      module: "projects",
+      link: "/projects",
     },
     {
       titleEn: "Payroll processed",
