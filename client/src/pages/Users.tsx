@@ -869,10 +869,9 @@ export default function Users() {
                     </TableCell>
                     <TableCell className="text-right hidden lg:table-cell">
                       {(() => {
-                        const emp = employees.find((e) =>
-                          (user.nationalId && e.nationalId && e.nationalId === user.nationalId) ||
-                          (user.email && e.email && e.email.toLowerCase() === user.email.toLowerCase())
-                        );
+                        const emp = user.nationalId
+                          ? employees.find((e) => e.nationalId && e.nationalId === user.nationalId)
+                          : undefined;
                         return emp ? (
                           <div className="flex items-center gap-1.5 justify-end">
                             <Link2 className="w-3 h-3 text-blue-500 shrink-0" />

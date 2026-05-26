@@ -56,17 +56,15 @@ export default function Profile() {
   const [loadingEmployee, setLoadingEmployee] = useState(false);
 
   const fetchLinkedEmployee = useCallback(async () => {
-    if (!currentUser?.nationalId && !currentUser?.email) return;
+    if (!currentUser?.nationalId) return;
     setLoadingEmployee(true);
     try {
       const res = await fetch("/api/employees");
       if (!res.ok) return;
       const employees: any[] = await res.json();
-      const match = employees.find((e) => {
-        if (currentUser.nationalId && e.nationalId && e.nationalId === currentUser.nationalId) return true;
-        if (currentUser.email && e.email && e.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
-        return false;
-      });
+      const match = employees.find((e) =>
+        e.nationalId && e.nationalId === currentUser.nationalId
+      );
       if (match) {
         setLinkedEmployee({
           id: match.id,
@@ -84,7 +82,7 @@ export default function Profile() {
       }
     } catch {}
     setLoadingEmployee(false);
-  }, [currentUser?.nationalId, currentUser?.email]);
+  }, [currentUser?.nationalId]);
 
   useEffect(() => { fetchLinkedEmployee(); }, [fetchLinkedEmployee]);
 
