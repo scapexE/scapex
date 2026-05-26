@@ -21,7 +21,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, type SurveyQuestionDef } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, type SurveyQuestionDef } from "@shared/schema";
 import { sendEmail } from "./email";
 import crypto from "crypto";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
@@ -3101,6 +3101,80 @@ export async function registerRoutes(
     try {
       const [row] = await db.update(leaveRequests).set({ status: req.body.status, notes: req.body.notes }).where(eq(leaveRequests.id, parseInt(req.params.id))).returning();
       res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─────── Attendance Records ──────────────────────────────────────────────────
+  app.get("/api/attendance-records", async (req, res) => {
+    try {
+      const date = req.query.date as string | undefined;
+      const rows = await db
+        .select({
+          id: attendanceRecords.id,
+          employeeId: attendanceRecords.employeeId,
+          employeeNumber: employees.employeeNumber,
+          nameAr: employees.nameAr,
+          nameEn: employees.nameEn,
+          departmentName: employees.departmentName,
+          date: attendanceRecords.date,
+          checkIn: attendanceRecords.checkIn,
+          checkOut: attendanceRecords.checkOut,
+          status: attendanceRecords.status,
+          location: attendanceRecords.location,
+          notes: attendanceRecords.notes,
+          workedHours: attendanceRecords.workedHours,
+          overtimeHours: attendanceRecords.overtimeHours,
+          activityId: attendanceRecords.activityId,
+        })
+        .from(attendanceRecords)
+        .leftJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+        .orderBy(desc(attendanceRecords.createdAt));
+      const result = date ? rows.filter(r => r.date === date) : rows;
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/attendance-records", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.insert(attendanceRecords).values({
+        employeeId: parseInt(b.employeeId),
+        date: b.date,
+        checkIn: b.checkIn ? new Date(b.checkIn) : undefined,
+        checkOut: b.checkOut ? new Date(b.checkOut) : undefined,
+        status: b.status || "present",
+        location: b.location || null,
+        notes: b.notes || null,
+        workedHours: b.workedHours != null ? String(b.workedHours) : null,
+        overtimeHours: b.overtimeHours != null ? String(b.overtimeHours) : null,
+        activityId: b.activityId || null,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/attendance-records/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const updates: Partial<typeof attendanceRecords.$inferInsert> = {};
+      if (b.status !== undefined) updates.status = b.status;
+      if (b.checkIn !== undefined) updates.checkIn = b.checkIn ? new Date(b.checkIn) : null;
+      if (b.checkOut !== undefined) updates.checkOut = b.checkOut ? new Date(b.checkOut) : null;
+      if (b.notes !== undefined) updates.notes = b.notes;
+      if (b.location !== undefined) updates.location = b.location;
+      if (b.workedHours !== undefined) updates.workedHours = b.workedHours != null ? String(b.workedHours) : null;
+      const [row] = await db.update(attendanceRecords)
+        .set(updates)
+        .where(eq(attendanceRecords.id, parseInt(req.params.id)))
+        .returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/attendance-records/:id", async (req, res) => {
+    try {
+      await db.delete(attendanceRecords).where(eq(attendanceRecords.id, parseInt(req.params.id)));
+      res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

@@ -58,40 +58,42 @@ function Router() {
       <ProtectedRoute path="/system-admin" component={SystemAdmin} page="system_admin" />
 
       {/* Core & Analytics */}
-      <Route path="/ai-control" component={AIControlModule} />
-      <Route path="/bi" component={BIModule} />
-      <Route path="/companies" component={CompaniesModule} />
+      <ProtectedRoute path="/ai-control" component={AIControlModule} page="ai_control" />
+      <ProtectedRoute path="/bi" component={BIModule} page="bi" />
+      <ProtectedRoute path="/companies" component={CompaniesModule} page="multi_tenant" />
 
       {/* Business & Finance */}
-      <Route path="/crm" component={CRMModule} />
-      <Route path="/sales" component={SalesModule} />
-      <Route path="/smart-proposal" component={SmartProposalModule} />
-      <Route path="/purchases" component={PurchasesModule} />
-      <Route path="/accounting" component={AccountingModule} />
+      <ProtectedRoute path="/crm" component={CRMModule} page="crm" />
+      <ProtectedRoute path="/sales" component={SalesModule} page="sales" />
+      <ProtectedRoute path="/smart-proposal" component={SmartProposalModule} page="sales" />
+      <ProtectedRoute path="/purchases" component={PurchasesModule} page="purchases" />
+      <ProtectedRoute path="/accounting" component={AccountingModule} page="accounting" />
 
       {/* Operations */}
-      <Route path="/projects" component={ProjectsModule} />
-      <Route path="/projects/:id" component={ProjectDetailPage} />
-      <Route path="/inventory" component={InventoryModule} />
-      <Route path="/equipment" component={EquipmentModule} />
+      <ProtectedRoute path="/projects" component={ProjectsModule} page="projects" />
+      <ProtectedRoute path="/projects/:id" component={ProjectDetailPage} page="projects" />
+      <ProtectedRoute path="/inventory" component={InventoryModule} page="inventory" />
+      <ProtectedRoute path="/equipment" component={EquipmentModule} page="equipment" />
 
       {/* HR & Personnel */}
-      <Route path="/hr" component={HRModule} />
-      <Route path="/payroll" component={PayrollModule} />
-      <Route path="/attendance" component={AttendanceModule} />
-      <Route path="/hse" component={HSEModule} />
-      <Route path="/mobile-app" component={MobileAppModule} />
+      <ProtectedRoute path="/hr" component={HRModule} page="hr" />
+      <ProtectedRoute path="/payroll" component={PayrollModule} page="payroll" />
+      <ProtectedRoute path="/attendance" component={AttendanceModule} page="attendance" />
+      <ProtectedRoute path="/hse" component={HSEModule} page="hse" />
+      <ProtectedRoute path="/mobile-app" component={MobileAppModule} page="mobile_app" />
 
       {/* System & Portals */}
-      <Route path="/dms" component={DMSModule} />
+      <ProtectedRoute path="/dms" component={DMSModule} page="dms" />
+      <ProtectedRoute path="/company-settings" component={CompanySettingsModule} page="company_settings" />
+      <ProtectedRoute path="/audit-log" component={AuditLogModule} page="audit_log" />
+      <ProtectedRoute path="/backup" component={BackupModule} page="backup" />
+      <ProtectedRoute path="/about" component={AboutModule} page="*" />
+      <ProtectedRoute path="/profile" component={Profile} page="*" />
+
+      {/* Client Portal — has its own independent auth system */}
       <Route path="/client-portal" component={ClientPortalModule} />
       <Route path="/portal" component={ClientPortalModule} />
       <Route path="/client" component={ClientPortalModule} />
-      <Route path="/company-settings" component={CompanySettingsModule} />
-      <Route path="/about" component={AboutModule} />
-      <ProtectedRoute path="/audit-log" component={AuditLogModule} page="audit_log" />
-      <ProtectedRoute path="/backup" component={BackupModule} page="backup" />
-      <Route path="/profile" component={Profile} />
 
       <Route component={NotFound} />
     </Switch>
