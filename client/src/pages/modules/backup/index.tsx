@@ -1,10 +1,72 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { dbGetItem } from "@/lib/dbStorage";
-import { Download, Database, Loader2, ShieldCheck } from "lucide-react";
+import {
+  Download, Database, Loader2, ShieldCheck, History, Settings as SettingsIcon,
+  Zap, Clock, HardDrive, CheckCircle2, AlertTriangle, XCircle, Trash2, RefreshCw,
+} from "lucide-react";
 import { logAction } from "@/lib/auditLog";
 
 type ModuleInfo = { id: string; labelEn: string; labelAr: string; tableCount: number };
+
+type BackupRow = {
+  id: number; type: string; filename: string; status: string;
+  sizeBytes: number; tableCount: number; totalRows: number; errorCount: number;
+  createdBy?: string; createdByName?: string; createdAt: string;
+};
+
+type BackupSettings = {
+  dailyEnabled: boolean; dailyHour: number;
+  weeklyEnabled: boolean; weeklyDay: number; weeklyHour: number;
+  monthlyEnabled: boolean; monthlyHour: number;
+  retainDaily: number; retainWeekly: number; retainMonthly: number; retainManual: number;
+};
+
+type BackupStatus = {
+  settings: BackupSettings;
+  lastSuccess: { id: number; type: string; createdAt: string; sizeBytes: number; totalRows: number } | null;
+  nextDaily: string | null;
+  nextWeekly: string | null;
+  nextMonthly: string | null;
+  totalCount: number;
+  totalSize: number;
+  schedulerRunning: boolean;
+};
+
+const TYPE_LABELS: Record<string, { ar: string; en: string; color: string }> = {
+  manual:        { ar: "يدوي",     en: "Manual",   color: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+  auto_daily:    { ar: "يومي",     en: "Daily",    color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" },
+  auto_weekly:   { ar: "أسبوعي",   en: "Weekly",   color: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30" },
+  auto_monthly:  { ar: "شهري",     en: "Monthly",  color: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+  pre_restore:   { ar: "قبل الاستعادة", en: "Pre-Restore", color: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30" },
+};
+
+const DAY_LABELS = [
+  { ar: "الأحد", en: "Sun" }, { ar: "الإثنين", en: "Mon" }, { ar: "الثلاثاء", en: "Tue" },
+  { ar: "الأربعاء", en: "Wed" }, { ar: "الخميس", en: "Thu" }, { ar: "الجمعة", en: "Fri" }, { ar: "السبت", en: "Sat" },
+];
+
+function formatBytes(n: number): string {
+  if (!n) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0; let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
+function formatWhen(iso: string | null, isRtl: boolean): string {
+  if (!iso) return isRtl ? "—" : "—";
+  const d = new Date(iso);
+  return d.toLocaleString(isRtl ? "ar-SA" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export default function BackupModule() {
   const { dir, language } = useLanguage();
@@ -14,23 +76,52 @@ export default function BackupModule() {
   const roles = new Set<string>([user?.role || "", ...((user?.roles as string[]) || [])]);
   const isAdmin = roles.has("admin");
   const isManager = roles.has("manager");
+  const authHeaders = { "x-user-id": userId };
 
+  const [tab, setTab] = useState<"export" | "history" | "settings">("export");
+
+  // shared messages
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [warning, setWarning] = useState("");
+  const clearMessages = () => { setError(""); setSuccess(""); setWarning(""); };
+
+  // status card
+  const [status, setStatus] = useState<BackupStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
+
+  const loadStatus = useCallback(() => {
+    setStatusLoading(true);
+    fetch("/api/backup/status", { headers: authHeaders })
+      .then(async (r) => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.error || (isRtl ? "فشل تحميل الحالة" : "Failed to load status"));
+        }
+        return r.json();
+      })
+      .then((d) => { setStatus(d); setError(""); })
+      .catch((e: any) => { setStatus(null); setError(e.message); })
+      .finally(() => setStatusLoading(false));
+  }, [userId, isRtl]);
+
+  useEffect(() => { if (isAdmin || isManager) loadStatus(); }, [loadStatus, isAdmin, isManager]);
+
+  // ─── Export tab state ──────────────────────────────────────────────────
   const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [modulesLoading, setModulesLoading] = useState(true);
   const [modulesError, setModulesError] = useState("");
   const [loadingFull, setLoadingFull] = useState(false);
   const [loadingMod, setLoadingMod] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [warning, setWarning] = useState("");
+  const [creatingSnapshot, setCreatingSnapshot] = useState(false);
 
   useEffect(() => {
     setModulesLoading(true);
-    fetch("/api/backup/modules", { headers: { "x-user-id": userId } })
+    fetch("/api/backup/modules", { headers: authHeaders })
       .then(async (r) => {
         if (!r.ok) {
           const d = await r.json().catch(() => ({}));
-          throw new Error(d.error || (r.status === 403 ? (isRtl ? "غير مصرح" : "Forbidden") : (isRtl ? "فشل تحميل القائمة" : "Failed to load modules")));
+          throw new Error(d.error || (isRtl ? "فشل تحميل القائمة" : "Failed to load modules"));
         }
         return r.json();
       })
@@ -39,205 +130,536 @@ export default function BackupModule() {
       .finally(() => setModulesLoading(false));
   }, [userId, isRtl]);
 
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const extractFilename = (res: Response, fallback: string) => {
-    const cd = res.headers.get("Content-Disposition") || "";
-    const m = cd.match(/filename="?([^";]+)"?/);
-    return m ? m[1] : fallback;
-  };
-
   const handleFullBackup = async () => {
-    setError(""); setSuccess(""); setWarning(""); setLoadingFull(true);
+    clearMessages(); setLoadingFull(true);
     try {
-      const res = await fetch("/api/backup/full", { headers: { "x-user-id": userId } });
+      const res = await fetch("/api/backup/full", { headers: authHeaders });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || (isRtl ? "فشل إنشاء النسخة" : "Backup failed"));
       }
       const errCount = parseInt(res.headers.get("X-Backup-Errors") || "0", 10);
       const blob = await res.blob();
-      const filename = extractFilename(res, "scapex-full-backup.zip");
-      downloadBlob(blob, filename);
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^";]+)"?/);
+      downloadBlob(blob, m ? m[1] : "scapex-full-backup.zip");
       logAction("export", "backup", `Full backup downloaded`, `تم تنزيل نسخة احتياطية كاملة`);
-      if (errCount > 0) {
-        setWarning(isRtl
-          ? `تم التنزيل لكن ${errCount} جدول فشل تصديره. راجع manifest.json داخل الملف.`
-          : `Downloaded with ${errCount} table failures. Check manifest.json inside the archive.`);
-      } else {
-        setSuccess(isRtl ? "تم تنزيل النسخة الاحتياطية الكاملة بنجاح" : "Full backup downloaded successfully");
-      }
+      if (errCount > 0) setWarning(isRtl ? `تم التنزيل مع ${errCount} جدول فاشل` : `Downloaded with ${errCount} table failures`);
+      else setSuccess(isRtl ? "تم تنزيل النسخة الاحتياطية الكاملة" : "Full backup downloaded successfully");
     } catch (e: any) {
       setError(e.message || (isRtl ? "خطأ في الاتصال" : "Connection error"));
-    } finally {
-      setLoadingFull(false);
-    }
+    } finally { setLoadingFull(false); }
   };
 
   const handleModuleBackup = async (id: string, label: string) => {
-    setError(""); setSuccess(""); setWarning(""); setLoadingMod(id);
+    clearMessages(); setLoadingMod(id);
     try {
-      const res = await fetch(`/api/backup/module/${id}`, { headers: { "x-user-id": userId } });
+      const res = await fetch(`/api/backup/module/${id}`, { headers: authHeaders });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || (isRtl ? "فشل التصدير" : "Export failed"));
       }
       const errCount = parseInt(res.headers.get("X-Backup-Errors") || "0", 10);
       const blob = await res.blob();
-      const filename = extractFilename(res, `scapex-${id}.json`);
-      downloadBlob(blob, filename);
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^";]+)"?/);
+      downloadBlob(blob, m ? m[1] : `scapex-${id}.json`);
       logAction("export", "backup", `Module backup: ${id}`, `نسخة احتياطية للموديول: ${label}`);
-      if (errCount > 0) {
-        setWarning(isRtl
-          ? `تم تنزيل ${label} لكن ${errCount} جدول فشل. راجع حقل errors في الملف.`
-          : `${label} downloaded with ${errCount} table failures. Check the "errors" field in the file.`);
-      } else {
-        setSuccess(isRtl ? `تم تنزيل ${label} بنجاح` : `${label} downloaded successfully`);
-      }
+      if (errCount > 0) setWarning(isRtl ? `تم تنزيل ${label} مع ${errCount} جدول فاشل` : `${label} downloaded with ${errCount} failures`);
+      else setSuccess(isRtl ? `تم تنزيل ${label}` : `${label} downloaded`);
     } catch (e: any) {
       setError(e.message || (isRtl ? "خطأ في الاتصال" : "Connection error"));
-    } finally {
-      setLoadingMod(null);
-    }
+    } finally { setLoadingMod(null); }
+  };
+
+  const handleSnapshotNow = async () => {
+    clearMessages(); setCreatingSnapshot(true);
+    try {
+      const res = await fetch("/api/backup/now", { method: "POST", headers: authHeaders });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || (isRtl ? "فشل إنشاء النسخة" : "Snapshot failed"));
+      logAction("create", "backup", `Manual snapshot #${d.id}`, `نسخة فورية #${d.id}`);
+      if (d.status === "success") setSuccess(isRtl ? `تم إنشاء النسخة الفورية بنجاح (${formatBytes(d.sizeBytes)})` : `Snapshot created (${formatBytes(d.sizeBytes)})`);
+      else if (d.status === "partial") setWarning(isRtl ? `تم إنشاء النسخة مع ${d.errorCount} جدول فاشل` : `Created with ${d.errorCount} failures`);
+      else setError(isRtl ? "فشل إنشاء النسخة" : "Snapshot failed");
+      loadStatus();
+      if (tab === "history") loadHistory();
+    } catch (e: any) {
+      setError(e.message || (isRtl ? "خطأ في الاتصال" : "Connection error"));
+    } finally { setCreatingSnapshot(false); }
+  };
+
+  // ─── History tab state ─────────────────────────────────────────────────
+  const [history, setHistory] = useState<BackupRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [filterType, setFilterType] = useState<string>("");
+  const [downloadingHist, setDownloadingHist] = useState<number | null>(null);
+  const [deletingHist, setDeletingHist] = useState<number | null>(null);
+
+  const loadHistory = useCallback(() => {
+    setHistoryLoading(true); setHistoryError("");
+    const qs = filterType ? `?type=${filterType}` : "";
+    fetch(`/api/backup/history${qs}`, { headers: authHeaders })
+      .then(async (r) => {
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "Failed"); }
+        return r.json();
+      })
+      .then(setHistory)
+      .catch((e: any) => setHistoryError(e.message))
+      .finally(() => setHistoryLoading(false));
+  }, [userId, filterType]);
+
+  useEffect(() => { if (tab === "history") loadHistory(); }, [tab, loadHistory]);
+
+  const handleDownloadHistory = async (row: BackupRow) => {
+    clearMessages(); setDownloadingHist(row.id);
+    try {
+      const res = await fetch(`/api/backup/history/${row.id}/download`, { headers: authHeaders });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || (isRtl ? "فشل التنزيل" : "Download failed"));
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, row.filename);
+      logAction("export", "backup", `Downloaded backup #${row.id}`, `تنزيل النسخة #${row.id}`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setDownloadingHist(null); }
+  };
+
+  const handleDeleteHistory = async (row: BackupRow) => {
+    if (!confirm(isRtl ? `حذف النسخة "${row.filename}" نهائياً؟` : `Delete backup "${row.filename}" permanently?`)) return;
+    clearMessages(); setDeletingHist(row.id);
+    try {
+      const res = await fetch(`/api/backup/history/${row.id}`, { method: "DELETE", headers: authHeaders });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || (isRtl ? "فشل الحذف" : "Delete failed"));
+      }
+      logAction("delete", "backup", `Deleted backup #${row.id}`, `حذف النسخة #${row.id}`);
+      setSuccess(isRtl ? "تم الحذف" : "Deleted");
+      loadHistory(); loadStatus();
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setDeletingHist(null); }
+  };
+
+  // ─── Settings tab state ────────────────────────────────────────────────
+  const [settings, setSettings] = useState<BackupSettings | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab !== "settings" || !isAdmin) return;
+    setSettingsLoading(true);
+    fetch("/api/backup/settings", { headers: authHeaders })
+      .then(async (r) => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.error || (isRtl ? "فشل تحميل الإعدادات" : "Failed to load settings"));
+        }
+        return r.json();
+      })
+      .then(setSettings)
+      .catch((e: any) => setError(e.message))
+      .finally(() => setSettingsLoading(false));
+  }, [tab, isAdmin, isRtl]);
+
+  const handleSaveSettings = async () => {
+    if (!settings) return;
+    clearMessages(); setSettingsSaving(true);
+    try {
+      const res = await fetch("/api/backup/settings", {
+        method: "PUT",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Save failed");
+      setSettings(d);
+      setSuccess(isRtl ? "تم حفظ الإعدادات" : "Settings saved");
+      logAction("update", "backup", "Backup settings updated", "تعديل إعدادات النسخ الاحتياطي");
+      loadStatus();
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setSettingsSaving(false); }
   };
 
   if (!isAdmin && !isManager) {
-    return (
-      <div className="p-8 text-center text-muted-foreground" data-testid="text-no-permission">
-        {isRtl ? "غير مصرح لك بالوصول إلى هذه الصفحة" : "You don't have permission to access this page"}
-      </div>
-    );
+    return <div className="p-8 text-center text-muted-foreground" data-testid="text-no-permission">
+      {isRtl ? "غير مصرح لك بالوصول إلى هذه الصفحة" : "Access denied"}
+    </div>;
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto" dir={dir}>
-      <div className="mb-8">
+    <div className="p-6 max-w-6xl mx-auto" dir={dir}>
+      <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-3" data-testid="heading-backup">
           <Database className="w-8 h-8 text-primary" />
           {isRtl ? "النسخ الاحتياطية" : "Backups"}
         </h1>
         <p className="text-muted-foreground">
           {isRtl
-            ? "قم بتنزيل نسخة احتياطية كاملة من بيانات النظام أو نسخة من موديول محدد."
-            : "Download a complete backup of your system data or export a specific module."}
+            ? "نظام احترافي للنسخ الاحتياطي التلقائي والاستعادة — يومي، أسبوعي، شهري + نسخ يدوية فورية."
+            : "Professional automated backup system — daily, weekly, monthly schedules with manual snapshots."}
         </p>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 text-destructive rounded-md text-sm" data-testid="alert-error">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-md text-sm" data-testid="alert-success">
-          {success}
-        </div>
-      )}
-      {warning && (
-        <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-md text-sm" data-testid="alert-warning">
-          {warning}
-        </div>
-      )}
-      {modulesError && (
-        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 text-destructive rounded-md text-sm" data-testid="alert-modules-error">
-          {modulesError}
-        </div>
-      )}
+      {/* Status card */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={<CheckCircle2 className="w-5 h-5" />}
+          label={isRtl ? "آخر نسخة ناجحة" : "Last successful"}
+          value={statusLoading ? "..." : formatWhen(status?.lastSuccess?.createdAt || null, isRtl)}
+          sub={status?.lastSuccess ? `${formatBytes(status.lastSuccess.sizeBytes)} • ${status.lastSuccess.totalRows.toLocaleString()} ${isRtl ? "سجل" : "rows"}` : (isRtl ? "لا توجد" : "None yet")}
+          color="emerald"
+          testId="stat-last-success"
+        />
+        <StatCard
+          icon={<Clock className="w-5 h-5" />}
+          label={isRtl ? "النسخة التالية" : "Next scheduled"}
+          value={
+            status?.settings.dailyEnabled ? formatWhen(status.nextDaily, isRtl) :
+            status?.settings.weeklyEnabled ? formatWhen(status.nextWeekly, isRtl) :
+            status?.settings.monthlyEnabled ? formatWhen(status.nextMonthly, isRtl) :
+            (isRtl ? "معطّل" : "Disabled")
+          }
+          sub={
+            status?.settings.dailyEnabled ? (isRtl ? "يومي" : "Daily") :
+            status?.settings.weeklyEnabled ? (isRtl ? "أسبوعي" : "Weekly") :
+            status?.settings.monthlyEnabled ? (isRtl ? "شهري" : "Monthly") :
+            (isRtl ? "كل الجداول معطّلة" : "All schedules off")
+          }
+          color="blue"
+          testId="stat-next"
+        />
+        <StatCard
+          icon={<HardDrive className="w-5 h-5" />}
+          label={isRtl ? "إجمالي النسخ" : "Total stored"}
+          value={statusLoading ? "..." : String(status?.totalCount || 0)}
+          sub={status ? formatBytes(status.totalSize) : ""}
+          color="violet"
+          testId="stat-total"
+        />
+        <StatCard
+          icon={<Zap className="w-5 h-5" />}
+          label={isRtl ? "المجدوِل" : "Scheduler"}
+          value={status?.schedulerRunning ? (isRtl ? "نشط" : "Active") : (isRtl ? "متوقف" : "Stopped")}
+          sub={isAdmin ? (isRtl ? "نسخة فورية" : "Snapshot now") : ""}
+          color={status?.schedulerRunning ? "emerald" : "slate"}
+          testId="stat-scheduler"
+          action={isAdmin ? (
+            <button
+              onClick={handleSnapshotNow}
+              disabled={creatingSnapshot}
+              data-testid="button-snapshot-now"
+              className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium hover-elevate disabled:opacity-50"
+            >
+              {creatingSnapshot ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+              {isRtl ? "نسخة الآن" : "Backup now"}
+            </button>
+          ) : undefined}
+        />
+      </div>
 
-      <div className="mb-8 bg-card border-2 border-primary/40 rounded-xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="w-10 h-10 text-primary mt-1" />
-            <div>
-              <h2 className="text-xl font-bold mb-1">
-                {isRtl ? "نسخة احتياطية كاملة (ZIP)" : "Full System Backup (ZIP)"}
-              </h2>
-              <p className="text-sm text-muted-foreground max-w-md">
-                {isRtl
-                  ? "تصدير كل جداول قاعدة البيانات كملف ZIP يحتوي على ملفات JSON منظّمة حسب الموديول. متاح للمشرفين فقط."
-                  : "Export every database table as a ZIP file containing JSON files grouped by module. Admin only."}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleFullBackup}
-            disabled={!isAdmin || loadingFull}
-            data-testid="button-full-backup"
-            className="flex items-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover-elevate disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          >
-            {loadingFull ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-            {loadingFull
-              ? (isRtl ? "جارٍ التحضير..." : "Preparing...")
-              : (isRtl ? "تنزيل النسخة الكاملة" : "Download Full Backup")}
-          </button>
-        </div>
-        {!isAdmin && (
-          <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
-            {isRtl ? "⚠ النسخة الكاملة متاحة للمشرف (admin) فقط" : "⚠ Full backup is admin-only"}
-          </p>
+      {/* Messages */}
+      {error && <Alert kind="error" testId="alert-error">{error}</Alert>}
+      {success && <Alert kind="success" testId="alert-success">{success}</Alert>}
+      {warning && <Alert kind="warning" testId="alert-warning">{warning}</Alert>}
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border mb-6">
+        <TabButton active={tab === "export"} onClick={() => setTab("export")} icon={<Download className="w-4 h-4" />} testId="tab-export">
+          {isRtl ? "تصدير" : "Export"}
+        </TabButton>
+        <TabButton active={tab === "history"} onClick={() => setTab("history")} icon={<History className="w-4 h-4" />} testId="tab-history">
+          {isRtl ? "السجل" : "History"}
+        </TabButton>
+        {isAdmin && (
+          <TabButton active={tab === "settings"} onClick={() => setTab("settings")} icon={<SettingsIcon className="w-4 h-4" />} testId="tab-settings">
+            {isRtl ? "الإعدادات" : "Settings"}
+          </TabButton>
         )}
       </div>
 
-      <div className="mb-3">
-        <h2 className="text-xl font-bold mb-1">
-          {isRtl ? "تصدير حسب الموديول" : "Per-Module Export"}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {isRtl
-            ? "اختر موديول لتنزيل بياناته كملف JSON واحد."
-            : "Choose a module to download its data as a single JSON file."}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {modules.map((m) => {
-          const label = language === "ar" ? m.labelAr : m.labelEn;
-          const isLoading = loadingMod === m.id;
-          return (
-            <div
-              key={m.id}
-              data-testid={`card-module-${m.id}`}
-              className="bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-3 hover-elevate"
-            >
-              <div className="min-w-0">
-                <div className="font-semibold truncate" data-testid={`text-module-label-${m.id}`}>{label}</div>
-                <div className="text-xs text-muted-foreground">
-                  {isRtl ? `${m.tableCount} جدول` : `${m.tableCount} tables`}
+      {/* Tab content */}
+      {tab === "export" && (
+        <div>
+          <div className="mb-6 bg-card border-2 border-primary/40 rounded-xl p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="w-9 h-9 text-primary mt-1" />
+                <div>
+                  <h2 className="text-lg font-bold mb-1">{isRtl ? "نسخة كاملة (ZIP) — تنزيل فوري" : "Full Backup (ZIP) — Instant Download"}</h2>
+                  <p className="text-sm text-muted-foreground max-w-xl">
+                    {isRtl ? "تصدير كل الجداول كملف ZIP منظَّم. متاح للمشرفين فقط." : "Export every table as a structured ZIP. Admin only."}
+                  </p>
                 </div>
               </div>
-              <button
-                onClick={() => handleModuleBackup(m.id, label)}
-                disabled={isLoading || loadingFull}
-                data-testid={`button-backup-${m.id}`}
-                className="flex items-center gap-2 px-3 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover-elevate disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-              >
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {isRtl ? "تنزيل" : "Export"}
+              <button onClick={handleFullBackup} disabled={!isAdmin || loadingFull} data-testid="button-full-backup"
+                className="flex items-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover-elevate disabled:opacity-50 shrink-0">
+                {loadingFull ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                {loadingFull ? (isRtl ? "جارٍ التحضير..." : "Preparing...") : (isRtl ? "تنزيل الآن" : "Download")}
               </button>
             </div>
-          );
-        })}
-        {modulesLoading && modules.length === 0 && (
-          <div className="col-span-full text-center text-muted-foreground py-8 flex items-center justify-center gap-2" data-testid="text-loading-modules">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            {isRtl ? "جارٍ التحميل..." : "Loading..."}
           </div>
-        )}
-        {!modulesLoading && modules.length === 0 && !modulesError && (
-          <div className="col-span-full text-center text-muted-foreground py-8" data-testid="text-empty-modules">
-            {isRtl ? "لا توجد موديولات متاحة" : "No modules available"}
+
+          <h3 className="text-base font-bold mb-1">{isRtl ? "تصدير حسب الموديول" : "Per-Module Export"}</h3>
+          <p className="text-sm text-muted-foreground mb-3">{isRtl ? "اختر موديول لتنزيل بياناته كملف JSON." : "Download module data as a single JSON."}</p>
+
+          {modulesError && <Alert kind="error" testId="alert-modules-error">{modulesError}</Alert>}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {modules.map((m) => {
+              const label = language === "ar" ? m.labelAr : m.labelEn;
+              const loading = loadingMod === m.id;
+              return (
+                <div key={m.id} data-testid={`card-module-${m.id}`} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-3 hover-elevate">
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate" data-testid={`text-module-label-${m.id}`}>{label}</div>
+                    <div className="text-xs text-muted-foreground">{isRtl ? `${m.tableCount} جدول` : `${m.tableCount} tables`}</div>
+                  </div>
+                  <button onClick={() => handleModuleBackup(m.id, label)} disabled={loading || loadingFull} data-testid={`button-backup-${m.id}`}
+                    className="flex items-center gap-2 px-3 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover-elevate disabled:opacity-50 shrink-0">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    {isRtl ? "تنزيل" : "Export"}
+                  </button>
+                </div>
+              );
+            })}
+            {modulesLoading && modules.length === 0 && (
+              <div className="col-span-full text-center text-muted-foreground py-8 flex items-center justify-center gap-2" data-testid="text-loading-modules">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {isRtl ? "جارٍ التحميل..." : "Loading..."}
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <FilterChip active={filterType === ""} onClick={() => setFilterType("")} testId="filter-all">{isRtl ? "الكل" : "All"}</FilterChip>
+              {Object.keys(TYPE_LABELS).map((t) => (
+                <FilterChip key={t} active={filterType === t} onClick={() => setFilterType(t)} testId={`filter-${t}`}>
+                  {isRtl ? TYPE_LABELS[t].ar : TYPE_LABELS[t].en}
+                </FilterChip>
+              ))}
+            </div>
+            <button onClick={loadHistory} disabled={historyLoading} data-testid="button-refresh-history"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-md text-xs font-medium hover-elevate disabled:opacity-50">
+              <RefreshCw className={`w-3.5 h-3.5 ${historyLoading ? "animate-spin" : ""}`} />
+              {isRtl ? "تحديث" : "Refresh"}
+            </button>
+          </div>
+
+          {historyError && <Alert kind="error" testId="alert-history-error">{historyError}</Alert>}
+
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-xs uppercase">
+                  <tr>
+                    <th className="px-3 py-2 text-start">{isRtl ? "النوع" : "Type"}</th>
+                    <th className="px-3 py-2 text-start">{isRtl ? "التاريخ" : "Date"}</th>
+                    <th className="px-3 py-2 text-start">{isRtl ? "الحالة" : "Status"}</th>
+                    <th className="px-3 py-2 text-start">{isRtl ? "الحجم" : "Size"}</th>
+                    <th className="px-3 py-2 text-start">{isRtl ? "السجلات" : "Rows"}</th>
+                    <th className="px-3 py-2 text-start">{isRtl ? "بواسطة" : "By"}</th>
+                    <th className="px-3 py-2 text-end">{isRtl ? "إجراءات" : "Actions"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLoading && (
+                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin inline" /> {isRtl ? "جارٍ التحميل..." : "Loading..."}
+                    </td></tr>
+                  )}
+                  {!historyLoading && history.length === 0 && (
+                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground" data-testid="text-empty-history">
+                      {isRtl ? "لا توجد نسخ احتياطية بعد" : "No backups yet"}
+                    </td></tr>
+                  )}
+                  {history.map((b) => {
+                    const t = TYPE_LABELS[b.type] || { ar: b.type, en: b.type, color: "bg-muted text-muted-foreground border-border" };
+                    return (
+                      <tr key={b.id} className="border-t border-border hover:bg-muted/30" data-testid={`row-backup-${b.id}`}>
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs border ${t.color}`}>
+                            {isRtl ? t.ar : t.en}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatWhen(b.createdAt, isRtl)}</td>
+                        <td className="px-3 py-2">
+                          {b.status === "success" && <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" />{isRtl ? "ناجحة" : "Success"}</span>}
+                          {b.status === "partial" && <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"><AlertTriangle className="w-3.5 h-3.5" />{isRtl ? `جزئية (${b.errorCount})` : `Partial (${b.errorCount})`}</span>}
+                          {b.status === "failed" && <span className="inline-flex items-center gap-1 text-destructive"><XCircle className="w-3.5 h-3.5" />{isRtl ? "فاشلة" : "Failed"}</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatBytes(b.sizeBytes)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{(b.totalRows || 0).toLocaleString()}</td>
+                        <td className="px-3 py-2 truncate max-w-[140px]" title={b.createdByName || ""}>{b.createdByName || "—"}</td>
+                        <td className="px-3 py-2 text-end whitespace-nowrap">
+                          <button onClick={() => handleDownloadHistory(b)} disabled={!b.sizeBytes || downloadingHist === b.id} data-testid={`button-download-${b.id}`}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-secondary text-secondary-foreground rounded text-xs hover-elevate disabled:opacity-40 me-1">
+                            {downloadingHist === b.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                            {isRtl ? "تنزيل" : "Get"}
+                          </button>
+                          {isAdmin && (
+                            <button onClick={() => handleDeleteHistory(b)} disabled={deletingHist === b.id} data-testid={`button-delete-${b.id}`}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-destructive/10 text-destructive rounded text-xs hover-elevate disabled:opacity-40">
+                              {deletingHist === b.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "settings" && isAdmin && (
+        <div className="space-y-4 max-w-3xl">
+          {settingsLoading && !settings && (
+            <div className="text-center py-8 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline" /> {isRtl ? "جارٍ التحميل..." : "Loading..."}</div>
+          )}
+          {settings && (
+            <>
+              <SettingsBlock title={isRtl ? "النسخ التلقائي اليومي" : "Auto Daily Backup"} testId="block-daily">
+                <Toggle checked={settings.dailyEnabled} onChange={(v) => setSettings({ ...settings, dailyEnabled: v })} testId="toggle-daily"
+                  label={isRtl ? "تفعيل النسخ اليومي" : "Enable daily backups"} />
+                <HourInput label={isRtl ? "الساعة" : "Hour (0–23)"} value={settings.dailyHour} onChange={(v) => setSettings({ ...settings, dailyHour: v })} testId="input-daily-hour" />
+                <NumInput label={isRtl ? "عدد النسخ المحفوظة" : "Keep last N"} value={settings.retainDaily} onChange={(v) => setSettings({ ...settings, retainDaily: v })} min={1} max={90} testId="input-retain-daily" />
+              </SettingsBlock>
+
+              <SettingsBlock title={isRtl ? "النسخ التلقائي الأسبوعي" : "Auto Weekly Backup"} testId="block-weekly">
+                <Toggle checked={settings.weeklyEnabled} onChange={(v) => setSettings({ ...settings, weeklyEnabled: v })} testId="toggle-weekly"
+                  label={isRtl ? "تفعيل النسخ الأسبوعي" : "Enable weekly backups"} />
+                <div>
+                  <label className="text-xs text-muted-foreground">{isRtl ? "اليوم" : "Day"}</label>
+                  <select value={settings.weeklyDay} onChange={(e) => setSettings({ ...settings, weeklyDay: parseInt(e.target.value, 10) })} data-testid="select-weekly-day"
+                    className="w-full mt-1 bg-background border border-input rounded-md px-3 py-2 text-sm">
+                    {DAY_LABELS.map((d, i) => <option key={i} value={i}>{isRtl ? d.ar : d.en}</option>)}
+                  </select>
+                </div>
+                <HourInput label={isRtl ? "الساعة" : "Hour (0–23)"} value={settings.weeklyHour} onChange={(v) => setSettings({ ...settings, weeklyHour: v })} testId="input-weekly-hour" />
+                <NumInput label={isRtl ? "عدد النسخ المحفوظة" : "Keep last N"} value={settings.retainWeekly} onChange={(v) => setSettings({ ...settings, retainWeekly: v })} min={1} max={52} testId="input-retain-weekly" />
+              </SettingsBlock>
+
+              <SettingsBlock title={isRtl ? "النسخ التلقائي الشهري" : "Auto Monthly Backup"} testId="block-monthly">
+                <Toggle checked={settings.monthlyEnabled} onChange={(v) => setSettings({ ...settings, monthlyEnabled: v })} testId="toggle-monthly"
+                  label={isRtl ? "تفعيل النسخ الشهري (أول يوم من اليوم الأسبوعي المختار)" : "Enable monthly backups (first chosen weekday)"} />
+                <HourInput label={isRtl ? "الساعة" : "Hour (0–23)"} value={settings.monthlyHour} onChange={(v) => setSettings({ ...settings, monthlyHour: v })} testId="input-monthly-hour" />
+                <NumInput label={isRtl ? "عدد النسخ المحفوظة" : "Keep last N"} value={settings.retainMonthly} onChange={(v) => setSettings({ ...settings, retainMonthly: v })} min={1} max={24} testId="input-retain-monthly" />
+              </SettingsBlock>
+
+              <SettingsBlock title={isRtl ? "النسخ اليدوية" : "Manual Backups"} testId="block-manual">
+                <NumInput label={isRtl ? "عدد النسخ اليدوية المحفوظة" : "Keep last N manual snapshots"} value={settings.retainManual} onChange={(v) => setSettings({ ...settings, retainManual: v })} min={1} max={100} testId="input-retain-manual" />
+              </SettingsBlock>
+
+              <div className="flex justify-end">
+                <button onClick={handleSaveSettings} disabled={settingsSaving} data-testid="button-save-settings"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover-elevate disabled:opacity-50">
+                  {settingsSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isRtl ? "حفظ الإعدادات" : "Save Settings"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Small UI helpers ────────────────────────────────────────────────────
+function StatCard({ icon, label, value, sub, color, testId, action }: any) {
+  const colorMap: any = {
+    emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
+    blue: "text-blue-600 dark:text-blue-400 bg-blue-500/10",
+    violet: "text-violet-600 dark:text-violet-400 bg-violet-500/10",
+    slate: "text-slate-600 dark:text-slate-400 bg-slate-500/10",
+  };
+  return (
+    <div className="bg-card border border-border rounded-lg p-3" data-testid={testId}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`p-1.5 rounded ${colorMap[color] || colorMap.slate}`}>{icon}</span>
+        <span className="text-xs text-muted-foreground">{label}</span>
       </div>
+      <div className="font-semibold text-sm truncate">{value}</div>
+      {sub && <div className="text-xs text-muted-foreground truncate mt-0.5">{sub}</div>}
+      {action}
+    </div>
+  );
+}
+
+function Alert({ kind, testId, children }: any) {
+  const map: any = {
+    error: "bg-destructive/10 border-destructive/30 text-destructive",
+    success: "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
+    warning: "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400",
+  };
+  return <div className={`mb-4 p-3 border rounded-md text-sm ${map[kind]}`} data-testid={testId}>{children}</div>;
+}
+
+function TabButton({ active, onClick, icon, testId, children }: any) {
+  return (
+    <button onClick={onClick} data-testid={testId}
+      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+      {icon}{children}
+    </button>
+  );
+}
+
+function FilterChip({ active, onClick, testId, children }: any) {
+  return (
+    <button onClick={onClick} data-testid={testId}
+      className={`px-3 py-1 rounded-full text-xs font-medium border ${active ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover-elevate"}`}>
+      {children}
+    </button>
+  );
+}
+
+function SettingsBlock({ title, testId, children }: any) {
+  return (
+    <div className="bg-card border border-border rounded-lg p-4" data-testid={testId}>
+      <h3 className="font-bold mb-3">{title}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{children}</div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange, label, testId }: any) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer md:col-span-2">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid={testId} className="w-4 h-4" />
+      <span className="text-sm">{label}</span>
+    </label>
+  );
+}
+
+function HourInput({ label, value, onChange, testId }: any) {
+  return (
+    <div>
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <input type="number" min={0} max={23} value={value} onChange={(e) => onChange(Math.max(0, Math.min(23, parseInt(e.target.value, 10) || 0)))} data-testid={testId}
+        className="w-full mt-1 bg-background border border-input rounded-md px-3 py-2 text-sm" />
+    </div>
+  );
+}
+
+function NumInput({ label, value, onChange, min, max, testId }: any) {
+  return (
+    <div>
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <input type="number" min={min} max={max} value={value} onChange={(e) => onChange(Math.max(min, Math.min(max, parseInt(e.target.value, 10) || min)))} data-testid={testId}
+        className="w-full mt-1 bg-background border border-input rounded-md px-3 py-2 text-sm" />
     </div>
   );
 }

@@ -85,6 +85,13 @@ app.post("/hooks/deploy", (req, res) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
+  try {
+    const { startBackupScheduler } = await import("./backupScheduler");
+    startBackupScheduler();
+  } catch (e: any) {
+    console.error("Failed to start backup scheduler:", e?.message || e);
+  }
+
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

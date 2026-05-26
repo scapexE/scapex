@@ -30,6 +30,10 @@ import { eq } from "drizzle-orm";
 
 import { seedDefaultActivities as seedActivitiesShared, seedDefaultCompanies as seedCompaniesShared, seedDefaultCatalogs, DEFAULT_ACTIVITY_CATALOG } from "./seed";
 import { BACKUP_MODULES, buildModuleBackup, buildFullBackup } from "./backup";
+import {
+  createBackup, listBackups, getBackupFile, deleteBackup,
+  getBackupStatus, getBackupSettings, saveBackupSettings, DEFAULT_SETTINGS,
+} from "./backupScheduler";
 import { ACTIVITY_CATALOG, toCatalogId, toActivityId } from "@shared/activityCatalog";
 
 /**
@@ -3437,6 +3441,80 @@ export async function registerRoutes(
       console.error("Full backup error:", e);
       res.status(500).json({ error: e.message || "Full backup failed" });
     }
+  });
+
+  app.get("/api/backup/status", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try { res.json(await getBackupStatus()); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/backup/history", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const type = (req.query.type as string) || undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+      res.json(await listBackups({ type, limit }));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/backup/history/:id/download", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const row = await getBackupFile(Number(req.params.id));
+      if (!row) return res.status(404).json({ error: "Backup not found" });
+      if (!row.fileContent) return res.status(404).json({ error: "Backup file unavailable" });
+      const buffer = Buffer.from(row.fileContent, "base64");
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${row.filename}"`);
+      res.setHeader("X-Backup-Status", row.status || "success");
+      res.setHeader("X-Backup-Errors", String(row.errorCount || 0));
+      res.send(buffer);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/backup/history/:id", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      await deleteBackup(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/backup/now", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const actorId = (req.header("x-user-id") || "").trim();
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      const r = await createBackup({
+        type: "manual",
+        createdBy: actorId,
+        createdByName: actor?.name || actor?.email || "Admin",
+      });
+      res.json(r);
+    } catch (e: any) {
+      console.error("Manual backup error:", e);
+      res.status(500).json({ error: e.message || "Backup failed" });
+    }
+  });
+
+  app.get("/api/backup/settings", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    try { res.json(await getBackupSettings()); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/backup/settings", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const allowed: any = {};
+      const b = req.body || {};
+      for (const k of Object.keys(DEFAULT_SETTINGS)) {
+        if (k in b) allowed[k] = b[k];
+      }
+      const saved = await saveBackupSettings(allowed);
+      res.json(saved);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   app.post("/api/auth/forgot-send-code", async (req, res) => {

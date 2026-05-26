@@ -1203,6 +1203,23 @@ export const serviceCategories = pgTable("service_categories", {
   sortOrder: integer("sort_order").default(0),
 });
 
+export const systemBackups = pgTable("system_backups", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  filename: text("filename").notNull(),
+  status: text("status").notNull().default("success"),
+  sizeBytes: integer("size_bytes").default(0),
+  tableCount: integer("table_count").default(0),
+  totalRows: integer("total_rows").default(0),
+  errorCount: integer("error_count").default(0),
+  errors: jsonb("errors").default({}),
+  manifest: jsonb("manifest").default({}),
+  fileContent: text("file_content"),
+  createdBy: varchar("created_by"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const services = pgTable("services", {
   id: serial("id").primaryKey(),
   categoryId: integer("category_id").references(() => serviceCategories.id),
