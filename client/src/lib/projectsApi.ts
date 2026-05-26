@@ -210,6 +210,84 @@ export async function createProjectInvoice(projectId: number, input: CreateProje
   return (await r.json()) as ApiProjectInvoice;
 }
 
+// ─────── Project Tasks ───────────────────────────────────────────────────────
+
+export type TaskStatus = "todo" | "in_progress" | "review" | "done" | "blocked";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+
+export interface ApiTask {
+  id: number;
+  projectId: number;
+  parentId: number | null;
+  titleAr: string;
+  titleEn: string | null;
+  description: string | null;
+  assignedTo: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  startDate: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  estimatedHours: string | null;
+  actualHours: string | null;
+  progress: number | null;
+  sortOrder: number | null;
+  createdAt: string | null;
+}
+
+export const TASK_STATUS_AR: Record<TaskStatus, string> = {
+  todo: "قيد الانتظار",
+  in_progress: "جارٍ التنفيذ",
+  review: "قيد المراجعة",
+  done: "مكتملة",
+  blocked: "معلّقة",
+};
+
+export const TASK_STATUS_EN: Record<TaskStatus, string> = {
+  todo: "To Do",
+  in_progress: "In Progress",
+  review: "In Review",
+  done: "Done",
+  blocked: "Blocked",
+};
+
+export const TASK_PRIORITY_AR: Record<TaskPriority, string> = {
+  low: "منخفضة",
+  medium: "متوسطة",
+  high: "عالية",
+  urgent: "عاجلة",
+};
+
+export const TASK_PRIORITY_EN: Record<TaskPriority, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  urgent: "Urgent",
+};
+
+export async function listTasks(projectId: number) {
+  const r = await scopedFetch(`/api/projects/${projectId}/tasks`);
+  if (!r.ok) throw new Error(`Failed to load tasks: ${r.status}`);
+  return (await r.json()) as ApiTask[];
+}
+
+export async function createTask(projectId: number, body: Partial<ApiTask>) {
+  const r = await apiRequest("POST", `/api/projects/${projectId}/tasks`, body);
+  if (!r.ok) { const e = await r.json(); throw new Error(e.error || "Failed"); }
+  return (await r.json()) as ApiTask;
+}
+
+export async function updateTask(id: number, body: Partial<ApiTask>) {
+  const r = await apiRequest("PATCH", `/api/tasks/${id}`, body);
+  if (!r.ok) { const e = await r.json(); throw new Error(e.error || "Failed"); }
+  return (await r.json()) as ApiTask;
+}
+
+export async function deleteTask(id: number) {
+  const r = await apiRequest("DELETE", `/api/tasks/${id}`);
+  return r.ok;
+}
+
 /** Default stage template applied to new projects when no custom stages provided. */
 export const DEFAULT_PROJECT_STAGES: Array<{ titleAr: string; titleEn: string }> = [
   { titleAr: "عرض السعر", titleEn: "Proposal" },

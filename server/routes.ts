@@ -1231,6 +1231,54 @@ export async function registerRoutes(
     }
   });
 
+  // ─────── Projects Analytics Dashboard (must be before /:id) ────────────────
+  app.get("/api/projects/analytics", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const conds: any[] = [];
+      if (scope.activityId) conds.push(eq(projects.activityId, scope.activityId));
+      else if (!scope.isPrivileged && scope.allowedIds?.length)
+        conds.push(inArray(projects.activityId, scope.allowedIds));
+      const allProjects = await db.select().from(projects)
+        .where(conds.length ? (conds.length > 1 ? and(...conds) : conds[0]) : undefined);
+      const allTasks = allProjects.length
+        ? await db.select().from(projectTasks)
+            .where(inArray(projectTasks.projectId, allProjects.map(p => p.id)))
+        : [];
+      const kpis = {
+        total: allProjects.length,
+        active: allProjects.filter(p => p.status === "active").length,
+        planning: allProjects.filter(p => p.status === "planning").length,
+        completed: allProjects.filter(p => p.status === "completed").length,
+        delayed: allProjects.filter(p => p.status === "delayed").length,
+        onHold: allProjects.filter(p => p.status === "on_hold").length,
+        totalBudget: allProjects.reduce((s, p) => s + parseFloat(p.budget ?? "0"), 0),
+        totalSpent: allProjects.reduce((s, p) => s + parseFloat(p.spent ?? "0"), 0),
+        avgProgress: allProjects.length ? Math.round(allProjects.reduce((s, p) => s + (p.progress ?? 0), 0) / allProjects.length) : 0,
+        totalTasks: allTasks.length,
+        doneTasks: allTasks.filter(t => t.status === "done").length,
+        overdueTasks: allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "done").length,
+      };
+      const byStatus = [
+        { status: "active", count: kpis.active, label: "نشط / Active" },
+        { status: "planning", count: kpis.planning, label: "تخطيط / Planning" },
+        { status: "completed", count: kpis.completed, label: "مكتمل / Completed" },
+        { status: "delayed", count: kpis.delayed, label: "متأخر / Delayed" },
+        { status: "on_hold", count: kpis.onHold, label: "متوقف / On Hold" },
+      ];
+      const topByBudget = [...allProjects]
+        .sort((a, b) => parseFloat(b.budget ?? "0") - parseFloat(a.budget ?? "0"))
+        .slice(0, 5)
+        .map(p => ({
+          id: p.id, name: p.nameAr || p.nameEn,
+          budget: parseFloat(p.budget ?? "0"), spent: parseFloat(p.spent ?? "0"),
+          progress: p.progress ?? 0, status: p.status,
+        }));
+      res.json({ kpis, byStatus, topByBudget });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   app.get("/api/projects/:id", async (req, res) => {
     try {
       const r = await loadScopedProject(req, req.params.id);
@@ -2602,9 +2650,158 @@ export async function registerRoutes(
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
+  // ─────── Project Tasks ──────────────────────────────────────────────────────
+  app.get("/api/projects/:id/tasks", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const rows = await db.select().from(projectTasks)
+        .where(eq(projectTasks.projectId, r.row.id))
+        .orderBy(projectTasks.sortOrder, projectTasks.id);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/projects/:id/tasks", async (req, res) => {
+    try {
+      const r = await loadScopedProject(req, req.params.id);
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      const d = req.body || {};
+      if (!d.titleAr && !d.titleEn) return res.status(400).json({ error: "Title required" });
+      const [row] = await db.insert(projectTasks).values({
+        projectId: r.row.id,
+        titleAr: d.titleAr || d.titleEn,
+        titleEn: d.titleEn || d.titleAr || null,
+        description: d.description || null,
+        assignedTo: d.assignedTo || null,
+        status: d.status || "todo",
+        priority: d.priority || "medium",
+        startDate: d.startDate || null,
+        dueDate: d.dueDate || null,
+        estimatedHours: d.estimatedHours ? String(d.estimatedHours) : null,
+        actualHours: d.actualHours ? String(d.actualHours) : null,
+        progress: d.progress ?? 0,
+        sortOrder: d.sortOrder ?? 0,
+        parentId: d.parentId ?? null,
+      } as any).returning();
+      // Notify assignee
+      if (row.assignedTo) {
+        await db.insert(notifications).values({
+          companyId: r.row.companyId ?? null,
+          userId: row.assignedTo,
+          titleAr: "تم تعيينك لمهمة جديدة",
+          titleEn: "You have been assigned a new task",
+          message: `${row.titleAr || row.titleEn} — ${r.row.nameAr || r.row.nameEn}`,
+          type: "info", module: "projects", entityId: String(r.row.id),
+        }).catch(() => {});
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.patch("/api/tasks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+      const [existing] = await db.select().from(projectTasks).where(eq(projectTasks.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      const d = req.body || {};
+      const completedAt = d.status === "done" && existing.status !== "done" ? new Date() : (d.status !== "done" ? null : existing.completedAt);
+      const [row] = await db.update(projectTasks).set({
+        titleAr: d.titleAr ?? existing.titleAr,
+        titleEn: d.titleEn ?? existing.titleEn,
+        description: d.description ?? existing.description,
+        assignedTo: d.assignedTo !== undefined ? d.assignedTo : existing.assignedTo,
+        status: d.status ?? existing.status,
+        priority: d.priority ?? existing.priority,
+        startDate: d.startDate !== undefined ? d.startDate : existing.startDate,
+        dueDate: d.dueDate !== undefined ? d.dueDate : existing.dueDate,
+        estimatedHours: d.estimatedHours !== undefined ? (d.estimatedHours ? String(d.estimatedHours) : null) : existing.estimatedHours,
+        actualHours: d.actualHours !== undefined ? (d.actualHours ? String(d.actualHours) : null) : existing.actualHours,
+        progress: d.progress ?? existing.progress,
+        sortOrder: d.sortOrder ?? existing.sortOrder,
+        completedAt: completedAt as any,
+      } as any).where(eq(projectTasks.id, id)).returning();
+      // Auto-update project progress from tasks
+      const allTasks = await db.select({ progress: projectTasks.progress })
+        .from(projectTasks).where(eq(projectTasks.projectId, existing.projectId));
+      if (allTasks.length > 0) {
+        const avg = Math.round(allTasks.reduce((s, t) => s + (t.progress ?? 0), 0) / allTasks.length);
+        await db.update(projects).set({ progress: avg, updatedAt: new Date() })
+          .where(eq(projects.id, existing.projectId));
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/tasks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db.delete(projectTasks).where(eq(projectTasks.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─────── Assets (Equipment & Fleet) ─────────────────────────────────────────
   app.get("/api/assets", async (_req, res) => {
     try { res.json(await db.select().from(assets).orderBy(assets.createdAt)); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  // Must be before /api/assets/:id to avoid route conflict
+  app.get("/api/assets/analytics", async (_req, res) => {
+    try {
+      const allAssets = await db.select().from(assets).orderBy(assets.createdAt);
+      const allMaint = await db.select().from(maintenanceRecords).orderBy(desc(maintenanceRecords.date));
+      const now = new Date();
+      const in30 = new Date(now); in30.setDate(in30.getDate() + 30);
+      const in90 = new Date(now); in90.setDate(in90.getDate() + 90);
+      const kpis = {
+        total: allAssets.length,
+        active: allAssets.filter(a => a.status === "available").length,
+        inMaintenance: allAssets.filter(a => a.status === "maintenance").length,
+        outOfService: allAssets.filter(a => a.status === "out_of_service").length,
+        dueSoon30: allAssets.filter(a => a.nextMaintenanceDate && new Date(a.nextMaintenanceDate) <= in30 && a.status !== "maintenance").length,
+        dueSoon90: allAssets.filter(a => a.nextMaintenanceDate && new Date(a.nextMaintenanceDate) <= in90 && a.status !== "maintenance").length,
+        totalPurchaseCost: allAssets.reduce((s, a) => s + parseFloat(a.purchaseCost ?? "0"), 0),
+        totalMaintenanceCost: allMaint.reduce((s, m) => s + parseFloat(m.cost ?? "0"), 0),
+        insuranceExpiring: allAssets.filter(a => a.insuranceExpiry && new Date(a.insuranceExpiry) <= in30).length,
+      };
+      const months: { label: string; cost: number; count: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const label = d.toLocaleString("default", { month: "short", year: "2-digit" });
+        const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
+        const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        const mRecs = allMaint.filter(m => m.date && new Date(m.date) >= mStart && new Date(m.date) <= mEnd);
+        months.push({ label, cost: mRecs.reduce((s, m) => s + parseFloat(m.cost ?? "0"), 0), count: mRecs.length });
+      }
+      const depreciationData = allAssets
+        .filter(a => a.purchaseCost && a.purchaseDate)
+        .map(a => {
+          const cost = parseFloat(a.purchaseCost ?? "0");
+          const years = (now.getTime() - new Date(a.purchaseDate!).getTime()) / (365.25 * 864e5);
+          const rate = Math.min(1, years / 10);
+          const currentValue = Math.max(0, cost * (1 - rate));
+          return { id: a.id, name: a.nameAr || a.nameEn, purchaseCost: cost, currentValue, depreciation: cost - currentValue, depreciationPct: Math.round(rate * 100) };
+        }).sort((a, b) => b.depreciation - a.depreciation).slice(0, 8);
+      const byStatus = [
+        { status: "available", count: kpis.active, label: "نشط / Active" },
+        { status: "maintenance", count: kpis.inMaintenance, label: "صيانة / Maintenance" },
+        { status: "out_of_service", count: kpis.outOfService, label: "خارج الخدمة / Out of Service" },
+        { status: "rented", count: allAssets.filter(a => a.status === "rented").length, label: "مؤجر / Rented" },
+      ];
+      res.json({ kpis, months, depreciationData, byStatus });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/assets/:id", async (req, res) => {
+    try {
+      const [row] = await db.select().from(assets).where(eq(assets.id, parseInt(req.params.id)));
+      if (!row) return res.status(404).json({ error: "Not found" });
+      const maint = await db.select().from(maintenanceRecords)
+        .where(eq(maintenanceRecords.assetId, row.id))
+        .orderBy(desc(maintenanceRecords.createdAt));
+      res.json({ ...row, maintenanceHistory: maint });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/assets", async (req, res) => {
     try {
@@ -2617,8 +2814,10 @@ export async function registerRoutes(
         status: b.status || "available", condition: b.condition || "good",
         lastMaintenanceDate: b.lastMaintenanceDate || b.lastMaintenance || null,
         nextMaintenanceDate: b.nextMaintenanceDate || b.nextMaintenance || null,
+        insuranceExpiry: b.insuranceExpiry || null,
+        projectId: b.projectId ? parseInt(b.projectId) : null,
         notes: b.notes,
-      }).returning();
+      } as any).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -2633,8 +2832,10 @@ export async function registerRoutes(
         status: b.status, condition: b.condition || "good",
         lastMaintenanceDate: b.lastMaintenanceDate || b.lastMaintenance || null,
         nextMaintenanceDate: b.nextMaintenanceDate || b.nextMaintenance || null,
+        insuranceExpiry: b.insuranceExpiry || null,
+        projectId: b.projectId !== undefined ? (b.projectId ? parseInt(b.projectId) : null) : undefined,
         notes: b.notes, updatedAt: new Date(),
-      }).where(eq(assets.id, parseInt(req.params.id))).returning();
+      } as any).where(eq(assets.id, parseInt(req.params.id))).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -2642,8 +2843,29 @@ export async function registerRoutes(
     try { await db.delete(assets).where(eq(assets.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
-  app.get("/api/maintenance-records", async (_req, res) => {
-    try { res.json(await db.select().from(maintenanceRecords).orderBy(desc(maintenanceRecords.createdAt))); }
+  app.get("/api/maintenance-records", async (req, res) => {
+    try {
+      const assetId = req.query.assetId ? parseInt(req.query.assetId as string) : null;
+      const q = db.select().from(maintenanceRecords).orderBy(desc(maintenanceRecords.createdAt));
+      const rows = assetId
+        ? await db.select().from(maintenanceRecords).where(eq(maintenanceRecords.assetId, assetId)).orderBy(desc(maintenanceRecords.createdAt))
+        : await q;
+      res.json(rows);
+    }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.patch("/api/maintenance-records/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const [row] = await db.update(maintenanceRecords).set({
+        description: b.description, cost: b.cost ? String(b.cost) : null,
+        technician: b.technician, vendor: b.vendor, nextDate: b.nextDate, status: b.status,
+      }).where(eq(maintenanceRecords.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/maintenance-records/:id", async (req, res) => {
+    try { await db.delete(maintenanceRecords).where(eq(maintenanceRecords.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/maintenance-records", async (req, res) => {

@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Trash2, Calendar, User as UserIcon, Building, MapPin, Save } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, User as UserIcon, Building, MapPin, Save, CheckSquare, Clock, AlertCircle, ChevronDown, ChevronRight, LayoutGrid, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scopedFetch } from "@/lib/queryClient";
 import {
@@ -22,10 +22,13 @@ import {
   listProjectDocuments, createProjectDocument, deleteProjectDocument,
   listProjectInvoices,
   createProjectInvoice,
+  listTasks, createTask, updateTask, deleteTask,
   type ApiProject, type ApiStage, type ApiProjectDocument, type ApiProjectInvoice,
+  type ApiTask, type TaskStatus, type TaskPriority,
   type ProjectStatus, type StageStatus,
   PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN,
   STAGE_STATUS_LABELS_AR, STAGE_STATUS_LABELS_EN,
+  TASK_STATUS_AR, TASK_STATUS_EN, TASK_PRIORITY_AR, TASK_PRIORITY_EN,
 } from "@/lib/projectsApi";
 import { FileText, CreditCard, History as HistoryIcon } from "lucide-react";
 
@@ -59,11 +62,15 @@ export default function ProjectDetailPage() {
   const projectId = match && params?.id ? Number(params.id) : NaN;
   const [project, setProject] = useState<ApiProject | null>(null);
   const [stages, setStages] = useState<ApiStage[]>([]);
+  const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [users, setUsers] = useState<SimpleUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAddStage, setShowAddStage] = useState(false);
   const [editStage, setEditStage] = useState<ApiStage | null>(null);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [editTask, setEditTask] = useState<ApiTask | null>(null);
+  const [taskView, setTaskView] = useState<"list" | "kanban">("list");
 
   const userName = (id: string | null | undefined) => {
     if (!id) return null;
@@ -75,18 +82,35 @@ export default function ProjectDetailPage() {
     if (!Number.isFinite(projectId)) return;
     try {
       setLoading(true);
-      const [p, s, u] = await Promise.all([
+      const [p, s, t, u] = await Promise.all([
         getProject(projectId),
         listStages(projectId),
+        listTasks(projectId).catch(() => []),
         scopedFetch("/api/users").then(r => r.ok ? r.json() : []),
       ]);
       setProject(p);
       setStages(s);
+      setTasks(Array.isArray(t) ? t : []);
       setUsers(Array.isArray(u) ? u : []);
     } catch (err: any) {
       toast({ title: isRtl ? "تعذّر تحميل المشروع" : "Failed to load project", description: err?.message, variant: "destructive" });
       setProject(null);
     } finally { setLoading(false); }
+  };
+
+  const handleTaskChange = async (taskId: number, patch: Partial<ApiTask>) => {
+    try {
+      const upd = await updateTask(taskId, patch);
+      setTasks(prev => prev.map(t => t.id === taskId ? upd : t));
+      // Recalculate project progress from tasks
+      const updatedTasks = tasks.map(t => t.id === taskId ? upd : t);
+      const avg = updatedTasks.length
+        ? Math.round(updatedTasks.reduce((s, t) => s + (t.progress ?? 0), 0) / updatedTasks.length)
+        : 0;
+      setProject(p => p ? { ...p, progress: avg } : p);
+    } catch (err: any) {
+      toast({ title: isRtl ? "تعذّر تحديث المهمة" : "Failed to update task", description: err?.message, variant: "destructive" });
+    }
   };
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [projectId]);
@@ -176,14 +200,39 @@ export default function ProjectDetailPage() {
           </CardHeader>
         </Card>
 
-        <Tabs defaultValue="stages" className="flex flex-col gap-4">
-          <TabsList className="self-start">
+        <Tabs defaultValue="tasks" className="flex flex-col gap-4">
+          <TabsList className="self-start flex-wrap h-auto">
+            <TabsTrigger value="tasks" data-testid="tab-tasks">
+              <CheckSquare className="w-3.5 h-3.5 mr-1.5 rtl:ml-1.5 rtl:mr-0" />
+              {isRtl ? "المهام" : "Tasks"}
+              {tasks.length > 0 && <Badge variant="secondary" className="ms-1.5 h-4 px-1 text-[10px]">{tasks.length}</Badge>}
+            </TabsTrigger>
             <TabsTrigger value="stages" data-testid="tab-stages">{isRtl ? "المراحل" : "Stages"}</TabsTrigger>
             <TabsTrigger value="info" data-testid="tab-info">{isRtl ? "المعلومات" : "Information"}</TabsTrigger>
             <TabsTrigger value="documents" data-testid="tab-documents">{isRtl ? "المستندات" : "Documents"}</TabsTrigger>
             <TabsTrigger value="payments" data-testid="tab-payments">{isRtl ? "المدفوعات" : "Payments"}</TabsTrigger>
             <TabsTrigger value="history" data-testid="tab-history">{isRtl ? "السجل" : "History"}</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="tasks" className="m-0">
+            <ProjectTasksTab
+              projectId={project.id}
+              tasks={tasks}
+              users={users}
+              isRtl={isRtl}
+              view={taskView}
+              onViewChange={setTaskView}
+              showAddTask={showAddTask}
+              onShowAddTask={setShowAddTask}
+              editTask={editTask}
+              onEditTask={setEditTask}
+              onTaskChange={handleTaskChange}
+              onTaskCreated={(t) => setTasks(prev => [...prev, t])}
+              onTaskDeleted={(id) => setTasks(prev => prev.filter(x => x.id !== id))}
+              onTaskUpdated={(t) => setTasks(prev => prev.map(x => x.id === t.id ? t : x))}
+              userName={userName}
+            />
+          </TabsContent>
 
           <TabsContent value="stages" className="m-0">
             <Card className="border-border/50">
@@ -689,6 +738,390 @@ function ProjectInfoEditor({
     </Card>
   );
 }
+
+// ─── Task Status colors ───────────────────────────────────────────────────────
+const TASK_STATUS_COLORS: Record<string, string> = {
+  todo: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  review: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  blocked: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+};
+const TASK_PRIORITY_COLORS: Record<string, string> = {
+  low: "text-slate-500", medium: "text-blue-500", high: "text-amber-500", urgent: "text-red-500",
+};
+
+function ProjectTasksTab({
+  projectId, tasks, users, isRtl, view, onViewChange,
+  showAddTask, onShowAddTask, editTask, onEditTask,
+  onTaskChange, onTaskCreated, onTaskDeleted, onTaskUpdated, userName,
+}: {
+  projectId: number;
+  tasks: ApiTask[];
+  users: SimpleUser[];
+  isRtl: boolean;
+  view: "list" | "kanban";
+  onViewChange: (v: "list" | "kanban") => void;
+  showAddTask: boolean;
+  onShowAddTask: (v: boolean) => void;
+  editTask: ApiTask | null;
+  onEditTask: (t: ApiTask | null) => void;
+  onTaskChange: (id: number, patch: Partial<ApiTask>) => void;
+  onTaskCreated: (t: ApiTask) => void;
+  onTaskDeleted: (id: number) => void;
+  onTaskUpdated: (t: ApiTask) => void;
+  userName: (id: string | null | undefined) => string | null;
+}) {
+  const { toast } = useToast();
+  const taskStatuses: TaskStatus[] = ["todo", "in_progress", "review", "done", "blocked"];
+
+  const doneTasks = tasks.filter(t => t.status === "done").length;
+  const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "done").length;
+  const totalHrs = tasks.reduce((s, t) => s + parseFloat(t.estimatedHours ?? "0"), 0);
+  const doneHrs = tasks.reduce((s, t) => s + parseFloat(t.actualHours ?? "0"), 0);
+
+  const handleDelete = async (id: number) => {
+    if (!confirm(isRtl ? "حذف هذه المهمة؟" : "Delete this task?")) return;
+    try { await deleteTask(id); onTaskDeleted(id); }
+    catch { toast({ title: isRtl ? "خطأ في الحذف" : "Delete error", variant: "destructive" }); }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: isRtl ? "إجمالي المهام" : "Total Tasks", value: tasks.length, icon: CheckSquare, color: "text-blue-500" },
+          { label: isRtl ? "مكتملة" : "Done", value: `${doneTasks} / ${tasks.length}`, icon: CheckSquare, color: "text-emerald-500" },
+          { label: isRtl ? "متأخرة" : "Overdue", value: overdue, icon: AlertCircle, color: "text-red-500" },
+          { label: isRtl ? "ساعات (متوقع/فعلي)" : "Hours (est/actual)", value: `${totalHrs.toFixed(0)}h / ${doneHrs.toFixed(0)}h`, icon: Clock, color: "text-amber-500" },
+        ].map((s, i) => (
+          <Card key={i} className="border-border/50">
+            <CardContent className="p-3 flex items-center gap-2.5">
+              <s.icon className={cn("w-4 h-4 flex-shrink-0", s.color)} />
+              <div>
+                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="font-semibold text-sm">{s.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Header */}
+      <Card className="border-border/50">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-base">{isRtl ? "مهام المشروع" : "Project Tasks"}</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="flex border border-border rounded-md overflow-hidden">
+              <button onClick={() => onViewChange("list")} className={cn("px-2.5 py-1.5", view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")} title="List">
+                <List className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => onViewChange("kanban")} className={cn("px-2.5 py-1.5", view === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")} title="Kanban">
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <Button size="sm" onClick={() => onShowAddTask(true)} data-testid="button-add-task">
+              <Plus className="w-4 h-4 mr-1 rtl:ml-1 rtl:mr-0" />{isRtl ? "مهمة جديدة" : "Add Task"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {tasks.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground text-sm">
+              <CheckSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              {isRtl ? "لا توجد مهام بعد. أضف أول مهمة لبدء التتبع." : "No tasks yet. Add the first task to start tracking progress."}
+            </div>
+          ) : view === "kanban" ? (
+            // Kanban View
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {taskStatuses.map(status => {
+                const cols = tasks.filter(t => t.status === status);
+                return (
+                  <div key={status} className="flex-shrink-0 w-64">
+                    <div className={cn("rounded-t-lg px-3 py-2 flex items-center justify-between", TASK_STATUS_COLORS[status])}>
+                      <span className="text-xs font-semibold">{isRtl ? TASK_STATUS_AR[status] : TASK_STATUS_EN[status]}</span>
+                      <span className="text-xs font-bold bg-white/30 rounded-full px-1.5">{cols.length}</span>
+                    </div>
+                    <div className="border border-t-0 border-border/50 rounded-b-lg min-h-32 p-2 space-y-2 bg-secondary/20">
+                      {cols.map(task => (
+                        <div key={task.id} className="bg-background border border-border/50 rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow"
+                          onClick={() => onEditTask(task)} data-testid={`kanban-task-${task.id}`}>
+                          <p className="text-xs font-medium leading-tight">{isRtl ? task.titleAr : (task.titleEn || task.titleAr)}</p>
+                          {task.assignedTo && (
+                            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                              <UserIcon className="w-3 h-3" />{userName(task.assignedTo)}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between mt-2">
+                            <span className={cn("text-xs", TASK_PRIORITY_COLORS[task.priority])}>{isRtl ? TASK_PRIORITY_AR[task.priority] : TASK_PRIORITY_EN[task.priority]}</span>
+                            {task.dueDate && (
+                              <span className={cn("text-xs", new Date(task.dueDate) < new Date() && task.status !== "done" ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                                {new Date(task.dueDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          {(task.progress ?? 0) > 0 && (
+                            <div className="mt-2">
+                              <div className="h-1 bg-secondary rounded-full overflow-hidden">
+                                <div className="h-full bg-primary rounded-full" style={{ width: `${task.progress}%` }} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            // List View
+            <div className="space-y-2">
+              {tasks.map(task => {
+                const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done";
+                return (
+                  <div key={task.id} className={cn("border border-border/50 rounded-lg p-3 hover:bg-muted/30 transition-colors", isOverdue && "border-red-200 dark:border-red-900/40")} data-testid={`row-task-${task.id}`}>
+                    <div className="flex items-start gap-3">
+                      {/* Status quick toggle */}
+                      <button
+                        className={cn("mt-0.5 w-4 h-4 rounded border-2 flex-shrink-0 transition-colors", task.status === "done" ? "bg-emerald-500 border-emerald-500" : "border-border")}
+                        onClick={() => onTaskChange(task.id, { status: task.status === "done" ? "todo" : "done", progress: task.status === "done" ? 0 : 100 })}
+                        data-testid={`checkbox-task-${task.id}`}
+                        title={task.status === "done" ? (isRtl ? "إلغاء الإكمال" : "Mark incomplete") : (isRtl ? "تمييز كمكتمل" : "Mark complete")}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={cn("font-medium text-sm", task.status === "done" && "line-through text-muted-foreground")}>
+                            {isRtl ? task.titleAr : (task.titleEn || task.titleAr)}
+                          </span>
+                          <Badge variant="outline" className={cn("text-[10px] border-transparent px-1.5", TASK_STATUS_COLORS[task.status])}>
+                            {isRtl ? TASK_STATUS_AR[task.status] : TASK_STATUS_EN[task.status]}
+                          </Badge>
+                          <span className={cn("text-xs font-medium", TASK_PRIORITY_COLORS[task.priority])}>
+                            {isRtl ? TASK_PRIORITY_AR[task.priority] : TASK_PRIORITY_EN[task.priority]}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          {task.assignedTo && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <UserIcon className="w-3 h-3" />{userName(task.assignedTo)}
+                            </span>
+                          )}
+                          {task.dueDate && (
+                            <span className={cn("flex items-center gap-1 text-xs", isOverdue ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                              <Calendar className="w-3 h-3" />{new Date(task.dueDate).toLocaleDateString()}
+                              {isOverdue && (isRtl ? " (متأخر)" : " (overdue)")}
+                            </span>
+                          )}
+                          {(parseFloat(task.estimatedHours ?? "0") > 0) && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="w-3 h-3" />{task.estimatedHours}h
+                            </span>
+                          )}
+                        </div>
+                        {/* Progress slider inline */}
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex-1">
+                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${task.progress ?? 0}%` }} />
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted-foreground w-8 text-right">{task.progress ?? 0}%</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Select value={task.status} onValueChange={(v) => onTaskChange(task.id, { status: v as TaskStatus })}>
+                          <SelectTrigger className="h-7 w-32 text-xs" data-testid={`select-task-status-${task.id}`}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(["todo","in_progress","review","done","blocked"] as TaskStatus[]).map(s => (
+                              <SelectItem key={s} value={s}>{isRtl ? TASK_STATUS_AR[s] : TASK_STATUS_EN[s]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onEditTask(task)} data-testid={`button-edit-task-${task.id}`}>
+                          {isRtl ? "تفاصيل" : "Edit"}
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(task.id)} data-testid={`button-delete-task-${task.id}`}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Task Dialog — Add */}
+      <TaskDialog
+        open={showAddTask}
+        onOpenChange={onShowAddTask}
+        users={users}
+        isRtl={isRtl}
+        onSubmit={async (data) => {
+          const t = await createTask(projectId, { ...data, sortOrder: tasks.length });
+          onTaskCreated(t);
+        }}
+      />
+      {/* Task Dialog — Edit */}
+      {editTask && (
+        <TaskDialog
+          open
+          onOpenChange={(v) => { if (!v) onEditTask(null); }}
+          users={users}
+          isRtl={isRtl}
+          initial={editTask}
+          onSubmit={async (data) => {
+            const upd = await updateTask(editTask.id, data);
+            onTaskUpdated(upd);
+            onEditTask(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TaskDialog({
+  open, onOpenChange, users, isRtl, initial, onSubmit,
+}: {
+  open: boolean; onOpenChange: (v: boolean) => void;
+  users: SimpleUser[]; isRtl: boolean;
+  initial?: ApiTask;
+  onSubmit: (data: Partial<ApiTask>) => Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const blank = { titleAr: "", titleEn: "", description: "", assignedTo: "", status: "todo" as TaskStatus, priority: "medium" as TaskPriority, startDate: "", dueDate: "", estimatedHours: "", actualHours: "", progress: 0 };
+  const [form, setForm] = useState(blank);
+
+  useEffect(() => {
+    if (open) {
+      setForm(initial ? {
+        titleAr: initial.titleAr || "", titleEn: initial.titleEn || "",
+        description: initial.description || "", assignedTo: initial.assignedTo || "",
+        status: initial.status || "todo", priority: initial.priority || "medium",
+        startDate: initial.startDate || "", dueDate: initial.dueDate || "",
+        estimatedHours: initial.estimatedHours || "", actualHours: initial.actualHours || "",
+        progress: initial.progress ?? 0,
+      } : blank);
+    }
+  }, [open, initial]);
+
+  const submit = async () => {
+    if (!form.titleAr && !form.titleEn) {
+      toast({ title: isRtl ? "العنوان مطلوب" : "Title is required", variant: "destructive" }); return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit({
+        titleAr: form.titleAr || form.titleEn,
+        titleEn: form.titleEn || form.titleAr || null,
+        description: form.description || null,
+        assignedTo: form.assignedTo || null,
+        status: form.status,
+        priority: form.priority,
+        startDate: form.startDate || null,
+        dueDate: form.dueDate || null,
+        estimatedHours: form.estimatedHours ? String(form.estimatedHours) : null,
+        actualHours: form.actualHours ? String(form.actualHours) : null,
+        progress: form.progress,
+      });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: isRtl ? "خطأ" : "Error", description: err?.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{initial ? (isRtl ? "تعديل المهمة" : "Edit Task") : (isRtl ? "مهمة جديدة" : "New Task")}</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3 max-h-[65vh] overflow-y-auto px-1">
+          <div className="col-span-2">
+            <Label>{isRtl ? "العنوان (عربي)" : "Title (Arabic)"} *</Label>
+            <Input value={form.titleAr} onChange={e => setForm({ ...form, titleAr: e.target.value })} data-testid="input-task-titleAr" />
+          </div>
+          <div className="col-span-2">
+            <Label>{isRtl ? "العنوان (إنجليزي)" : "Title (English)"}</Label>
+            <Input value={form.titleEn} onChange={e => setForm({ ...form, titleEn: e.target.value })} data-testid="input-task-titleEn" />
+          </div>
+          <div>
+            <Label>{isRtl ? "المعيّن" : "Assigned To"}</Label>
+            <Select value={form.assignedTo || "__none__"} onValueChange={v => setForm({ ...form, assignedTo: v === "__none__" ? "" : v })}>
+              <SelectTrigger data-testid="select-task-assignee"><SelectValue placeholder={isRtl ? "اختر" : "Pick"} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{isRtl ? "غير معيّن" : "Unassigned"}</SelectItem>
+                {users.map(u => <SelectItem key={u.id} value={u.id}>{u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.id}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>{isRtl ? "الأولوية" : "Priority"}</Label>
+            <Select value={form.priority} onValueChange={v => setForm({ ...form, priority: v as TaskPriority })}>
+              <SelectTrigger data-testid="select-task-priority"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(["low","medium","high","urgent"] as TaskPriority[]).map(p => (
+                  <SelectItem key={p} value={p}>{isRtl ? TASK_PRIORITY_AR[p] : TASK_PRIORITY_EN[p]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>{isRtl ? "الحالة" : "Status"}</Label>
+            <Select value={form.status} onValueChange={v => setForm({ ...form, status: v as TaskStatus })}>
+              <SelectTrigger data-testid="select-task-status"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(["todo","in_progress","review","done","blocked"] as TaskStatus[]).map(s => (
+                  <SelectItem key={s} value={s}>{isRtl ? TASK_STATUS_AR[s] : TASK_STATUS_EN[s]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>{isRtl ? "نسبة الإنجاز" : "Progress"}: {form.progress}%</Label>
+            <input type="range" min={0} max={100} step={5} value={form.progress}
+              onChange={e => setForm({ ...form, progress: Number(e.target.value) })}
+              className="w-full mt-1" data-testid="input-task-progress" />
+          </div>
+          <div>
+            <Label>{isRtl ? "تاريخ البدء" : "Start Date"}</Label>
+            <Input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} data-testid="input-task-startDate" />
+          </div>
+          <div>
+            <Label>{isRtl ? "تاريخ الانتهاء" : "Due Date"}</Label>
+            <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} data-testid="input-task-dueDate" />
+          </div>
+          <div>
+            <Label>{isRtl ? "ساعات متوقعة" : "Est. Hours"}</Label>
+            <Input type="number" min={0} step={0.5} value={form.estimatedHours} onChange={e => setForm({ ...form, estimatedHours: e.target.value })} data-testid="input-task-estimatedHours" />
+          </div>
+          <div>
+            <Label>{isRtl ? "ساعات فعلية" : "Actual Hours"}</Label>
+            <Input type="number" min={0} step={0.5} value={form.actualHours} onChange={e => setForm({ ...form, actualHours: e.target.value })} data-testid="input-task-actualHours" />
+          </div>
+          <div className="col-span-2">
+            <Label>{isRtl ? "الوصف" : "Description"}</Label>
+            <Textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} data-testid="input-task-description" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+          <Button onClick={submit} disabled={saving} data-testid="button-submit-task">
+            {saving ? (isRtl ? "جارٍ الحفظ..." : "Saving...") : (isRtl ? "حفظ" : "Save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function StageDialog({
   open, onOpenChange, users, initial, onSubmit,
