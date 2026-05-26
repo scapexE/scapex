@@ -3,6 +3,7 @@ import { type Server } from "http";
 import {
   findUserByEmail,
   findUserById,
+  findUserByNationalId,
   verifyPassword,
   createUser,
   getAllUsers,
@@ -1889,6 +1890,13 @@ export async function registerRoutes(
       const existing = await findUserByEmail(email);
       if (existing) {
         return res.status(409).json({ error: "Email already registered" });
+      }
+
+      if (nationalId) {
+        const existingNid = await findUserByNationalId(nationalId);
+        if (existingNid) {
+          return res.status(409).json({ error: "National ID already registered" });
+        }
       }
 
       consumeEmailVerification(email);

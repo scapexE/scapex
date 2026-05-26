@@ -23,6 +23,12 @@ export async function findUserById(id: string) {
   return result[0] || null;
 }
 
+export async function findUserByNationalId(nationalId: string) {
+  if (!nationalId) return null;
+  const result = await db.select().from(users).where(eq(users.nationalId, nationalId));
+  return result[0] || null;
+}
+
 export async function createUser(data: {
   username: string;
   password: string;

@@ -101,16 +101,25 @@ export default function Login() {
 
   const [regNationalId, setRegNationalId] = useState("");
   const [regName, setRegName] = useState("");
-  const [regCompany, setRegCompany] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regVerifiedEmail, setRegVerifiedEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirm, setRegConfirm] = useState("");
   const [regError, setRegError] = useState("");
   const [regStep, setRegStep] = useState<RegStep>("form");
-  const [regCode, setRegCode] = useState("");
   const [regUserCode, setRegUserCode] = useState("");
 
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [submittingReg, setSubmittingReg] = useState(false);
+  const [verifyingReg, setVerifyingReg] = useState(false);
+  const [resendingReg, setResendingReg] = useState(false);
+
   const [countdown, setCountdown] = useState(0);
+
+  const resetRegForm = () => {
+    setRegNationalId(""); setRegName(""); setRegEmail(""); setRegVerifiedEmail("");
+    setRegPassword(""); setRegConfirm(""); setRegUserCode(""); setRegError("");
+  };
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -137,13 +146,14 @@ export default function Login() {
       setLoginError(isRtl ? "يرجى إدخال البريد الإلكتروني وكلمة المرور" : "Please enter your email and password");
       return;
     }
+    setLoggingIn(true);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 403 && data.pendingApproval) {
           setLoginError(isRtl
@@ -151,8 +161,12 @@ export default function Login() {
             : "Your request is under review. Your account will be activated after admin approval.");
         } else if (res.status === 401) {
           setLoginError(isRtl ? "البريد الإلكتروني أو كلمة المرور غير صحيحة" : "Incorrect email or password");
-        } else {
+        } else if (res.status === 403) {
           setLoginError(isRtl ? "هذا الحساب معطّل. تواصل مع مدير النظام." : "This account is disabled. Contact the system admin.");
+        } else if (res.status >= 500) {
+          setLoginError(isRtl ? "خطأ في السيرفر. حاول لاحقاً." : "Server error. Please try again later.");
+        } else {
+          setLoginError(isRtl ? "تعذّر تسجيل الدخول" : "Could not sign in");
         }
         return;
       }
@@ -162,7 +176,6 @@ export default function Login() {
         nationalId: user.nationalId || "",
         name: user.name || "",
         email: user.email || "",
-        password: "",
         role: user.role || "viewer",
         roles: Array.isArray(user.roles) && user.roles.length ? user.roles : [user.role || "viewer"],
         permissions: user.permissions || [],
@@ -175,6 +188,8 @@ export default function Login() {
       window.location.href = user.role === "client" ? "/client-portal" : "/dashboard";
     } catch (err) {
       setLoginError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+    } finally {
+      setLoggingIn(false);
     }
   };
 
@@ -242,10 +257,20 @@ export default function Login() {
 
   const handleRegValidateForm = async () => {
     setRegError("");
-    if (!regNationalId || !regName || !regEmail || !regPassword || !regConfirm) {
+    const trimmedName = regName.trim();
+    const trimmedEmail = regEmail.trim();
+    if (!regNationalId || !trimmedName || !trimmedEmail || !regPassword || !regConfirm) {
       setRegError(isRtl
         ? "يرجى ملء جميع الحقول المطلوبة (رقم الهوية، الاسم، البريد، كلمة المرور)"
         : "Please fill all required fields (National ID, name, email, password)");
+      return;
+    }
+    if (trimmedName.length < 3) {
+      setRegError(isRtl ? "الاسم يجب أن يكون 3 أحرف على الأقل" : "Name must be at least 3 characters");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setRegError(isRtl ? "صيغة البريد الإلكتروني غير صحيحة" : "Invalid email format");
       return;
     }
     if (!validateNationalId(regNationalId)) {
@@ -262,48 +287,52 @@ export default function Login() {
       setRegError(isRtl ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل" : "Password must be at least 6 characters");
       return;
     }
-    const users = getUsers();
-    if (users.find((u) => u.nationalId === regNationalId)) {
-      setRegError(isRtl ? "رقم الهوية مسجّل مسبقاً" : "This National ID is already registered");
-      return;
-    }
+    setSubmittingReg(true);
     try {
       const res = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: regEmail }),
+        body: JSON.stringify({ email: trimmedEmail }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 409) {
           setRegError(isRtl ? "هذا البريد الإلكتروني مسجل مسبقاً" : "This email is already registered");
+        } else if (res.status === 429) {
+          setRegError(isRtl ? "يرجى الانتظار قبل طلب رمز جديد" : "Please wait before requesting another code");
+        } else if (res.status >= 500) {
+          setRegError(isRtl ? "فشل إرسال رمز التحقق — خطأ في السيرفر" : "Failed to send code — server error");
         } else {
           setRegError(isRtl ? "فشل إرسال رمز التحقق" : "Failed to send verification code");
         }
         return;
       }
       setRegUserCode("");
+      setRegVerifiedEmail(trimmedEmail);
       setRegStep("verify_email");
       setCountdown(600);
     } catch {
       setRegError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+    } finally {
+      setSubmittingReg(false);
     }
   };
 
   const handleRegVerifyEmail = async () => {
     setRegError("");
-    if (!regUserCode || regUserCode.length < 4) {
-      setRegError(isRtl ? "يرجى إدخال رمز التحقق" : "Please enter the verification code");
+    if (!regUserCode || regUserCode.length !== 6) {
+      setRegError(isRtl ? "يرجى إدخال رمز التحقق المكوّن من 6 أرقام" : "Please enter the 6-digit verification code");
       return;
     }
+    setVerifyingReg(true);
     try {
       const verifyRes = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: regEmail, code: regUserCode }),
+        body: JSON.stringify({ email: regVerifiedEmail, code: regUserCode }),
       });
       if (!verifyRes.ok) {
-        const verifyData = await verifyRes.json();
+        const verifyData = await verifyRes.json().catch(() => ({}));
         const errMsg = verifyData.error || "";
         if (errMsg.includes("Too many")) {
           setRegError(isRtl ? "تم تجاوز عدد المحاولات المسموح. يرجى طلب رمز جديد" : errMsg);
@@ -319,46 +348,62 @@ export default function Login() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: regName,
-          email: regEmail,
+          name: regName.trim(),
+          email: regVerifiedEmail,
           password: regPassword,
           phone: "",
           nationalId: regNationalId,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setRegError(data.error === "Email already registered"
-          ? (isRtl ? "البريد الإلكتروني مسجل مسبقاً" : "Email already registered")
-          : (isRtl ? "حدث خطأ في التسجيل" : "Registration error"));
+        if (data.error === "Email already registered") {
+          setRegError(isRtl ? "البريد الإلكتروني مسجل مسبقاً" : "Email already registered");
+        } else if (data.error === "National ID already registered") {
+          setRegError(isRtl ? "رقم الهوية مسجّل مسبقاً" : "National ID already registered");
+        } else {
+          setRegError(isRtl ? "حدث خطأ في التسجيل" : "Registration error");
+        }
         return;
       }
       setRegStep("submitted");
     } catch {
       setRegError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+    } finally {
+      setVerifyingReg(false);
     }
   };
 
   const handleResendCode = useCallback(async (type: "forgot" | "reg") => {
     if (type === "reg") {
+      setRegError("");
+      setResendingReg(true);
       try {
         const res = await fetch("/api/auth/send-code", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: regEmail }),
+          body: JSON.stringify({ email: regVerifiedEmail }),
         });
         if (res.ok) {
           setRegUserCode("");
           setCountdown(600);
+        } else if (res.status === 429) {
+          setRegError(isRtl ? "يرجى الانتظار قبل طلب رمز جديد" : "Please wait before requesting another code");
+        } else {
+          setRegError(isRtl ? "تعذّر إعادة إرسال الرمز" : "Could not resend code");
         }
-      } catch {}
+      } catch {
+        setRegError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+      } finally {
+        setResendingReg(false);
+      }
     } else {
       const code = generateCode();
       setForgotCode(code);
       setForgotUserCode("");
       setCountdown(120);
     }
-  }, [regEmail]);
+  }, [regVerifiedEmail, isRtl]);
 
   const handleRegisterKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -402,19 +447,22 @@ export default function Login() {
     </div>
   );
 
-  const renderCountdown = (type: "forgot" | "reg") => (
-    <div style={{ textAlign: "center", marginTop: "6px" }}>
-      {countdown > 0 ? (
-        <span style={{ color: "#6b7280", fontSize: "12px" }}>
-          {isRtl ? `إعادة الإرسال بعد ${countdown} ثانية` : `Resend in ${countdown}s`}
-        </span>
-      ) : (
-        <button style={linkStyle} onClick={() => handleResendCode(type)}>
-          {isRtl ? "إعادة إرسال الرمز" : "Resend Code"}
-        </button>
-      )}
-    </div>
-  );
+  const renderCountdown = (type: "forgot" | "reg") => {
+    const isResending = type === "reg" && resendingReg;
+    return (
+      <div style={{ textAlign: "center", marginTop: "6px" }}>
+        {countdown > 0 ? (
+          <span style={{ color: "#6b7280", fontSize: "12px" }}>
+            {isRtl ? `إعادة الإرسال بعد ${countdown} ثانية` : `Resend in ${countdown}s`}
+          </span>
+        ) : (
+          <button style={{ ...linkStyle, opacity: isResending ? 0.5 : 1, cursor: isResending ? "not-allowed" : "pointer" }} onClick={() => handleResendCode(type)} disabled={isResending}>
+            {isResending ? (isRtl ? "جارٍ الإرسال..." : "Sending...") : (isRtl ? "إعادة إرسال الرمز" : "Resend Code")}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div style={{
@@ -594,7 +642,7 @@ export default function Login() {
               padding: "3px", marginBottom: "24px", gap: "3px",
             }}>
               {(["login", "register"] as Tab[]).map((t) => (
-                <button key={t} onClick={() => { setTab(t); setLoginError(""); setRegError(""); setRegStep("form"); }}
+                <button key={t} onClick={() => { setTab(t); setLoginError(""); setRegError(""); if (regStep === "submitted") { resetRegForm(); setRegStep("form"); } }}
                   style={{
                     flex: 1, padding: "8px", border: "none", borderRadius: "8px", cursor: "pointer",
                     fontSize: "14px", fontWeight: "600", transition: "all 0.2s",
@@ -633,9 +681,9 @@ export default function Login() {
                     style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} autoComplete="current-password" />
                 </div>
                 {loginError && <div style={errorBoxStyle}>{loginError}</div>}
-                <button data-testid="button-login" onClick={handleLogin}
-                  style={{ width: "100%", padding: "11px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginTop: "4px" }}>
-                  {isRtl ? "تسجيل الدخول" : "Sign In"}
+                <button data-testid="button-login" onClick={handleLogin} disabled={loggingIn}
+                  style={{ width: "100%", padding: "11px", background: loggingIn ? "#1e40af" : "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: loggingIn ? "not-allowed" : "pointer", marginTop: "4px", opacity: loggingIn ? 0.7 : 1 }}>
+                  {loggingIn ? (isRtl ? "جارٍ تسجيل الدخول..." : "Signing in...") : (isRtl ? "تسجيل الدخول" : "Sign In")}
                 </button>
 
                 {isDevMode() && (
@@ -694,12 +742,6 @@ export default function Login() {
                         style={inputStyle} />
                     </div>
                     <div>
-                      <label style={labelStyle}>{isRtl ? "اسم الشركة (اختياري)" : "Company Name (optional)"}</label>
-                      <input data-testid="input-reg-company" type="text" placeholder={isRtl ? "شركة النجاح" : "Success Corp"}
-                        value={regCompany} onChange={(e) => setRegCompany(e.target.value)} onKeyDown={handleRegisterKey}
-                        style={inputStyle} />
-                    </div>
-                    <div>
                       <label style={labelStyle}>{isRtl ? "البريد الإلكتروني *" : "Email *"}</label>
                       <input data-testid="input-reg-email" type="email" placeholder="client@company.sa"
                         value={regEmail} onChange={(e) => setRegEmail(e.target.value)} onKeyDown={handleRegisterKey}
@@ -720,9 +762,9 @@ export default function Login() {
                         style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} />
                     </div>
                     {regError && <div style={errorBoxStyle}>{regError}</div>}
-                    <button data-testid="button-register-next" onClick={handleRegValidateForm}
-                      style={{ width: "100%", padding: "11px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>
-                      {isRtl ? "التالي — تأكيد البريد الإلكتروني" : "Next — Verify Email"}
+                    <button data-testid="button-register-next" onClick={handleRegValidateForm} disabled={submittingReg}
+                      style={{ width: "100%", padding: "11px", background: submittingReg ? "#1e40af" : "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: submittingReg ? "not-allowed" : "pointer", opacity: submittingReg ? 0.7 : 1 }}>
+                      {submittingReg ? (isRtl ? "جارٍ إرسال الرمز..." : "Sending code...") : (isRtl ? "التالي — تأكيد البريد الإلكتروني" : "Next — Verify Email")}
                     </button>
                   </>
                 )}
@@ -730,7 +772,7 @@ export default function Login() {
                 {regStep === "verify_email" && (
                   <>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                      <button style={{ ...linkStyle, fontSize: "14px", textDecoration: "none" }} onClick={() => { setRegStep("form"); setRegError(""); }}>
+                      <button style={{ ...linkStyle, fontSize: "14px", textDecoration: "none" }} onClick={() => { setRegStep("form"); setRegError(""); setRegUserCode(""); }}>
                         {isRtl ? "→" : "←"}
                       </button>
                       <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>
@@ -743,7 +785,7 @@ export default function Login() {
                         {isRtl ? "✉️ تم إرسال رمز التحقق إلى بريدك" : "✉️ Verification code sent to your email"}
                       </p>
                       <p style={{ color: "#60a5fa", fontSize: "13px", margin: "4px 0 0", fontWeight: "600" }}>
-                        {regEmail}
+                        {regVerifiedEmail}
                       </p>
                       <p style={{ color: "#9ca3af", fontSize: "11px", margin: "4px 0 0" }}>
                         {isRtl ? "تحقق من صندوق الوارد أو البريد غير المرغوب" : "Check your inbox or spam folder"}
@@ -769,9 +811,9 @@ export default function Login() {
 
                     {regError && <div style={errorBoxStyle}>{regError}</div>}
 
-                    <button data-testid="button-reg-verify" onClick={handleRegVerifyEmail}
-                      style={{ width: "100%", padding: "11px", background: "#059669", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>
-                      {isRtl ? "تأكيد وإرسال طلب التسجيل" : "Verify & Submit Registration"}
+                    <button data-testid="button-reg-verify" onClick={handleRegVerifyEmail} disabled={verifyingReg || resendingReg}
+                      style={{ width: "100%", padding: "11px", background: (verifyingReg || resendingReg) ? "#047857" : "#059669", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: (verifyingReg || resendingReg) ? "not-allowed" : "pointer", opacity: (verifyingReg || resendingReg) ? 0.7 : 1 }}>
+                      {verifyingReg ? (isRtl ? "جارٍ التحقق..." : "Verifying...") : (isRtl ? "تأكيد وإرسال طلب التسجيل" : "Verify & Submit Registration")}
                     </button>
                   </>
                 )}
@@ -788,7 +830,7 @@ export default function Login() {
                         : <>Your account is under admin review.<br />You can sign in after approval.</>}
                     </p>
                     <button
-                      onClick={() => { setTab("login"); setRegStep("form"); }}
+                      onClick={() => { resetRegForm(); setTab("login"); setRegStep("form"); }}
                       style={{ padding: "10px 28px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}
                     >
                       {isRtl ? "الذهاب لتسجيل الدخول" : "Go to Sign In"}
