@@ -156,6 +156,7 @@ export default function HRModule() {
   const [expandedDocEmpId, setExpandedDocEmpId] = useState<string | null>(null);
   const [docForm, setDocForm] = useState<{ iqamaExpiry: string; visaExpiry: string; passportNumber: string; passportExpiry: string; medicalInsuranceExpiry: string }>({ iqamaExpiry: "", visaExpiry: "", passportNumber: "", passportExpiry: "", medicalInsuranceExpiry: "" });
   const [savingDoc, setSavingDoc] = useState(false);
+  const [activeTab, setActiveTab] = useState("employees");
 
   const fetchAll = useCallback(async () => {
     try {
@@ -375,6 +376,35 @@ export default function HRModule() {
           </div>
         </div>
 
+        {/* ── Document Expiry Alert Banner ── */}
+        {!loading && (expirySummary.expired > 0 || expirySummary.critical > 0) && (
+          <div
+            className={cn(
+              "flex items-start gap-3 px-4 py-3 rounded-lg border text-sm cursor-pointer group",
+              expirySummary.expired > 0
+                ? "border-red-300 bg-red-50 text-red-800 dark:border-red-700/50 dark:bg-red-950/30 dark:text-red-200"
+                : "border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-700/50 dark:bg-orange-950/30 dark:text-orange-200"
+            )}
+            onClick={() => setActiveTab("documents")}
+          >
+            <AlertTriangle className={cn("w-5 h-5 mt-0.5 shrink-0", expirySummary.expired > 0 ? "text-red-500" : "text-orange-500")} />
+            <div className="flex-1">
+              <p className="font-semibold">
+                {isRtl ? "تنبيه: وثائق تحتاج مراجعة" : "Alert: Documents need attention"}
+              </p>
+              <p className="text-xs opacity-80 mt-0.5">
+                {[
+                  expirySummary.expired > 0 && (isRtl ? `${expirySummary.expired} وثيقة منتهية الصلاحية` : `${expirySummary.expired} expired document${expirySummary.expired > 1 ? "s" : ""}`),
+                  expirySummary.critical > 0 && (isRtl ? `${expirySummary.critical} وثيقة تنتهي خلال 30 يوم` : `${expirySummary.critical} expiring within 30 days`),
+                ].filter(Boolean).join(" • ")}
+              </p>
+            </div>
+            <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity shrink-0 self-center">
+              {isRtl ? "انقر للمراجعة ←" : "Click to review →"}
+            </span>
+          </div>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
@@ -392,7 +422,7 @@ export default function HRModule() {
           ))}
         </div>
 
-        <Tabs defaultValue="employees">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-secondary/50 flex-wrap h-auto gap-1">
             <TabsTrigger value="employees"><Users className="w-3.5 h-3.5 me-1" />{isRtl ? "الموظفون" : "Employees"}</TabsTrigger>
             <TabsTrigger value="departments"><Building2 className="w-3.5 h-3.5 me-1" />{isRtl ? "الأقسام" : "Departments"}</TabsTrigger>
