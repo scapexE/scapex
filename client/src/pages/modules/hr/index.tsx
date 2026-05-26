@@ -153,6 +153,9 @@ export default function HRModule() {
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
   const [form, setForm] = useState<Partial<Employee>>({});
   const [saving, setSaving] = useState(false);
+  const [expandedDocEmpId, setExpandedDocEmpId] = useState<string | null>(null);
+  const [docForm, setDocForm] = useState<{ iqamaExpiry: string; visaExpiry: string; passportNumber: string; passportExpiry: string; medicalInsuranceExpiry: string }>({ iqamaExpiry: "", visaExpiry: "", passportNumber: "", passportExpiry: "", medicalInsuranceExpiry: "" });
+  const [savingDoc, setSavingDoc] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -302,6 +305,43 @@ export default function HRModule() {
       fetchAll();
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
     finally { setSaving(false); }
+  };
+
+  const openDocEdit = (emp: Employee) => {
+    if (expandedDocEmpId === emp.id) { setExpandedDocEmpId(null); return; }
+    setDocForm({
+      iqamaExpiry: emp.iqamaExpiry || "",
+      visaExpiry: emp.visaExpiry || "",
+      passportNumber: emp.passportNumber || "",
+      passportExpiry: emp.passportExpiry || "",
+      medicalInsuranceExpiry: emp.medicalInsuranceExpiry || "",
+    });
+    setExpandedDocEmpId(emp.id);
+  };
+
+  const handleSaveDocOnly = async (emp: Employee) => {
+    setSavingDoc(true);
+    try {
+      const payload = {
+        employeeNumber: emp.empNo, nameAr: emp.nameAr, nameEn: emp.nameEn,
+        departmentName: emp.department, jobTitle: emp.jobTitle, jobTitleAr: emp.jobTitleAr,
+        nationality: emp.nationality, nationalId: emp.iqama, phone: emp.phone,
+        email: emp.email, joinDate: emp.hireDate, basicSalary: emp.baseSalary,
+        housingAllowance: emp.housingAllowance, transportAllowance: emp.transportAllowance,
+        status: emp.status, contractType: emp.contractType,
+        companyId: emp.companyId, activityIds: emp.activityIds || [],
+        iqamaExpiry: docForm.iqamaExpiry || null,
+        visaExpiry: docForm.visaExpiry || null,
+        passportNumber: docForm.passportNumber || null,
+        passportExpiry: docForm.passportExpiry || null,
+        medicalInsuranceExpiry: docForm.medicalInsuranceExpiry || null,
+      };
+      await fetch(`/api/employees/${emp.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      toast({ title: isRtl ? "تم حفظ الوثائق بنجاح" : "Documents saved" });
+      setExpandedDocEmpId(null);
+      fetchAll();
+    } catch { toast({ title: isRtl ? "خطأ في الحفظ" : "Save error", variant: "destructive" }); }
+    finally { setSavingDoc(false); }
   };
 
   const handleDelete = async (id: string) => {
@@ -564,33 +604,85 @@ export default function HRModule() {
                     ) : scopedEmployees.map(emp => {
                       const anyAlert = [emp.iqamaExpiry, emp.visaExpiry, emp.passportExpiry, emp.medicalInsuranceExpiry]
                         .some(f => f && ["expired", "critical", "warning"].includes(expiryStatus(f)));
+                      const isExpanded = expandedDocEmpId === emp.id;
                       return (
-                        <TableRow key={emp.id} className={cn("hover:bg-muted/40", anyAlert ? "bg-red-50/30 dark:bg-red-950/10" : "")}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{(emp.nameAr || "?")[0]}</div>
-                              <div>
-                                <p className="text-sm font-medium">{isRtl ? emp.nameAr : emp.nameEn}</p>
-                                <p className="text-xs text-muted-foreground font-mono">{emp.empNo}</p>
+                        <>
+                          <TableRow key={emp.id} className={cn("hover:bg-muted/40 transition-colors", anyAlert ? "bg-red-50/30 dark:bg-red-950/10" : "", isExpanded ? "bg-amber-50/40 dark:bg-amber-950/10 border-b-0" : "")}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{(emp.nameAr || "?")[0]}</div>
+                                <div>
+                                  <p className="text-sm font-medium">{isRtl ? emp.nameAr : emp.nameEn}</p>
+                                  <p className="text-xs text-muted-foreground font-mono">{emp.empNo}</p>
+                                </div>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs">{emp.nationality}</TableCell>
-                          <TableCell><ExpiryBadge dateStr={emp.iqamaExpiry || ""} isRtl={isRtl} /></TableCell>
-                          <TableCell><ExpiryBadge dateStr={emp.visaExpiry || ""} isRtl={isRtl} /></TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-0.5">
-                              {emp.passportNumber && <span className="text-[10px] text-muted-foreground font-mono">{emp.passportNumber}</span>}
-                              <ExpiryBadge dateStr={emp.passportExpiry || ""} isRtl={isRtl} />
-                            </div>
-                          </TableCell>
-                          <TableCell><ExpiryBadge dateStr={emp.medicalInsuranceExpiry || ""} isRtl={isRtl} /></TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(emp)} title={isRtl ? "تعديل" : "Edit"}>
-                              <Edit className="w-3.5 h-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
+                            </TableCell>
+                            <TableCell className="text-xs">{emp.nationality}</TableCell>
+                            <TableCell><ExpiryBadge dateStr={emp.iqamaExpiry || ""} isRtl={isRtl} /></TableCell>
+                            <TableCell><ExpiryBadge dateStr={emp.visaExpiry || ""} isRtl={isRtl} /></TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-0.5">
+                                {emp.passportNumber && <span className="text-[10px] text-muted-foreground font-mono">{emp.passportNumber}</span>}
+                                <ExpiryBadge dateStr={emp.passportExpiry || ""} isRtl={isRtl} />
+                              </div>
+                            </TableCell>
+                            <TableCell><ExpiryBadge dateStr={emp.medicalInsuranceExpiry || ""} isRtl={isRtl} /></TableCell>
+                            <TableCell>
+                              <Button
+                                variant={isExpanded ? "secondary" : "ghost"}
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => openDocEdit(emp)}
+                                title={isExpanded ? (isRtl ? "إغلاق" : "Close") : (isRtl ? "تعديل الوثائق" : "Edit Documents")}
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow key={`${emp.id}-doc-edit`} className="bg-amber-50/40 dark:bg-amber-950/10 border-t border-amber-200/50 dark:border-amber-800/30">
+                              <TableCell colSpan={7} className="py-3 px-4">
+                                <div className="flex flex-col gap-3">
+                                  <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                                    <FileText className="w-3.5 h-3.5" />
+                                    {isRtl ? `تعديل وثائق: ${emp.nameAr}` : `Edit documents: ${emp.nameEn}`}
+                                  </p>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                                    <div>
+                                      <Label className="text-xs font-semibold text-muted-foreground">{isRtl ? "انتهاء الهوية / الإقامة" : "ID / Iqama Expiry"}</Label>
+                                      <Input type="date" className="mt-1 h-8 text-sm" value={docForm.iqamaExpiry} onChange={e => setDocForm(p => ({ ...p, iqamaExpiry: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs font-semibold text-muted-foreground">{isRtl ? "انتهاء التأشيرة" : "Visa Expiry"}</Label>
+                                      <Input type="date" className="mt-1 h-8 text-sm" value={docForm.visaExpiry} onChange={e => setDocForm(p => ({ ...p, visaExpiry: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs font-semibold text-muted-foreground">{isRtl ? "رقم جواز السفر" : "Passport No."}</Label>
+                                      <Input type="text" className="mt-1 h-8 text-sm" value={docForm.passportNumber} onChange={e => setDocForm(p => ({ ...p, passportNumber: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs font-semibold text-muted-foreground">{isRtl ? "انتهاء جواز السفر" : "Passport Expiry"}</Label>
+                                      <Input type="date" className="mt-1 h-8 text-sm" value={docForm.passportExpiry} onChange={e => setDocForm(p => ({ ...p, passportExpiry: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs font-semibold text-muted-foreground">{isRtl ? "انتهاء التأمين الطبي" : "Insurance Expiry"}</Label>
+                                      <Input type="date" className="mt-1 h-8 text-sm" value={docForm.medicalInsuranceExpiry} onChange={e => setDocForm(p => ({ ...p, medicalInsuranceExpiry: e.target.value }))} />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setExpandedDocEmpId(null)}>
+                                      {isRtl ? "إلغاء" : "Cancel"}
+                                    </Button>
+                                    <Button size="sm" className="h-8 text-xs" onClick={() => handleSaveDocOnly(emp)} disabled={savingDoc}>
+                                      {savingDoc ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1" /> : null}
+                                      {isRtl ? "حفظ الوثائق" : "Save Documents"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
                       );
                     })}
                   </TableBody>
@@ -712,35 +804,12 @@ export default function HRModule() {
               </div>
             </div>
 
-            {/* Document Expiry Section */}
-            <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/40 dark:bg-amber-950/20 space-y-3">
-              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" />
-                {isRtl ? "تواريخ انتهاء الوثائق" : "Document Expiry Dates"}
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء الهوية / الإقامة" : "ID / Iqama Expiry"}</Label>
-                  <Input type="date" className="mt-1 h-8 text-sm" value={form.iqamaExpiry || ""} onChange={e => setForm(p => ({ ...p, iqamaExpiry: e.target.value }))} />
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء التأشيرة" : "Visa Expiry"}</Label>
-                  <Input type="date" className="mt-1 h-8 text-sm" value={form.visaExpiry || ""} onChange={e => setForm(p => ({ ...p, visaExpiry: e.target.value }))} />
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold">{isRtl ? "رقم جواز السفر" : "Passport Number"}</Label>
-                  <Input type="text" className="mt-1 h-8 text-sm" value={form.passportNumber || ""} onChange={e => setForm(p => ({ ...p, passportNumber: e.target.value }))} />
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء جواز السفر" : "Passport Expiry"}</Label>
-                  <Input type="date" className="mt-1 h-8 text-sm" value={form.passportExpiry || ""} onChange={e => setForm(p => ({ ...p, passportExpiry: e.target.value }))} />
-                </div>
-                <div className="sm:col-span-1">
-                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء التأمين الطبي" : "Medical Insurance Expiry"}</Label>
-                  <Input type="date" className="mt-1 h-8 text-sm" value={form.medicalInsuranceExpiry || ""} onChange={e => setForm(p => ({ ...p, medicalInsuranceExpiry: e.target.value }))} />
-                </div>
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 px-1">
+              <FileText className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              {isRtl
+                ? "لتحديث تواريخ انتهاء الوثائق (الهوية، التأشيرة، الجواز، التأمين) انتقل إلى تبويب «الوثائق والصلاحيات» بعد الحفظ."
+                : "To update document expiry dates (ID, visa, passport, insurance) go to the «Document Expiry» tab after saving."}
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
