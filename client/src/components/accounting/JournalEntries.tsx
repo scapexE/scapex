@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { ExportMenu } from "@/components/shared/ExportMenu";
 
 const JOURNAL_ENTRIES = [
   { id: 'JE-26-001', date: '2026-03-15', description: 'Client Payment - NEOM', amount: 'SAR 120,000', status: 'posted', ref: 'INV-2026-042' },
@@ -44,10 +45,19 @@ export function JournalEntries() {
             </Button>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="hidden sm:flex h-9">
-              <FileDown className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-              {t('action.export')}
-            </Button>
+            <ExportMenu
+              title={dir === 'rtl' ? 'قيود اليومية' : 'Journal Entries'}
+              filename="journal-entries"
+              data={JOURNAL_ENTRIES}
+              columns={[
+                { key: 'id', header: dir === 'rtl' ? 'رقم القيد' : 'Entry #', accessor: (e: any) => e.id },
+                { key: 'date', header: dir === 'rtl' ? 'التاريخ' : 'Date', accessor: (e: any) => e.date },
+                { key: 'desc', header: dir === 'rtl' ? 'البيان' : 'Description', accessor: (e: any) => e.description },
+                { key: 'ref', header: dir === 'rtl' ? 'المرجع' : 'Reference', accessor: (e: any) => e.ref },
+                { key: 'amount', header: dir === 'rtl' ? 'المبلغ' : 'Amount', accessor: (e: any) => e.amount },
+                { key: 'status', header: dir === 'rtl' ? 'الحالة' : 'Status', accessor: (e: any) => e.status === 'posted' ? (dir === 'rtl' ? 'مُرحل' : 'Posted') : (dir === 'rtl' ? 'مسودة' : 'Draft') },
+              ]}
+            />
             <Button size="sm" className="bg-primary hover:bg-primary/90 h-9">
               <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {dir === 'rtl' ? 'قيد جديد' : 'New Entry'}

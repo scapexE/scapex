@@ -29,6 +29,8 @@ import { SurveyAction } from "./actions/SurveyAction";
 import { CustomerCard, type Customer } from "./CustomerCard";
 import { useToast } from "@/hooks/use-toast";
 import { seedDemoSurveys } from "@/lib/surveys";
+import { ExportMenu } from "@/components/shared/ExportMenu";
+import type { ExportColumn } from "@/lib/exportUtils";
 
 interface DbContact {
   id: number;
@@ -412,6 +414,20 @@ export function CustomersList({
                     : (isRtl ? "تحديد الكل" : "Select all")}
                 </Button>
               )}
+              <ExportMenu
+                title={isRtl ? "قائمة العملاء" : "Customers List"}
+                filename="customers"
+                data={filtered}
+                columns={[
+                  { key: "name", header: isRtl ? "الاسم" : "Name", accessor: (c: Customer) => c.name },
+                  { key: "industry", header: isRtl ? "الشركة" : "Company", accessor: (c: Customer) => c.industry },
+                  { key: "contact", header: isRtl ? "جهة الاتصال" : "Contact", accessor: (c: Customer) => c.contact },
+                  { key: "email", header: isRtl ? "البريد الإلكتروني" : "Email", accessor: (c: Customer) => c.email },
+                  { key: "phone", header: isRtl ? "الهاتف" : "Phone", accessor: (c: Customer) => c.phone },
+                  { key: "city", header: isRtl ? "المدينة" : "City", accessor: (c: Customer) => rows.find(r => String(r.id) === c.id)?.city || "" },
+                  { key: "status", header: isRtl ? "الحالة" : "Status", accessor: (c: Customer) => c.status },
+                ] as ExportColumn<Customer>[]}
+              />
               <Button
                 size="sm"
                 className="bg-primary hover:bg-primary/90 gap-1.5"

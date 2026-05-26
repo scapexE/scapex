@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Search, Printer, Trash2, Eye, CheckCircle2, Send, FileText, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ExportMenu } from "@/components/shared/ExportMenu";
 
 interface InvItem { descAr: string; descEn: string; qty: number; unit: string; unitPrice: number; total: number; }
 interface Invoice {
@@ -233,6 +234,22 @@ export function InvoicesTab() {
             <SelectItem value="purchase">{isRtl ? "فاتورة مشتريات" : "Purchase"}</SelectItem>
           </SelectContent>
         </Select>
+        <ExportMenu
+          title={isRtl ? "قائمة الفواتير" : "Invoices List"}
+          filename="invoices"
+          data={filtered}
+          columns={[
+            { key: "no", header: isRtl ? "رقم الفاتورة" : "Invoice No.", accessor: (i: any) => i.invoiceNumber },
+            { key: "client", header: isRtl ? "العميل" : "Client", accessor: (i: any) => i.clientName || "—" },
+            { key: "type", header: isRtl ? "النوع" : "Type", accessor: (i: any) => i.type },
+            { key: "date", header: isRtl ? "التاريخ" : "Date", accessor: (i: any) => i.issueDate || i.invoiceDate || i.date || "" },
+            { key: "subtotal", header: isRtl ? "قبل الضريبة" : "Subtotal", accessor: (i: any) => i.subtotal },
+            { key: "vat", header: isRtl ? "ض.ق.م" : "VAT", accessor: (i: any) => i.vatAmount },
+            { key: "total", header: isRtl ? "الإجمالي" : "Total", accessor: (i: any) => `${i.total} ${i.currency || ""}` },
+            { key: "paid", header: isRtl ? "المدفوع" : "Paid", accessor: (i: any) => i.paidAmount },
+            { key: "status", header: isRtl ? "الحالة" : "Status", accessor: (i: any) => statusLabel(i.status) },
+          ]}
+        />
         <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4" />{isRtl ? "فاتورة جديدة" : "New Invoice"}
         </Button>

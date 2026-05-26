@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { ExportMenu } from "@/components/shared/ExportMenu";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -220,13 +221,29 @@ export function PaymentsTab() {
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center flex-wrap">
         <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => openCreate("received")}>
           <ArrowDownCircle className="w-4 h-4" />{isRtl ? "سند قبض جديد" : "New Receipt Voucher"}
         </Button>
         <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950" onClick={() => openCreate("paid")}>
           <ArrowUpCircle className="w-4 h-4" />{isRtl ? "سند صرف جديد" : "New Payment Voucher"}
         </Button>
+        <div className="ms-auto">
+          <ExportMenu
+            title={isRtl ? "قائمة السندات" : "Vouchers List"}
+            filename="payments"
+            data={payments}
+            columns={[
+              { key: "no", header: isRtl ? "رقم السند" : "Voucher No.", accessor: (p: Payment) => p.paymentNumber },
+              { key: "type", header: isRtl ? "النوع" : "Type", accessor: (p: Payment) => p.type === "received" ? (isRtl ? "قبض" : "Received") : (isRtl ? "صرف" : "Paid") },
+              { key: "party", header: isRtl ? "العميل/المورد" : "Party", accessor: (p: Payment) => contactName(p.contactId) },
+              { key: "date", header: isRtl ? "التاريخ" : "Date", accessor: (p: Payment) => p.date },
+              { key: "amount", header: isRtl ? "المبلغ" : "Amount", accessor: (p: Payment) => p.amount },
+              { key: "method", header: isRtl ? "طريقة الدفع" : "Method", accessor: (p: Payment) => methodLabel(p.method) },
+              { key: "reference", header: isRtl ? "المرجع" : "Reference", accessor: (p: Payment) => p.reference || "" },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Tabs */}
