@@ -12,6 +12,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ActivityIcon } from "@/components/ActivityIcon";
+import { scopedFetch } from "@/lib/queryClient";
 
 function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(" ");
@@ -62,7 +63,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications");
+      const res = await scopedFetch("/api/notifications");
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) setNotifications(data);
@@ -89,7 +90,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   const handleMarkRead = async (id: number) => {
     try {
-      await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+      await scopedFetch(`/api/notifications/${id}/read`, { method: "PATCH" });
       setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
     } catch {}
   };
@@ -97,7 +98,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const handleMarkAllRead = async () => {
     setLoading(true);
     try {
-      await fetch("/api/notifications/read-all", { method: "PATCH" });
+      await scopedFetch("/api/notifications/read-all", { method: "PATCH" });
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch {}
     setLoading(false);
@@ -106,7 +107,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const handleClearAll = async () => {
     setLoading(true);
     try {
-      await fetch("/api/notifications", { method: "DELETE" });
+      await scopedFetch("/api/notifications", { method: "DELETE" });
       setNotifications([]);
     } catch {}
     setLoading(false);
