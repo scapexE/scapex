@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,11 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote, Layers, ShieldAlert } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote, Layers, ShieldAlert, FileText, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { AdvancesTab } from "@/components/hr/AdvancesTab";
 import { ViolationsTab } from "@/components/hr/ViolationsTab";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useActivityScope } from "@/hooks/useActivityScope";
 
 interface Employee {
   id: string; empNo: string; nameAr: string; nameEn: string;
@@ -25,6 +26,11 @@ interface Employee {
   contractType: "permanent" | "contract" | "part_time";
   companyId?: number | null;
   activityIds?: string[];
+  iqamaExpiry?: string;
+  visaExpiry?: string;
+  passportNumber?: string;
+  passportExpiry?: string;
+  medicalInsuranceExpiry?: string;
 }
 
 interface SimpleCompany { id: number; nameAr: string; nameEn: string; }
@@ -70,6 +76,11 @@ function mapRow(r: any): Employee {
     contractType: r.contractType || "permanent",
     companyId: r.companyId ?? null,
     activityIds: Array.isArray(r.activityIds) ? r.activityIds : [],
+    iqamaExpiry: r.iqamaExpiry || "",
+    visaExpiry: r.visaExpiry || "",
+    passportNumber: r.passportNumber || "",
+    passportExpiry: r.passportExpiry || "",
+    medicalInsuranceExpiry: r.medicalInsuranceExpiry || "",
   };
 }
 
@@ -84,10 +95,54 @@ function printEmployees(employees: Employee[], isRtl: boolean) {
   if (w) { w.document.write(html); w.document.close(); w.print(); }
 }
 
+/* ── Expiry helpers ── */
+function daysDiff(dateStr: string): number | null {
+  if (!dateStr) return null;
+  const diff = new Date(dateStr).getTime() - Date.now();
+  return Math.ceil(diff / 86400000);
+}
+
+function expiryStatus(dateStr: string): "expired" | "critical" | "warning" | "ok" | "none" {
+  const d = daysDiff(dateStr);
+  if (d === null) return "none";
+  if (d < 0) return "expired";
+  if (d <= 30) return "critical";
+  if (d <= 90) return "warning";
+  return "ok";
+}
+
+function ExpiryBadge({ dateStr, isRtl }: { dateStr: string; isRtl: boolean }) {
+  const status = expiryStatus(dateStr);
+  const d = daysDiff(dateStr);
+  if (status === "none") return <span className="text-xs text-muted-foreground">—</span>;
+  const fmtDate = new Date(dateStr).toLocaleDateString(isRtl ? "ar-SA" : "en-US");
+  const daysLabel = d !== null && d >= 0
+    ? (isRtl ? `(${d} يوم)` : `(${d}d)`)
+    : (isRtl ? "(منتهية)" : "(expired)");
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className={cn("text-xs font-medium",
+        status === "expired" ? "text-red-600 dark:text-red-400" :
+        status === "critical" ? "text-orange-600 dark:text-orange-400" :
+        status === "warning" ? "text-amber-600 dark:text-amber-400" :
+        "text-emerald-600 dark:text-emerald-400"
+      )}>{fmtDate}</span>
+      <span className={cn("text-[10px]",
+        status === "expired" ? "text-red-500" :
+        status === "critical" ? "text-orange-500" :
+        status === "warning" ? "text-amber-500" :
+        "text-emerald-500"
+      )}>{daysLabel}</span>
+    </div>
+  );
+}
+
 export default function HRModule() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
+  const { activityId, isPrivileged, activeActivity } = useActivityScope();
+
   const [employeeList, setEmployeeList] = useState<Employee[]>([]);
   const [companies, setCompanies] = useState<SimpleCompany[]>([]);
   const [activities, setActivities] = useState<SimpleActivity[]>([]);
@@ -135,12 +190,42 @@ export default function HRModule() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filtered = employeeList.filter(e => {
-    const q = search.toLowerCase();
-    return (!q || e.nameAr.includes(q) || e.nameEn.toLowerCase().includes(q) || e.empNo.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)) && (deptFilter === "all" || e.department === deptFilter);
-  });
+  /* ── Activity / Company scoping ── */
+  const scopedEmployees = useMemo(() => {
+    if (!activityId) return employeeList;
+    return employeeList.filter(e => Array.isArray(e.activityIds) && e.activityIds.includes(activityId));
+  }, [employeeList, activityId]);
 
-  const stats = { total: employeeList.length, active: employeeList.filter(e => e.status === "active").length, onLeave: employeeList.filter(e => e.status === "on_leave").length, saudi: employeeList.filter(e => e.nationality === "Saudi").length };
+  /* ── Filtered list (search + dept) within scoped pool ── */
+  const filtered = useMemo(() => scopedEmployees.filter(e => {
+    const q = search.toLowerCase();
+    return (!q || e.nameAr.includes(q) || e.nameEn.toLowerCase().includes(q) || e.empNo.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))
+      && (deptFilter === "all" || e.department === deptFilter);
+  }), [scopedEmployees, search, deptFilter]);
+
+  /* ── Stats from scoped pool ── */
+  const stats = useMemo(() => ({
+    total: scopedEmployees.length,
+    active: scopedEmployees.filter(e => e.status === "active").length,
+    onLeave: scopedEmployees.filter(e => e.status === "on_leave").length,
+    saudi: scopedEmployees.filter(e => e.nationality === "Saudi").length,
+  }), [scopedEmployees]);
+
+  /* ── Expiry summary from scoped pool ── */
+  const expirySummary = useMemo(() => {
+    let expired = 0, critical = 0, warning = 0;
+    for (const emp of scopedEmployees) {
+      const fields = [emp.iqamaExpiry, emp.visaExpiry, emp.passportExpiry, emp.medicalInsuranceExpiry];
+      for (const f of fields) {
+        if (!f) continue;
+        const s = expiryStatus(f);
+        if (s === "expired") expired++;
+        else if (s === "critical") critical++;
+        else if (s === "warning") warning++;
+      }
+    }
+    return { expired, critical, warning };
+  }, [scopedEmployees]);
 
   const openAdd = () => {
     setEditEmp(null);
@@ -200,6 +285,11 @@ export default function HRModule() {
         status: form.status, contractType: form.contractType,
         companyId: form.companyId,
         activityIds: form.activityIds || [],
+        iqamaExpiry: form.iqamaExpiry || null,
+        visaExpiry: form.visaExpiry || null,
+        passportNumber: form.passportNumber || null,
+        passportExpiry: form.passportExpiry || null,
+        medicalInsuranceExpiry: form.medicalInsuranceExpiry || null,
       };
       if (editEmp) {
         await fetch(`/api/employees/${editEmp.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -222,20 +312,30 @@ export default function HRModule() {
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
   };
 
+  /* ── Scope label ── */
+  const scopeLabel = activityId && activeActivity
+    ? (isRtl ? activeActivity.nameAr || activeActivity.id : activeActivity.nameEn || activeActivity.id)
+    : null;
+
   return (
     <MainLayout>
       <div className="flex flex-col gap-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{isRtl ? "الموارد البشرية" : "Human Resources"}</h1>
-            <p className="text-muted-foreground text-sm mt-1">{isRtl ? "إدارة الموظفين، العقود، والبيانات الوظيفية" : "Manage employees, contracts, and HR data"}</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              {scopeLabel
+                ? (isRtl ? `النشاط التجاري: ${scopeLabel}` : `Activity: ${scopeLabel}`)
+                : (isRtl ? "إدارة الموظفين، العقود، والبيانات الوظيفية" : "Manage employees, contracts, and HR data")}
+            </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => printEmployees(employeeList, isRtl)}><Download className="w-4 h-4 me-1.5" />{isRtl ? "طباعة PDF" : "Print PDF"}</Button>
+            <Button variant="outline" size="sm" onClick={() => printEmployees(filtered, isRtl)}><Download className="w-4 h-4 me-1.5" />{isRtl ? "طباعة PDF" : "Print PDF"}</Button>
             <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 me-1.5" />{isRtl ? "إضافة موظف" : "Add Employee"}</Button>
           </div>
         </div>
 
+        {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: isRtl ? "إجمالي الموظفين" : "Total Employees", value: stats.total, icon: Users, color: "text-blue-500" },
@@ -256,11 +356,28 @@ export default function HRModule() {
           <TabsList className="bg-secondary/50 flex-wrap h-auto gap-1">
             <TabsTrigger value="employees"><Users className="w-3.5 h-3.5 me-1" />{isRtl ? "الموظفون" : "Employees"}</TabsTrigger>
             <TabsTrigger value="departments"><Building2 className="w-3.5 h-3.5 me-1" />{isRtl ? "الأقسام" : "Departments"}</TabsTrigger>
+            <TabsTrigger value="documents" className="relative">
+              <FileText className="w-3.5 h-3.5 me-1" />{isRtl ? "الوثائق والصلاحيات" : "Document Expiry"}
+              {(expirySummary.expired + expirySummary.critical) > 0 && (
+                <span className="absolute -top-1 -end-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">
+                  {expirySummary.expired + expirySummary.critical}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="advances"><Banknote className="w-3.5 h-3.5 me-1" />{isRtl ? "السلف" : "Advances"}</TabsTrigger>
             <TabsTrigger value="violations"><ShieldAlert className="w-3.5 h-3.5 me-1" />{isRtl ? "المخالفات" : "Violations"}</TabsTrigger>
           </TabsList>
 
+          {/* ── EMPLOYEES TAB ── */}
           <TabsContent value="employees" className="mt-4 space-y-3">
+            {scopeLabel && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-400">
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                {isRtl
+                  ? `يعرض ${stats.total} موظف مرتبط بالنشاط: ${scopeLabel}`
+                  : `Showing ${stats.total} employees in activity: ${scopeLabel}`}
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRtl ? "right-3" : "left-3")} />
@@ -312,21 +429,16 @@ export default function HRModule() {
                                   <Building2 className="w-3 h-3" />
                                   {companyName(emp.companyId)}
                                 </Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
+                              ) : <span className="text-xs text-muted-foreground">—</span>}
                               {emp.activityIds && emp.activityIds.length > 0 && (
                                 <div className="flex flex-wrap gap-1">
                                   {emp.activityIds.slice(0, 2).map(aid => (
                                     <Badge key={aid} variant="outline" className="font-normal gap-1 border-violet-200 text-violet-700 bg-violet-50 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800 text-[10px] px-1.5 py-0 w-fit">
-                                      <Layers className="w-2.5 h-2.5" />
-                                      {activityName(aid)}
+                                      <Layers className="w-2.5 h-2.5" />{activityName(aid)}
                                     </Badge>
                                   ))}
                                   {emp.activityIds.length > 2 && (
-                                    <Badge variant="outline" className="font-normal text-muted-foreground text-[10px] px-1.5 py-0 w-fit">
-                                      +{emp.activityIds.length - 2}
-                                    </Badge>
+                                    <Badge variant="outline" className="font-normal text-muted-foreground text-[10px] px-1.5 py-0 w-fit">+{emp.activityIds.length - 2}</Badge>
                                   )}
                                 </div>
                               )}
@@ -353,20 +465,145 @@ export default function HRModule() {
             )}
           </TabsContent>
 
+          {/* ── DEPARTMENTS TAB (scoped by activity) ── */}
           <TabsContent value="departments" className="mt-4">
+            {scopeLabel && (
+              <div className="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-400">
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                {isRtl ? `الأقسام مفلترة حسب النشاط: ${scopeLabel}` : `Departments filtered by activity: ${scopeLabel}`}
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {DEPARTMENTS.map(dept => {
-                const count = employeeList.filter(e => e.department === dept.id && e.status === "active").length;
+                const count = scopedEmployees.filter(e => e.department === dept.id && e.status === "active").length;
+                const total = scopedEmployees.filter(e => e.department === dept.id).length;
                 return (
-                  <Card key={dept.id} className="border-border/50 hover:border-primary/30 transition-colors">
+                  <Card key={dept.id} className={cn("border-border/50 hover:border-primary/30 transition-colors", count === 0 && scopeLabel ? "opacity-50" : "")}>
                     <CardContent className="p-4 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Building2 className="w-5 h-5 text-primary" /></div>
-                      <div className="flex-1"><p className="font-semibold text-sm">{isRtl ? dept.ar : dept.en}</p><p className="text-xs text-muted-foreground">{count} {isRtl ? "موظف نشط" : "active employees"}</p></div>
-                      <Badge variant="secondary">{count}</Badge>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{isRtl ? dept.ar : dept.en}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {count} {isRtl ? "نشط" : "active"}
+                          {total > count ? `, ${total - count} ${isRtl ? "غير نشط/إجازة" : "inactive/leave"}` : ""}
+                        </p>
+                      </div>
+                      <Badge variant={count > 0 ? "secondary" : "outline"}>{count}</Badge>
                     </CardContent>
                   </Card>
                 );
               })}
+            </div>
+          </TabsContent>
+
+          {/* ── DOCUMENT EXPIRY TAB ── */}
+          <TabsContent value="documents" className="mt-4 space-y-4">
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: isRtl ? "منتهية الصلاحية" : "Expired", value: expirySummary.expired, icon: XCircle, cls: "text-red-500", bg: "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800" },
+                { label: isRtl ? "تنتهي خلال 30 يوم" : "Expiring ≤30d", value: expirySummary.critical, icon: AlertTriangle, cls: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800" },
+                { label: isRtl ? "تنتهي خلال 90 يوم" : "Expiring ≤90d", value: expirySummary.warning, icon: Clock, cls: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800" },
+                { label: isRtl ? "سارية المفعول" : "Valid", value: scopedEmployees.filter(e => [e.iqamaExpiry, e.visaExpiry, e.passportExpiry, e.medicalInsuranceExpiry].every(f => !f || expiryStatus(f) === "ok")).length, icon: CheckCircle2, cls: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800" },
+              ].map((s, i) => (
+                <Card key={i} className={cn("border", s.bg)}>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <s.icon className={cn("w-6 h-6 shrink-0", s.cls)} />
+                    <div><p className="text-xs text-muted-foreground">{s.label}</p><p className="text-xl font-bold">{s.value}</p></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Expiry table */}
+            <Card className="border-border/50 overflow-hidden">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  {isRtl ? "جدول متابعة صلاحية الوثائق" : "Document Expiry Tracking"}
+                </CardTitle>
+              </CardHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-secondary/40">
+                    <TableRow>
+                      <TableHead>{isRtl ? "الموظف" : "Employee"}</TableHead>
+                      <TableHead>{isRtl ? "الجنسية" : "Nationality"}</TableHead>
+                      <TableHead>
+                        <div className="flex flex-col">
+                          <span>{isRtl ? "الهوية / الإقامة" : "ID / Iqama"}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground">{isRtl ? "تاريخ الانتهاء" : "Expiry"}</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex flex-col">
+                          <span>{isRtl ? "التأشيرة" : "Visa"}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground">{isRtl ? "تاريخ الانتهاء" : "Expiry"}</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex flex-col">
+                          <span>{isRtl ? "جواز السفر" : "Passport"}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground">{isRtl ? "تاريخ الانتهاء" : "Expiry"}</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex flex-col">
+                          <span>{isRtl ? "التأمين الطبي" : "Medical Insurance"}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground">{isRtl ? "تاريخ الانتهاء" : "Expiry"}</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>{isRtl ? "الإجراء" : "Action"}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow><TableCell colSpan={7} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                    ) : scopedEmployees.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">{isRtl ? "لا يوجد موظفون" : "No employees found"}</TableCell></TableRow>
+                    ) : scopedEmployees.map(emp => {
+                      const anyAlert = [emp.iqamaExpiry, emp.visaExpiry, emp.passportExpiry, emp.medicalInsuranceExpiry]
+                        .some(f => f && ["expired", "critical", "warning"].includes(expiryStatus(f)));
+                      return (
+                        <TableRow key={emp.id} className={cn("hover:bg-muted/40", anyAlert ? "bg-red-50/30 dark:bg-red-950/10" : "")}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{(emp.nameAr || "?")[0]}</div>
+                              <div>
+                                <p className="text-sm font-medium">{isRtl ? emp.nameAr : emp.nameEn}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{emp.empNo}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs">{emp.nationality}</TableCell>
+                          <TableCell><ExpiryBadge dateStr={emp.iqamaExpiry || ""} isRtl={isRtl} /></TableCell>
+                          <TableCell><ExpiryBadge dateStr={emp.visaExpiry || ""} isRtl={isRtl} /></TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              {emp.passportNumber && <span className="text-[10px] text-muted-foreground font-mono">{emp.passportNumber}</span>}
+                              <ExpiryBadge dateStr={emp.passportExpiry || ""} isRtl={isRtl} />
+                            </div>
+                          </TableCell>
+                          <TableCell><ExpiryBadge dateStr={emp.medicalInsuranceExpiry || ""} isRtl={isRtl} /></TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(emp)} title={isRtl ? "تعديل" : "Edit"}>
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+
+            {/* Color legend */}
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground px-1">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" />{isRtl ? "منتهية" : "Expired"}</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-orange-500 inline-block" />{isRtl ? "تنتهي خلال 30 يوم" : "≤30 days"}</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />{isRtl ? "تنتهي خلال 90 يوم" : "≤90 days"}</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />{isRtl ? "سارية" : "Valid"}</span>
             </div>
           </TabsContent>
 
@@ -380,7 +617,7 @@ export default function HRModule() {
         </Tabs>
       </div>
 
-      {/* Add / Edit Employee Dialog */}
+      {/* ── Add / Edit Employee Dialog ── */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -388,7 +625,7 @@ export default function HRModule() {
           </DialogHeader>
           <div className="space-y-4 py-2">
 
-            {/* ── Company (required) ── */}
+            {/* Company & Activities */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20">
               <div className="sm:col-span-2">
                 <p className="text-xs font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1.5">
@@ -398,49 +635,22 @@ export default function HRModule() {
               </div>
               <div>
                 <Label className="text-xs font-semibold">{isRtl ? "الشركة *" : "Company *"}</Label>
-                <Select
-                  value={form.companyId ? String(form.companyId) : ""}
-                  onValueChange={v => setForm(p => ({ ...p, companyId: parseInt(v), activityIds: [] }))}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm">
-                    <SelectValue placeholder={isRtl ? "— اختر الشركة —" : "— Select Company —"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map(c => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {isRtl ? c.nameAr : c.nameEn}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select value={form.companyId ? String(form.companyId) : ""} onValueChange={v => setForm(p => ({ ...p, companyId: parseInt(v), activityIds: [] }))}>
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder={isRtl ? "— اختر الشركة —" : "— Select Company —"} /></SelectTrigger>
+                  <SelectContent>{companies.map(c => <SelectItem key={c.id} value={String(c.id)}>{isRtl ? c.nameAr : c.nameEn}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-
-              {/* Activities multi-select */}
               <div className="sm:col-span-2">
-                <Label className="text-xs font-semibold">
-                  {isRtl ? "الأنشطة التجارية * (اختر نشاطاً أو أكثر)" : "Business Activities * (select one or more)"}
-                </Label>
+                <Label className="text-xs font-semibold">{isRtl ? "الأنشطة التجارية * (اختر نشاطاً أو أكثر)" : "Business Activities * (select one or more)"}</Label>
                 {!form.companyId ? (
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    {isRtl ? "اختر الشركة أولاً لعرض أنشطتها." : "Select a company first to see its activities."}
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1.5">{isRtl ? "اختر الشركة أولاً لعرض أنشطتها." : "Select a company first to see its activities."}</p>
                 ) : activitiesForCompany.length === 0 ? (
-                  <p className="text-xs text-amber-600 mt-1.5">
-                    {isRtl ? "لا توجد أنشطة تجارية نشطة لهذه الشركة." : "No active activities found for this company."}
-                  </p>
+                  <p className="text-xs text-amber-600 mt-1.5">{isRtl ? "لا توجد أنشطة تجارية نشطة لهذه الشركة." : "No active activities found for this company."}</p>
                 ) : (
                   <div className="mt-1.5 border border-border/60 rounded-md divide-y divide-border/40 max-h-40 overflow-y-auto">
                     {activitiesForCompany.map(act => (
-                      <label
-                        key={act.id}
-                        className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent/40 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-primary w-4 h-4 rounded"
-                          checked={(form.activityIds || []).includes(act.id)}
-                          onChange={() => toggleActivity(act.id)}
-                        />
+                      <label key={act.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent/40 text-sm">
+                        <input type="checkbox" className="accent-primary w-4 h-4 rounded" checked={(form.activityIds || []).includes(act.id)} onChange={() => toggleActivity(act.id)} />
                         <Layers className="w-3.5 h-3.5 text-violet-500" />
                         <span>{isRtl ? act.nameAr : act.nameEn}</span>
                       </label>
@@ -450,7 +660,7 @@ export default function HRModule() {
               </div>
             </div>
 
-            {/* ── Personal & HR fields ── */}
+            {/* Personal & HR fields */}
             <div className="grid grid-cols-2 gap-3">
               {([
                 { label: isRtl ? "الاسم بالعربية *" : "Arabic Name *", field: "nameAr" },
@@ -499,6 +709,36 @@ export default function HRModule() {
                     <SelectItem value="inactive">{isRtl ? "غير نشط" : "Inactive"}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Document Expiry Section */}
+            <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/40 dark:bg-amber-950/20 space-y-3">
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                {isRtl ? "تواريخ انتهاء الوثائق" : "Document Expiry Dates"}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء الهوية / الإقامة" : "ID / Iqama Expiry"}</Label>
+                  <Input type="date" className="mt-1 h-8 text-sm" value={form.iqamaExpiry || ""} onChange={e => setForm(p => ({ ...p, iqamaExpiry: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء التأشيرة" : "Visa Expiry"}</Label>
+                  <Input type="date" className="mt-1 h-8 text-sm" value={form.visaExpiry || ""} onChange={e => setForm(p => ({ ...p, visaExpiry: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold">{isRtl ? "رقم جواز السفر" : "Passport Number"}</Label>
+                  <Input type="text" className="mt-1 h-8 text-sm" value={form.passportNumber || ""} onChange={e => setForm(p => ({ ...p, passportNumber: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء جواز السفر" : "Passport Expiry"}</Label>
+                  <Input type="date" className="mt-1 h-8 text-sm" value={form.passportExpiry || ""} onChange={e => setForm(p => ({ ...p, passportExpiry: e.target.value }))} />
+                </div>
+                <div className="sm:col-span-1">
+                  <Label className="text-xs font-semibold">{isRtl ? "انتهاء التأمين الطبي" : "Medical Insurance Expiry"}</Label>
+                  <Input type="date" className="mt-1 h-8 text-sm" value={form.medicalInsuranceExpiry || ""} onChange={e => setForm(p => ({ ...p, medicalInsuranceExpiry: e.target.value }))} />
+                </div>
               </div>
             </div>
           </div>

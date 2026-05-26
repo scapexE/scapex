@@ -622,6 +622,11 @@ export const employees = pgTable("employees", {
   updatedAt: timestamp("updated_at").defaultNow(),
   activityId: text("activity_id").references(() => businessActivities.id),
   activityIds: jsonb("activity_ids").$type<string[]>().default([]),
+  iqamaExpiry: date("iqama_expiry"),
+  visaExpiry: date("visa_expiry"),
+  passportNumber: varchar("passport_number", { length: 20 }),
+  passportExpiry: date("passport_expiry"),
+  medicalInsuranceExpiry: date("medical_insurance_expiry"),
 });
 
 export const employeeDocuments = pgTable("employee_documents", {

@@ -290,6 +290,11 @@ export async function registerRoutes(
   // Unified company identifier (CR number) for cross-activity deduplication
   await db.execute(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS cr_number VARCHAR(20)`);
   await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS contacts_company_cr_uniq ON contacts(company_id, cr_number) WHERE cr_number IS NOT NULL AND company_id IS NOT NULL`);
+  await db.execute(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS iqama_expiry DATE`);
+  await db.execute(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS visa_expiry DATE`);
+  await db.execute(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS passport_number VARCHAR(20)`);
+  await db.execute(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS passport_expiry DATE`);
+  await db.execute(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS medical_insurance_expiry DATE`);
 
   await seedDefaultUsers();
   await seedDefaultCompanies();
@@ -2441,8 +2446,15 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   // HR — EMPLOYEES
   // ═══════════════════════════════════════════════════════════════════════════
-  app.get("/api/employees", async (_req, res) => {
-    try { res.json(await db.select().from(employees).orderBy(employees.createdAt)); }
+  app.get("/api/employees", async (req, res) => {
+    try {
+      const activityId = req.query.activityId as string | undefined;
+      const companyId  = req.query.companyId  ? parseInt(req.query.companyId as string) : null;
+      let rows = await db.select().from(employees).orderBy(employees.createdAt);
+      if (companyId)   rows = rows.filter(e => e.companyId === companyId);
+      if (activityId)  rows = rows.filter(e => Array.isArray(e.activityIds) && (e.activityIds as string[]).includes(activityId));
+      res.json(rows);
+    }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/employees", async (req, res) => {
@@ -2457,6 +2469,11 @@ export async function registerRoutes(
         transportAllowance: b.transportAllowance, status: b.status || "active",
         companyId: b.companyId ? parseInt(b.companyId) : null,
         activityIds: Array.isArray(b.activityIds) ? b.activityIds : [],
+        iqamaExpiry: b.iqamaExpiry || null,
+        visaExpiry: b.visaExpiry || null,
+        passportNumber: b.passportNumber || null,
+        passportExpiry: b.passportExpiry || null,
+        medicalInsuranceExpiry: b.medicalInsuranceExpiry || null,
       }).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -2474,6 +2491,11 @@ export async function registerRoutes(
         transportAllowance: b.transportAllowance, status: b.status,
         companyId: b.companyId ? parseInt(b.companyId) : null,
         activityIds: Array.isArray(b.activityIds) ? b.activityIds : [],
+        iqamaExpiry: b.iqamaExpiry || null,
+        visaExpiry: b.visaExpiry || null,
+        passportNumber: b.passportNumber || null,
+        passportExpiry: b.passportExpiry || null,
+        medicalInsuranceExpiry: b.medicalInsuranceExpiry || null,
         updatedAt: new Date(),
       }).where(eq(employees.id, id)).returning();
       res.json(row);
