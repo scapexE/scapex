@@ -21,7 +21,9 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, type SurveyQuestionDef } from "@shared/schema";
+import { sendEmail } from "./email";
+import crypto from "crypto";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
@@ -247,6 +249,8 @@ export async function registerRoutes(
     // /api/app-data: read-only key/value bootstrap data (logos, theme, etc.)
     // fetched before login. GETs are open; mutations require staff auth.
     if (req.method === "GET" && req.path.startsWith("/api/app-data")) return next();
+    // /api/public/* — anonymous customer-facing endpoints (survey responses, etc.)
+    if (req.path.startsWith("/api/public/")) return next();
 
     const staffId = (req.header("x-user-id") || "").trim();
     if (!staffId) return res.status(401).json({ error: "Staff authentication required" });
@@ -4496,6 +4500,390 @@ export async function registerRoutes(
       await db.delete(contractPaymentSchedules).where(eq(contractPaymentSchedules.id, parseInt(req.params.id)));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMAIL: Bulk + Single via Resend (privacy-safe: bulk uses BCC)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/email/send", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const subject: string = (body.subject || "").trim();
+      const html: string | undefined = body.html;
+      const text: string | undefined = body.text;
+      const category: string = body.category || "manual";
+      const isBulk = !!body.isBulk;
+      const senderId = (req.header("x-user-id") || "").trim() || null;
+      // Derive companyId from the calling user — never hardcode in multi-tenant.
+      let actorCompanyId: number | null = null;
+      if (senderId) {
+        const [u] = await db.select({ companyId: users.companyId }).from(users).where(eq(users.id, senderId)).limit(1);
+        actorCompanyId = u?.companyId ?? null;
+      }
+
+      if (!subject) return res.status(400).json({ error: "Subject is required" });
+      if (!html && !text) return res.status(400).json({ error: "Body (html or text) is required" });
+
+      let toList: string[] = [];
+      let bccList: string[] = [];
+      let fromEmail = process.env.FROM_EMAIL || "Scapex <noreply@resend.dev>";
+
+      if (isBulk) {
+        const recipients: string[] = Array.isArray(body.recipients) ? body.recipients : [];
+        const valid = recipients.map(r => (r || "").trim()).filter(Boolean);
+        if (!valid.length) return res.status(400).json({ error: "No recipients" });
+        // Privacy: put all real addresses in BCC, leave 'to' as the sender
+        const fromMatch = fromEmail.match(/<([^>]+)>/);
+        const senderAddr = fromMatch ? fromMatch[1] : fromEmail;
+        toList = [senderAddr];
+        bccList = valid;
+      } else {
+        const to = (body.to || "").toString().trim();
+        if (!to) return res.status(400).json({ error: "Recipient is required" });
+        toList = [to];
+      }
+
+      const result = await sendEmail({ to: toList, bcc: bccList.length ? bccList : undefined, subject, html, text });
+
+      try {
+        await db.insert(emailLogs).values({
+          companyId: actorCompanyId,
+          fromEmail,
+          toEmails: toList,
+          bccEmails: bccList,
+          subject,
+          bodyHtml: html || null,
+          bodyText: text || null,
+          status: result.success ? "sent" : "failed",
+          errorMessage: result.error || null,
+          resendId: result.id || null,
+          category,
+          sentBy: senderId,
+        });
+      } catch (logErr) {
+        console.error("[email] failed to log send:", logErr);
+      }
+
+      if (!result.success) return res.status(502).json({ error: result.error || "Send failed" });
+      res.json({ success: true, id: result.id, recipients: bccList.length || toList.length });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/email/logs", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      // Admin/manager: all. Otherwise: only logs from caller's company.
+      if (scope.isPrivileged) {
+        const rows = await db.select().from(emailLogs).orderBy(desc(emailLogs.sentAt)).limit(200);
+        return res.json(rows);
+      }
+      const [u] = await db.select({ companyId: users.companyId }).from(users).where(eq(users.id, scope.actor.id)).limit(1);
+      if (!u?.companyId) return res.json([]);
+      const rows = await db.select().from(emailLogs)
+        .where(eq(emailLogs.companyId, u.companyId))
+        .orderBy(desc(emailLogs.sentAt)).limit(200);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SURVEYS — staff endpoints
+  // ═══════════════════════════════════════════════════════════════════════════
+  function getPublicBaseUrl(req: any): string {
+    return process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+  }
+
+  function renderSurveyEmail(args: { customerName: string; link: string; message: string; isRtl: boolean }) {
+    const { customerName, link, message, isRtl } = args;
+    const dir = isRtl ? "rtl" : "ltr";
+    const safeMsg = (message || "").replace(/\n/g, "<br/>");
+    const cta = isRtl ? "ابدأ تقييم الخدمة" : "Start Survey";
+    const footer = isRtl ? "إذا لم يعمل الزر، انسخ الرابط التالي:" : "If the button doesn't work, copy this link:";
+    return `<div dir="${dir}" style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#f8fafc">
+      <div style="background:#fff;border-radius:12px;padding:28px;border:1px solid #e2e8f0">
+        <h2 style="color:#1e40af;margin:0 0 4px">Scapex</h2>
+        <p style="color:#64748b;font-size:13px;margin:0 0 20px">${isRtl ? 'منصة إدارة الأعمال الذكية' : 'Smart Business Management'}</p>
+        <p style="color:#0f172a;font-size:15px;line-height:1.7">${isRtl ? 'مرحباً' : 'Hello'} <strong>${customerName}</strong>،</p>
+        <div style="color:#334155;font-size:14px;line-height:1.7;margin:12px 0 20px">${safeMsg}</div>
+        <div style="text-align:center;margin:24px 0">
+          <a href="${link}" style="display:inline-block;background:#1e40af;color:#fff;text-decoration:none;font-weight:bold;padding:14px 32px;border-radius:8px">${cta}</a>
+        </div>
+        <p style="color:#64748b;font-size:12px;margin-top:20px">${footer}<br><a href="${link}" style="color:#1e40af;word-break:break-all">${link}</a></p>
+      </div>
+    </div>`;
+  }
+
+  app.get("/api/surveys", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const contactId = req.query.contactId ? parseInt(String(req.query.contactId)) : null;
+
+      // Determine which contacts the caller is allowed to see (same model as /api/customers).
+      // Admin/manager: all. Otherwise: contacts whose company_id is in the actor's activity companies,
+      // OR whose activity_id is in the actor's activities (back-compat).
+      let allowedContactIds: Set<number> | null = null; // null = unrestricted (privileged)
+      if (!scope.isPrivileged) {
+        const activityFilter = scope.activityId ? [scope.activityId] : (scope.allowedIds || []);
+        if (!activityFilter.length) return res.json([]);
+        const actRows = await db.select({ companyId: businessActivities.companyId })
+          .from(businessActivities).where(inArray(businessActivities.id, activityFilter));
+        const companyIds = actRows.map(a => a.companyId).filter((c): c is number => c !== null);
+        const conds: any[] = [];
+        if (companyIds.length) conds.push(inArray(contacts.companyId, companyIds));
+        if (activityFilter.length) conds.push(inArray(contacts.activityId, activityFilter));
+        const where = conds.length > 1 ? or(...conds) : conds[0];
+        const cRows = where ? await db.select({ id: contacts.id }).from(contacts).where(where) : [];
+        allowedContactIds = new Set(cRows.map(r => r.id));
+        // Reject query for an explicit contactId outside scope
+        if (contactId !== null && !allowedContactIds.has(contactId)) return res.json([]);
+      }
+
+      let rows;
+      if (contactId) {
+        rows = await db.select().from(surveys).where(eq(surveys.contactId, contactId)).orderBy(desc(surveys.sentAt));
+      } else if (allowedContactIds) {
+        const ids = Array.from(allowedContactIds);
+        if (!ids.length) return res.json([]);
+        rows = await db.select().from(surveys).where(inArray(surveys.contactId, ids)).orderBy(desc(surveys.sentAt)).limit(500);
+      } else {
+        rows = await db.select().from(surveys).orderBy(desc(surveys.sentAt)).limit(500);
+      }
+
+      const ids = rows.map(r => r.id);
+      const responses = ids.length
+        ? await db.select().from(surveyResponses).where(inArray(surveyResponses.surveyId, ids))
+        : [];
+      const byId = new Map(responses.map(r => [r.surveyId, r]));
+      const base = getPublicBaseUrl(req);
+      res.json(rows.map(r => ({ ...r, response: byId.get(r.id) || null, link: `${base}/survey/${r.token}` })));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/surveys", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const body = req.body || {};
+      const senderId = scope.actor.id;
+      const [u] = await db.select({ companyId: users.companyId }).from(users).where(eq(users.id, senderId)).limit(1);
+      const actorCompanyId: number | null = u?.companyId ?? null;
+      const recipients: Array<{ contactId?: number; name: string; email?: string; phone?: string }> =
+        Array.isArray(body.recipients) ? body.recipients : [];
+      if (!recipients.length) return res.status(400).json({ error: "No recipients" });
+      const questions: SurveyQuestionDef[] = Array.isArray(body.questions) ? body.questions : [];
+      if (!questions.length) return res.status(400).json({ error: "At least one question is required" });
+      const sentVia: string = body.sentVia === "whatsapp" ? "whatsapp" : (body.sentVia === "link" ? "link" : "email");
+      const message: string = body.message || "";
+      const isRtl: boolean = !!body.isRtl;
+
+      const base = getPublicBaseUrl(req);
+      const created: Array<any> = [];
+      const emailQueue: Array<{ to: string; subject: string; html: string }> = [];
+
+      // Build the caller's allowed-contact scope (same logic as GET /api/surveys).
+      let allowedContactIds: Set<number> | null = null; // null = privileged (all)
+      let allowedCompanyIds: Set<number> | null = null;
+      if (!scope.isPrivileged) {
+        const activityFilter = scope.activityId ? [scope.activityId] : (scope.allowedIds || []);
+        if (!activityFilter.length) return res.status(403).json({ error: "No activities assigned" });
+        const actRows = await db.select({ companyId: businessActivities.companyId })
+          .from(businessActivities).where(inArray(businessActivities.id, activityFilter));
+        const companyIds = actRows.map(a => a.companyId).filter((c): c is number => c !== null);
+        allowedCompanyIds = new Set(companyIds);
+        const conds: any[] = [];
+        if (companyIds.length) conds.push(inArray(contacts.companyId, companyIds));
+        if (activityFilter.length) conds.push(inArray(contacts.activityId, activityFilter));
+        const where = conds.length > 1 ? or(...conds) : conds[0];
+        const cRows = where ? await db.select({ id: contacts.id }).from(contacts).where(where) : [];
+        allowedContactIds = new Set(cRows.map(r => r.id));
+      }
+
+      for (const r of recipients) {
+        // Authorize contactId against caller's scope (IDOR guard).
+        if (allowedContactIds !== null && r.contactId != null && !allowedContactIds.has(r.contactId)) {
+          return res.status(403).json({ error: `Forbidden: contact ${r.contactId} is not in your scope` });
+        }
+        // Resolve per-recipient companyId from contact when available; fall back to actor's company.
+        let recipientCompanyId: number | null = actorCompanyId;
+        if (r.contactId) {
+          const [c] = await db.select({ companyId: contacts.companyId }).from(contacts).where(eq(contacts.id, r.contactId)).limit(1);
+          if (c?.companyId != null) {
+            // Defense in depth: even if the contact id passed the allow-list above,
+            // its company must also be one the caller can reach.
+            if (allowedCompanyIds !== null && !allowedCompanyIds.has(c.companyId)) {
+              return res.status(403).json({ error: "Forbidden: contact's company is not in your scope" });
+            }
+            recipientCompanyId = c.companyId;
+          }
+        }
+        const token = crypto.randomBytes(18).toString("hex");
+        const [row] = await db.insert(surveys).values({
+          companyId: recipientCompanyId,
+          token,
+          contactId: r.contactId ?? null,
+          customerName: r.name || "Customer",
+          customerEmail: r.email || null,
+          customerPhone: r.phone || null,
+          sentVia,
+          message,
+          questions,
+          status: "sent",
+          sentBy: senderId,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        }).returning();
+        created.push({ ...row, link: `${base}/survey/${token}` });
+
+        if (sentVia === "email" && r.email) {
+          emailQueue.push({
+            to: r.email,
+            subject: isRtl ? "نرجو تقييم تجربتك معنا — Scapex" : "Please rate your experience with us — Scapex",
+            html: renderSurveyEmail({ customerName: r.name, link: `${base}/survey/${token}`, message, isRtl }),
+          });
+        }
+      }
+
+      // Send emails in parallel; tolerate individual failures
+      const sendResults = await Promise.all(emailQueue.map(async (m) => {
+        const r = await sendEmail({ to: m.to, subject: m.subject, html: m.html });
+        try {
+          await db.insert(emailLogs).values({
+            companyId: actorCompanyId,
+            fromEmail: process.env.FROM_EMAIL || "Scapex <noreply@resend.dev>",
+            toEmails: [m.to],
+            bccEmails: [],
+            subject: m.subject,
+            bodyHtml: m.html,
+            status: r.success ? "sent" : "failed",
+            errorMessage: r.error || null,
+            resendId: r.id || null,
+            category: "survey",
+            sentBy: senderId,
+          });
+        } catch {}
+        return { to: m.to, ...r };
+      }));
+
+      res.json({
+        success: true,
+        surveys: created,
+        emailsSent: sendResults.filter(r => r.success).length,
+        emailsFailed: sendResults.filter(r => !r.success).length,
+        emailErrors: sendResults.filter(r => !r.success),
+      });
+    } catch (e: any) {
+      console.error("[surveys] create error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/surveys/:id", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const id = parseInt(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+      const [row] = await db.select().from(surveys).where(eq(surveys.id, id)).limit(1);
+      if (!row) return res.status(404).json({ error: "Not found" });
+
+      if (!scope.isPrivileged) {
+        // Must own the contact via activity/company scope
+        if (!row.contactId) return res.status(403).json({ error: "Forbidden" });
+        const [c] = await db.select({ companyId: contacts.companyId, activityId: contacts.activityId })
+          .from(contacts).where(eq(contacts.id, row.contactId)).limit(1);
+        if (!c) return res.status(403).json({ error: "Forbidden" });
+        const activityFilter = scope.activityId ? [scope.activityId] : (scope.allowedIds || []);
+        const actRows = activityFilter.length
+          ? await db.select({ companyId: businessActivities.companyId }).from(businessActivities).where(inArray(businessActivities.id, activityFilter))
+          : [];
+        const companyIds = new Set(actRows.map(a => a.companyId).filter((x): x is number => x !== null));
+        const inActivity = c.activityId && activityFilter.includes(c.activityId);
+        const inCompany = c.companyId != null && companyIds.has(c.companyId);
+        if (!inActivity && !inCompany) return res.status(403).json({ error: "Forbidden" });
+      }
+
+      await db.delete(surveys).where(eq(surveys.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PUBLIC SURVEY endpoints — no auth (token is the secret)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/public/survey/:token", async (req, res) => {
+    try {
+      const token = String(req.params.token || "");
+      if (!/^[a-f0-9]{20,}$/i.test(token)) return res.status(400).json({ error: "Invalid token" });
+      const [row] = await db.select().from(surveys).where(eq(surveys.token, token)).limit(1);
+      if (!row) return res.status(404).json({ error: "Survey not found" });
+      if (row.expiresAt && new Date(row.expiresAt).getTime() < Date.now()) {
+        return res.status(410).json({ error: "Survey expired" });
+      }
+      let existing = null;
+      if (row.status === "responded") {
+        const [r] = await db.select().from(surveyResponses).where(eq(surveyResponses.surveyId, row.id)).limit(1);
+        existing = r || null;
+      }
+      res.json({
+        id: row.id,
+        customerName: row.customerName,
+        message: row.message,
+        questions: row.questions,
+        status: row.status,
+        alreadyResponded: row.status === "responded",
+        existing,
+      });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/public/survey/:token", async (req, res) => {
+    try {
+      const token = String(req.params.token || "");
+      if (!/^[a-f0-9]{20,}$/i.test(token)) return res.status(400).json({ error: "Invalid token" });
+      const [row] = await db.select().from(surveys).where(eq(surveys.token, token)).limit(1);
+      if (!row) return res.status(404).json({ error: "Survey not found" });
+      if (row.status === "responded") return res.status(409).json({ error: "Already responded" });
+      if (row.expiresAt && new Date(row.expiresAt).getTime() < Date.now()) {
+        return res.status(410).json({ error: "Survey expired" });
+      }
+
+      const body = req.body || {};
+      const answers: Record<string, string | number> = (body.answers && typeof body.answers === "object") ? body.answers : {};
+      const ratingRaw = body.rating;
+      const rating = typeof ratingRaw === "number" ? ratingRaw : (parseInt(ratingRaw) || null);
+      const feedback = (body.feedback || "").toString().slice(0, 4000) || null;
+      const recommendation = ["yes", "maybe", "no"].includes(body.recommendation) ? body.recommendation : null;
+      const ip = (req.header("x-forwarded-for") || req.socket.remoteAddress || "").toString().slice(0, 64);
+
+      // Atomic claim: only one submission wins, even on concurrent requests.
+      const claimed = await db.update(surveys)
+        .set({ status: "responded", respondedAt: new Date() })
+        .where(and(eq(surveys.id, row.id), eq(surveys.status, "sent")))
+        .returning({ id: surveys.id });
+      if (!claimed.length) return res.status(409).json({ error: "Already responded" });
+
+      try {
+        await db.insert(surveyResponses).values({
+          surveyId: row.id,
+          rating,
+          answers,
+          feedback,
+          recommendation,
+          ipAddress: ip,
+        });
+      } catch (insertErr) {
+        // Roll back the claim so the customer can retry.
+        await db.update(surveys).set({ status: "sent", respondedAt: null }).where(eq(surveys.id, row.id));
+        throw insertErr;
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error("[public-survey] submit error:", e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   return httpServer;

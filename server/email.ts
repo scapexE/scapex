@@ -97,6 +97,45 @@ export function consumeEmailVerification(email: string) {
   verifiedEmails.delete(email.toLowerCase());
 }
 
+export interface SendEmailParams {
+  to: string | string[];
+  bcc?: string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  from?: string;
+  replyTo?: string;
+}
+
+export interface SendEmailResult {
+  success: boolean;
+  id?: string;
+  error?: string;
+}
+
+export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
+  try {
+    const resend = getResendClient();
+    const to = Array.isArray(params.to) ? params.to : [params.to];
+    const payload: any = {
+      from: params.from || getFromEmail(),
+      to,
+      subject: params.subject,
+    };
+    if (params.bcc && params.bcc.length > 0) payload.bcc = params.bcc;
+    if (params.html) payload.html = params.html;
+    if (params.text) payload.text = params.text;
+    if (params.replyTo) payload.replyTo = params.replyTo;
+    const result = await resend.emails.send(payload);
+    if ((result as any).error) {
+      return { success: false, error: (result as any).error.message || String((result as any).error) };
+    }
+    return { success: true, id: (result as any).data?.id };
+  } catch (err: any) {
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
 export async function sendVerificationEmail(
   toEmail: string,
   code: string,

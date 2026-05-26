@@ -42,10 +42,14 @@ import AuditLogModule from "@/pages/modules/audit-log/index";
 import CompanySettingsModule from "@/pages/modules/company-settings/index";
 import BackupModule from "@/pages/modules/backup/index";
 import Profile from "@/pages/Profile";
+import PublicSurvey from "@/pages/PublicSurvey";
 
 function Router() {
   return (
     <Switch>
+      {/* Public customer-facing survey — no auth required */}
+      <Route path="/survey/:token" component={PublicSurvey} />
+
       <Route path="/" component={Login} />
 
       <ProtectedRoute path="/dashboard" component={Dashboard} page="dashboard" />

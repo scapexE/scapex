@@ -6,7 +6,7 @@ import {
   DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Phone, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
+import { Send, Phone, ExternalLink, CheckCircle2, AlertCircle, Copy, Info } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,21 @@ export function WhatsAppAction({
 
   const handleOpenAll = () => {
     if (!validCustomers.length) return;
-    validCustomers.forEach((c, i) => {
+    // Open the first one synchronously (user-gesture) and detect popup-blocker.
+    const first = window.open(waUrl(validCustomers[0].name, validCustomers[0].phone), "_blank", "noopener");
+    if (!first) {
+      toast({
+        title: isRtl ? "النوافذ المنبثقة محظورة" : "Popups blocked",
+        description: isRtl
+          ? "متصفحك يحظر فتح نوافذ متعددة. الرجاء السماح بالنوافذ المنبثقة لهذا الموقع، أو استخدم زر النسخ والفتح يدوياً لكل عميل."
+          : "Your browser blocked multi-window opening. Allow popups for this site, or use Copy + Open per customer.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSentSet(prev => new Set([...prev, 0]));
+    validCustomers.slice(1).forEach((c, idx) => {
+      const i = idx + 1;
       setTimeout(() => {
         window.open(waUrl(c.name, c.phone), "_blank", "noopener");
         setSentSet(prev => new Set([...prev, i]));
@@ -77,6 +91,27 @@ export function WhatsAppAction({
   const handleOpenOne = (c: CustomerContact, idx: number) => {
     window.open(waUrl(c.name, c.phone), "_blank", "noopener");
     setSentSet(prev => new Set([...prev, idx]));
+  };
+
+  const copyOne = async (c: CustomerContact, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(waUrl(c.name, c.phone));
+      setSentSet(prev => new Set([...prev, idx]));
+      toast({ title: isRtl ? "تم نسخ رابط واتساب" : "WhatsApp link copied" });
+    } catch {
+      toast({ title: isRtl ? "تعذّر النسخ" : "Copy failed", variant: "destructive" });
+    }
+  };
+
+  const copyAllLinks = async () => {
+    if (!validCustomers.length) return;
+    const all = validCustomers.map(c => `${c.name}: ${waUrl(c.name, c.phone)}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(all);
+      toast({ title: isRtl ? `تم نسخ ${validCustomers.length} رابط` : `Copied ${validCustomers.length} links` });
+    } catch {
+      toast({ title: isRtl ? "تعذّر النسخ" : "Copy failed", variant: "destructive" });
+    }
   };
 
   const onClose = () => { setOpen(false); setMessage(""); setSentSet(new Set()); };
@@ -144,11 +179,29 @@ export function WhatsAppAction({
             </Button>
           </div>
 
+          {isBulk && validCustomers.length > 0 && (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 p-2.5 text-xs">
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-amber-900 dark:text-amber-200 leading-relaxed">
+                {isRtl
+                  ? "واتساب لا يدعم الإرسال الجماعي الفعلي. سنفتح محادثة لكل عميل في تبويب منفصل. إذا حجبها المتصفح، استخدم زر النسخ بجانب كل عميل."
+                  : "WhatsApp does not support true bulk sending. We open one chat per customer in a new tab. If your browser blocks them, use the Copy button next to each customer."}
+              </p>
+            </div>
+          )}
+
           {isBulk && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">
-                {isRtl ? "قائمة جهات الاتصال:" : "Contact list:"}
-              </p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {isRtl ? "قائمة جهات الاتصال:" : "Contact list:"}
+                </p>
+                {validCustomers.length > 0 && (
+                  <Button size="sm" variant="ghost" className="h-6 gap-1 text-[11px]" onClick={copyAllLinks} data-testid="button-copy-all-wa-links">
+                    <Copy className="w-3 h-3" />{isRtl ? "نسخ كل الروابط" : "Copy all links"}
+                  </Button>
+                )}
+              </div>
               <ScrollArea className="h-44 rounded-lg border border-border/50">
                 <div className="divide-y divide-border/40">
                   {validCustomers.map((c, i) => (
@@ -160,13 +213,22 @@ export function WhatsAppAction({
                         <span className="truncate font-medium text-sm">{c.name}</span>
                         <span className="text-muted-foreground text-xs shrink-0" dir="ltr">{c.phone}</span>
                       </div>
-                      <Button size="sm" variant="ghost"
-                        className="h-6 w-6 p-0 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 shrink-0"
-                        onClick={() => handleOpenOne(c, i)}
-                        data-testid={`button-open-wa-${i}`}
-                        title={isRtl ? "فتح هذه المحادثة" : "Open this chat"}>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button size="sm" variant="ghost"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:bg-secondary"
+                          onClick={() => copyOne(c, i)}
+                          data-testid={`button-copy-wa-${i}`}
+                          title={isRtl ? "نسخ الرابط" : "Copy link"}>
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost"
+                          className="h-6 w-6 p-0 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                          onClick={() => handleOpenOne(c, i)}
+                          data-testid={`button-open-wa-${i}`}
+                          title={isRtl ? "فتح هذه المحادثة" : "Open this chat"}>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   {noPhone > 0 && customers.filter(c => !c.phone?.trim()).map((c, i) => (

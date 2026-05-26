@@ -8,9 +8,11 @@ import {
   DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mail, Send, ExternalLink, AlertCircle } from "lucide-react";
+import { Mail, Send, AlertCircle, Loader2, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { scopedFetch } from "@/lib/queryClient";
+import { logAction } from "@/lib/auditLog";
 
 export interface CustomerEmail {
   name: string;
@@ -26,36 +28,95 @@ interface EmailActionProps {
   trigger?: React.ReactNode;
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function renderHtml(message: string, isRtl: boolean): string {
+  const safe = escapeHtml(message).replace(/\n/g, "<br/>");
+  const dir = isRtl ? "rtl" : "ltr";
+  return `<div dir="${dir}" style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#f8fafc">
+    <div style="background:#fff;border-radius:12px;padding:28px;border:1px solid #e2e8f0;color:#0f172a;font-size:14px;line-height:1.7">${safe}</div>
+    <p style="text-align:center;color:#94a3b8;font-size:11px;margin-top:12px">Scapex</p>
+  </div>`;
+}
+
 export function EmailAction({
   customerName, email, selectedCount, isBulk, customers = [], trigger,
 }: EmailActionProps) {
   const { dir } = useLanguage();
+  const { toast } = useToast();
   const isRtl = dir === "rtl";
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
 
   const validCustomers = customers.filter(c => c.email?.trim());
   const noEmail = customers.length - validCustomers.length;
 
-  const buildMailto = () => {
-    if (!isBulk) {
-      const body = message.replace(/\{name\}/g, customerName || "");
-      return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const handleSend = async () => {
+    if (!subject.trim() || !message.trim()) return;
+    setSending(true);
+    try {
+      let payload: any;
+      if (isBulk) {
+        if (!validCustomers.length) return;
+        // Bulk: server uses BCC for privacy; {name} is not personalizable in a single send.
+        payload = {
+          isBulk: true,
+          recipients: validCustomers.map(c => c.email),
+          subject,
+          html: renderHtml(message.replace(/\{name\}/g, isRtl ? "عميلنا الكريم" : "Valued Customer"), isRtl),
+          text: message.replace(/\{name\}/g, isRtl ? "عميلنا الكريم" : "Valued Customer"),
+          category: "crm_bulk",
+        };
+      } else {
+        if (!email) return;
+        const personalized = message.replace(/\{name\}/g, customerName || "");
+        payload = {
+          to: email,
+          subject,
+          html: renderHtml(personalized, isRtl),
+          text: personalized,
+          category: "crm_single",
+        };
+      }
+      const res = await scopedFetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Send failed");
+
+      logAction(
+        "create", "crm",
+        isBulk ? `Bulk email to ${validCustomers.length} via Resend` : `Email to ${customerName} via Resend`,
+        isBulk ? `إرسال بريد جماعي إلى ${validCustomers.length} عميل` : `إرسال بريد إلى ${customerName}`,
+      );
+
+      toast({
+        title: isRtl ? "تم الإرسال بنجاح" : "Email Sent",
+        description: isRtl
+          ? `تم إرسال البريد إلى ${isBulk ? validCustomers.length + " مستلم" : email} عبر Resend`
+          : `Sent to ${isBulk ? validCustomers.length + " recipient(s)" : email} via Resend`,
+      });
+      setOpen(false);
+      setSubject("");
+      setMessage("");
+    } catch (e: any) {
+      toast({
+        title: isRtl ? "تعذّر الإرسال" : "Send Failed",
+        description: e.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSending(false);
     }
-    const allEmails = validCustomers.map(c => c.email).join(",");
-    return `mailto:${allEmails}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
   };
 
-  const handleSend = () => {
-    const url = buildMailto();
-    window.location.href = url;
-    setOpen(false);
-    setSubject("");
-    setMessage("");
-  };
-
-  const onClose = () => { setOpen(false); setSubject(""); setMessage(""); };
+  const onClose = () => { if (sending) return; setOpen(false); setSubject(""); setMessage(""); };
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); else setOpen(true); }}>
@@ -79,25 +140,25 @@ export function EmailAction({
           <DialogDescription>
             {isBulk
               ? (isRtl
-                ? `${validCustomers.length} جهة اتصال لديها بريد إلكتروني${noEmail > 0 ? ` · ${noEmail} بدون بريد` : ""}`
-                : `${validCustomers.length} contact(s) with email${noEmail > 0 ? ` · ${noEmail} without` : ""}`)
+                ? `${validCustomers.length} مستلم${noEmail > 0 ? ` · ${noEmail} بدون بريد` : ""}`
+                : `${validCustomers.length} recipient(s)${noEmail > 0 ? ` · ${noEmail} without` : ""}`)
               : (isRtl ? `إلى: ${email || "—"}` : `To: ${email || "—"}`)}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-1">
-          <div className="space-y-1.5">
-            <Label className="text-xs">{isRtl ? "إلى:" : "To:"}</Label>
-            <div className="w-full min-h-9 rounded-md border border-input bg-secondary/40 px-3 py-1.5 text-sm text-muted-foreground">
-              {isBulk
-                ? (validCustomers.length > 0
-                  ? <span className="text-foreground">{validCustomers.slice(0, 3).map(c => c.email).join(", ")}{validCustomers.length > 3 ? ` +${validCustomers.length - 3}` : ""}</span>
-                  : <span className="italic">{isRtl ? "لا يوجد عناوين" : "No addresses"}</span>)
-                : email || "—"}
+          {isBulk && validCustomers.length > 0 && (
+            <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 p-2.5 text-xs">
+              <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-blue-900 dark:text-blue-200 leading-relaxed">
+                {isRtl
+                  ? "للحفاظ على الخصوصية، يتم وضع جميع المستلمين في حقل BCC المخفي ولن يرى أحدٌ منهم عناوين الآخرين."
+                  : "For privacy, all recipients are placed in BCC — none of them will see each other's addresses."}
+              </p>
             </div>
-          </div>
+          )}
 
-          {isBulk && validCustomers.length > 3 && (
+          {isBulk && validCustomers.length > 0 && (
             <ScrollArea className="h-24 rounded-lg border border-border/50">
               <div className="divide-y divide-border/40">
                 {validCustomers.map((c, i) => (
@@ -117,27 +178,38 @@ export function EmailAction({
               value={subject}
               onChange={e => setSubject(e.target.value)}
               data-testid="input-email-subject"
+              disabled={sending}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">{isRtl ? "نص الرسالة:" : "Message:"}</Label>
+            <Label className="text-xs">
+              {isRtl ? "نص الرسالة:" : "Message:"}
+              {!isBulk && (
+                <span className="text-muted-foreground/70 ms-2">
+                  ({isRtl ? "{name} يُستبدل تلقائياً" : "{name} is auto-replaced"})
+                </span>
+              )}
+            </Label>
             <Textarea
               placeholder={isRtl
-                ? "اكتب رسالتك هنا... استخدم {name} لإدراج اسم العميل"
-                : "Write your message... use {name} to insert customer name"}
+                ? "اكتب رسالتك هنا..."
+                : "Write your message..."}
               value={message}
               onChange={e => setMessage(e.target.value)}
               className="min-h-[120px] text-sm resize-none"
               data-testid="input-email-message"
+              disabled={sending}
             />
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            <Button variant="outline" size="sm" className="text-xs h-7"
-              onClick={() => setMessage(p => p + "{name}")}>
-              {isRtl ? "+ اسم العميل" : "+ Name"}
-            </Button>
+            {!isBulk && (
+              <Button variant="outline" size="sm" className="text-xs h-7"
+                onClick={() => setMessage(p => p + "{name}")}>
+                {isRtl ? "+ اسم العميل" : "+ Name"}
+              </Button>
+            )}
             <Button variant="secondary" size="sm" className="text-xs h-7"
               onClick={() => {
                 setSubject(isRtl ? "متابعة — نرحب باستفساراتكم" : "Following up — we'd love to hear from you");
@@ -167,17 +239,17 @@ export function EmailAction({
         </div>
 
         <DialogFooter className="gap-2 pt-1">
-          <Button variant="outline" onClick={onClose}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+          <Button variant="outline" onClick={onClose} disabled={sending}>{isRtl ? "إلغاء" : "Cancel"}</Button>
           <Button
             onClick={handleSend}
-            disabled={!subject.trim() || !message.trim() || (isBulk ? !validCustomers.length : !email)}
+            disabled={sending || !subject.trim() || !message.trim() || (isBulk ? !validCustomers.length : !email)}
             className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
             data-testid="button-send-email"
           >
-            <ExternalLink className="w-4 h-4" />
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {isBulk
-              ? (isRtl ? `فتح تطبيق البريد (${validCustomers.length})` : `Open Mail App (${validCustomers.length})`)
-              : (isRtl ? "فتح تطبيق البريد" : "Open Mail App")}
+              ? (isRtl ? `إرسال (${validCustomers.length})` : `Send (${validCustomers.length})`)
+              : (isRtl ? "إرسال الآن" : "Send Now")}
           </Button>
         </DialogFooter>
       </DialogContent>

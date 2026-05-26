@@ -20,7 +20,7 @@ import { listProjects, listStages, type ApiProject, type ApiStage, PROJECT_STATU
 import { CreateProjectDialog } from "@/components/projects/ProjectsList";
 import { useActivityScope } from "@/hooks/useActivityScope";
 import { scopedFetch } from "@/lib/queryClient";
-import { getSurveysByCustomer } from "@/lib/surveys";
+import { fetchSurveys } from "@/lib/surveys";
 import { SurveyResults } from "./SurveyResults";
 import { useLocation } from "wouter";
 
@@ -70,7 +70,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
     setProposals(allProposals.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
     setContracts(allContracts.filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
     setProjects(allProjects.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
-    setSurveyCount(getSurveysByCustomer(customer.id).length);
+    fetchSurveys(customer.id).then(list => setSurveyCount(list.length)).catch(() => {});
 
     // DB-backed projects scoped to this contact id (when the customer comes from /api/customers)
     const contactId = Number(customer.id);
@@ -101,7 +101,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
 
   useEffect(() => {
     if (!customer || !open) return;
-    const handler = () => setSurveyCount(getSurveysByCustomer(customer.id).length);
+    const handler = () => fetchSurveys(customer.id).then(list => setSurveyCount(list.length)).catch(() => {});
     window.addEventListener("scapex_surveys_update", handler);
     return () => window.removeEventListener("scapex_surveys_update", handler);
   }, [customer, open]);

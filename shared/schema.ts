@@ -1341,3 +1341,64 @@ export const contractPaymentSchedules = pgTable("contract_payment_schedules", {
 export const insertContractPaymentScheduleSchema = createInsertSchema(contractPaymentSchedules).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertContractPaymentSchedule = z.infer<typeof insertContractPaymentScheduleSchema>;
 export type ContractPaymentSchedule = typeof contractPaymentSchedules.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMAIL LOGS + SURVEYS (CRM ACTIONS) — real persistence for sent emails, surveys
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const emailLogs = pgTable("email_logs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
+  fromEmail: text("from_email").notNull(),
+  toEmails: jsonb("to_emails").$type<string[]>().notNull().default([]),
+  bccEmails: jsonb("bcc_emails").$type<string[]>().default([]),
+  subject: text("subject").notNull(),
+  bodyHtml: text("body_html"),
+  bodyText: text("body_text"),
+  status: text("status").notNull().default("sent"),
+  errorMessage: text("error_message"),
+  resendId: text("resend_id"),
+  category: text("category").default("manual"),
+  sentBy: varchar("sent_by").references(() => users.id),
+  sentAt: timestamp("sent_at").defaultNow(),
+});
+export const insertEmailLogSchema = createInsertSchema(emailLogs).omit({ id: true, sentAt: true });
+export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
+export type EmailLog = typeof emailLogs.$inferSelect;
+
+export type SurveyQuestionDef = { id: string; labelAr: string; labelEn: string; type?: 'rating' | 'text' | 'recommendation' };
+
+export const surveys = pgTable("surveys", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
+  token: varchar("token", { length: 48 }).notNull().unique(),
+  contactId: integer("contact_id").references(() => contacts.id),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email"),
+  customerPhone: text("customer_phone"),
+  sentVia: text("sent_via").notNull(),
+  message: text("message"),
+  questions: jsonb("questions").$type<SurveyQuestionDef[]>().notNull().default([]),
+  status: text("status").notNull().default("sent"),
+  sentBy: varchar("sent_by").references(() => users.id),
+  sentAt: timestamp("sent_at").defaultNow(),
+  respondedAt: timestamp("responded_at"),
+  expiresAt: timestamp("expires_at"),
+});
+export const insertSurveySchema = createInsertSchema(surveys).omit({ id: true, sentAt: true, respondedAt: true });
+export type InsertSurvey = z.infer<typeof insertSurveySchema>;
+export type Survey = typeof surveys.$inferSelect;
+
+export const surveyResponses = pgTable("survey_responses", {
+  id: serial("id").primaryKey(),
+  surveyId: integer("survey_id").references(() => surveys.id, { onDelete: 'cascade' }).notNull(),
+  rating: integer("rating"),
+  answers: jsonb("answers").$type<Record<string, string | number>>().notNull().default({}),
+  feedback: text("feedback"),
+  recommendation: text("recommendation"),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  ipAddress: varchar("ip_address", { length: 64 }),
+});
+export const insertSurveyResponseSchema = createInsertSchema(surveyResponses).omit({ id: true, submittedAt: true });
+export type InsertSurveyResponse = z.infer<typeof insertSurveyResponseSchema>;
+export type SurveyResponse = typeof surveyResponses.$inferSelect;

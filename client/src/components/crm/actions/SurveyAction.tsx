@@ -16,10 +16,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ClipboardCheck, Mail, MessageSquare, Send, Star, Pencil, Check, Plus, Trash2, X, GripVertical } from "lucide-react";
+import { ClipboardCheck, Mail, MessageSquare, Send, Star, Pencil, Check, Plus, Trash2, X, GripVertical, Loader2, Copy, ExternalLink, CheckCircle2, AlertCircle, Link as LinkIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { addSurvey, simulateResponse, type Survey } from "@/lib/surveys";
+import { createSurveys, type Survey } from "@/lib/surveys";
 import { logAction } from "@/lib/auditLog";
 
 interface SurveyQuestion {
@@ -188,58 +188,80 @@ export function SurveyAction({
     toast({ title: isRtl ? "تم إعادة الأسئلة الافتراضية" : "Questions Reset to Defaults" });
   };
 
-  const handleSend = () => {
+  const [resultSurveys, setResultSurveys] = useState<Survey[] | null>(null);
+  const [resultSummary, setResultSummary] = useState<{ emailsSent: number; emailsFailed: number } | null>(null);
+
+  const handleSend = async () => {
     if (isBulk && (!selectedCustomers || selectedCustomers.length === 0)) return;
     if (!isBulk && (!customerId || !customerName)) return;
     if (selectedQuestions.length === 0) return;
     setSending(true);
 
-    setTimeout(() => {
-      if (isBulk && selectedCustomers) {
-        selectedCustomers.forEach(c => {
-          const survey = addSurvey({
-            customerId: c.id,
-            customerName: c.name,
-            sentVia: channel,
-            sentAt: new Date().toISOString(),
-            status: "sent",
-          });
-          if (Math.random() > 0.5) {
-            setTimeout(() => simulateResponse(survey.id), 1500 + Math.random() * 2000);
-          }
-          if (onSurveySent) onSurveySent(survey);
-        });
-      } else if (customerId && customerName) {
-        const survey = addSurvey({
-          customerId,
-          customerName,
-          sentVia: channel,
-          sentAt: new Date().toISOString(),
-          status: "sent",
-        });
-        setTimeout(() => {
-          simulateResponse(survey.id);
-        }, 2000);
-        if (onSurveySent) onSurveySent(survey);
-      }
+    const selected = questions.filter(q => selectedQuestions.includes(q.id));
+    const recipients = isBulk && selectedCustomers
+      ? selectedCustomers.map(c => ({
+          contactId: /^\d+$/.test(c.id) ? parseInt(c.id) : undefined,
+          name: c.name,
+          email: c.email || undefined,
+          phone: c.phone || undefined,
+        }))
+      : [{
+          contactId: customerId && /^\d+$/.test(customerId) ? parseInt(customerId) : undefined,
+          name: customerName!,
+          email: email || undefined,
+          phone: phone || undefined,
+        }];
 
-      logAction(
-        "create",
-        "crm",
-        isBulk ? `Bulk survey to ${selectedCount} customers via ${channel} (${selectedQuestions.length} questions)` : `Survey to ${customerName} via ${channel} (${selectedQuestions.length} questions)`,
-        isBulk ? `إرسال استطلاع جماعي إلى ${selectedCount} عميل عبر ${channel === "email" ? "البريد" : "واتساب"} (${selectedQuestions.length} أسئلة)` : `إرسال استطلاع إلى ${customerName} عبر ${channel === "email" ? "البريد" : "واتساب"} (${selectedQuestions.length} أسئلة)`
-      );
-
-      toast({
-        title: isRtl ? "تم إرسال الاستطلاع" : "Survey Sent",
-        description: isRtl
-          ? (isBulk ? `تم إرسال استطلاع (${selectedQuestions.length} أسئلة) إلى ${selectedCount} عميل عبر ${channel === "email" ? "البريد الإلكتروني" : "واتساب"}` : `تم إرسال استطلاع (${selectedQuestions.length} أسئلة) إلى ${customerName} عبر ${channel === "email" ? "البريد الإلكتروني" : "واتساب"}`)
-          : (isBulk ? `Survey (${selectedQuestions.length} questions) sent to ${selectedCount} customers via ${channel}` : `Survey (${selectedQuestions.length} questions) sent to ${customerName} via ${channel}`),
+    try {
+      const result = await createSurveys({
+        recipients,
+        questions: selected,
+        sentVia: channel,
+        message,
+        isRtl,
       });
 
+      result.surveys.forEach(s => onSurveySent?.(s));
+
+      logAction(
+        "create", "crm",
+        isBulk ? `Bulk survey to ${recipients.length} via ${channel} (${selected.length}Q, emails: ${result.emailsSent}/${result.emailsSent + result.emailsFailed})`
+               : `Survey to ${customerName} via ${channel} (${selected.length}Q)`,
+        isBulk ? `إرسال استطلاع جماعي إلى ${recipients.length} عميل عبر ${channel === "email" ? "البريد" : "واتساب"}`
+               : `إرسال استطلاع إلى ${customerName} عبر ${channel === "email" ? "البريد" : "واتساب"}`,
+      );
+
+      setResultSurveys(result.surveys);
+      setResultSummary({ emailsSent: result.emailsSent, emailsFailed: result.emailsFailed });
+
+      toast({
+        title: isRtl ? "تم إنشاء الاستطلاع" : "Survey Created",
+        description: channel === "email"
+          ? (isRtl ? `تم إرسال ${result.emailsSent} رسالة بريد${result.emailsFailed ? ` · فشل ${result.emailsFailed}` : ""}`
+                    : `Sent ${result.emailsSent} email(s)${result.emailsFailed ? ` · ${result.emailsFailed} failed` : ""}`)
+          : (isRtl ? "تم إنشاء روابط الاستطلاع — انسخها وأرسلها"
+                    : "Survey links created — copy and share"),
+      });
+    } catch (e: any) {
+      toast({
+        title: isRtl ? "تعذّر الإرسال" : "Failed",
+        description: e.message,
+        variant: "destructive",
+      });
+    } finally {
       setSending(false);
-      setOpen(false);
-    }, 800);
+    }
+  };
+
+  const copyText = async (txt: string, label?: string) => {
+    try { await navigator.clipboard.writeText(txt); toast({ title: label || (isRtl ? "تم النسخ" : "Copied") }); }
+    catch { toast({ title: isRtl ? "تعذّر النسخ" : "Copy failed", variant: "destructive" }); }
+  };
+
+  const closeAfterResult = () => {
+    setResultSurveys(null);
+    setResultSummary(null);
+    setOpen(false);
   };
 
   return (
@@ -253,6 +275,81 @@ export function SurveyAction({
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[580px] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        {resultSurveys ? (
+          <div className="py-2" dir={dir}>
+            <DialogHeader>
+              <DialogTitle className={cn("flex items-center gap-2", isRtl ? "text-right" : "text-left")}>
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                {isRtl ? "تم إنشاء الاستطلاعات" : "Surveys Created"}
+              </DialogTitle>
+              <DialogDescription className={isRtl ? "text-right" : "text-left"}>
+                {channel === "email"
+                  ? (isRtl
+                      ? `تم إرسال ${resultSummary?.emailsSent || 0} رسالة بريد عبر Resend${resultSummary?.emailsFailed ? ` · فشل ${resultSummary.emailsFailed}` : ""}. الروابط أدناه يمكن مشاركتها يدوياً أيضاً.`
+                      : `Sent ${resultSummary?.emailsSent || 0} email(s) via Resend${resultSummary?.emailsFailed ? ` · ${resultSummary.emailsFailed} failed` : ""}. Links below can also be shared manually.`)
+                  : (channel === "whatsapp"
+                      ? (isRtl ? "تم إنشاء روابط الاستطلاع — انسخ كل رابط أو افتح المحادثة لإرساله عبر واتساب."
+                                : "Links created — copy each link or open the WhatsApp chat to send.")
+                      : (isRtl ? "روابط الاستطلاع جاهزة للنسخ والمشاركة." : "Survey links ready to copy and share."))}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 space-y-2 max-h-[60vh] overflow-y-auto pe-1">
+              {resultSurveys.map((s) => {
+                const link = s.link || `${window.location.origin}/survey/${s.token}`;
+                const waText = `${(message || "").slice(0, 200)}\n${link}`;
+                const waPhone = (s.customerPhone || "").replace(/\D/g, "");
+                const waUrl = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : null;
+                return (
+                  <div key={s.id} className="border rounded-lg p-3 bg-secondary/40">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{s.customerName}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {s.customerEmail || s.customerPhone || "—"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => copyText(link, isRtl ? "تم نسخ الرابط" : "Link copied")} data-testid={`button-copy-link-${s.id}`}>
+                          <Copy className="w-3 h-3" />{isRtl ? "نسخ" : "Copy"}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => window.open(link, "_blank", "noopener")}>
+                          <ExternalLink className="w-3 h-3" />{isRtl ? "فتح" : "Open"}
+                        </Button>
+                        {channel === "whatsapp" && waUrl && (
+                          <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-emerald-600" onClick={() => window.open(waUrl, "_blank", "noopener")} data-testid={`button-wa-send-${s.id}`}>
+                            <MessageSquare className="w-3 h-3" />WA
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 rounded bg-background border px-2 py-1 text-[11px] font-mono text-muted-foreground truncate" dir="ltr">
+                      <LinkIcon className="w-3 h-3 shrink-0" /><span className="truncate">{link}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <DialogFooter className="mt-3">
+              {channel === "whatsapp" && resultSurveys.length > 1 && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const all = resultSurveys.map(s => `${s.customerName}: ${s.link || `${window.location.origin}/survey/${s.token}`}`).join("\n");
+                    copyText(all, isRtl ? "تم نسخ جميع الروابط" : "All links copied");
+                  }}
+                  className="gap-2"
+                >
+                  <Copy className="w-4 h-4" />{isRtl ? "نسخ كل الروابط" : "Copy all links"}
+                </Button>
+              )}
+              <Button onClick={closeAfterResult}>{isRtl ? "تم" : "Done"}</Button>
+            </DialogFooter>
+          </div>
+        ) : (
+        <>
+
         <DialogHeader>
           <DialogTitle className={cn("flex items-center gap-2", isRtl ? "text-right" : "text-left")}>
             <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
@@ -544,7 +641,7 @@ export function SurveyAction({
           <Button
             onClick={handleSend}
             disabled={sending || selectedQuestions.length === 0 || !message.trim()}
-            className="bg-orange-600 hover:bg-orange-700 text-white"
+            className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
             data-testid="button-send-survey"
           >
             {sending ? (
@@ -560,6 +657,8 @@ export function SurveyAction({
             )}
           </Button>
         </DialogFooter>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );

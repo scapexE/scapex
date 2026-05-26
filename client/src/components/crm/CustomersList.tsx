@@ -28,7 +28,6 @@ import { EmailAction } from "./actions/EmailAction";
 import { SurveyAction } from "./actions/SurveyAction";
 import { CustomerCard, type Customer } from "./CustomerCard";
 import { useToast } from "@/hooks/use-toast";
-import { seedDemoSurveys } from "@/lib/surveys";
 import { ExportMenu } from "@/components/shared/ExportMenu";
 import type { ExportColumn } from "@/lib/exportUtils";
 
@@ -112,7 +111,6 @@ export function CustomersList({
     email: "", phone: "", city: "", address: "", source: "active", notes: "", crNumber: "",
   });
 
-  useEffect(() => { seedDemoSurveys(); }, []);
 
   const fetchData = useCallback(async () => {
     const isPriv = isAdmin || isManager;

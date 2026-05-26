@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,10 @@ import { cn } from "@/lib/utils";
 import {
   Star, ClipboardCheck, MessageSquare, Mail, Clock,
   CheckCircle2, AlertCircle, TrendingUp, ThumbsUp, Send,
+  Copy, ExternalLink, RefreshCw, Loader2, Link as LinkIcon,
 } from "lucide-react";
-import {
-  getSurveysByCustomer, getSurveyStats, simulateResponse,
-  type Survey,
-} from "@/lib/surveys";
+import { fetchSurveys, computeStats, type Survey } from "@/lib/surveys";
+import { useToast } from "@/hooks/use-toast";
 import { SurveyAction } from "./actions/SurveyAction";
 
 interface SurveyResultsProps {
@@ -24,42 +23,46 @@ interface SurveyResultsProps {
 
 export function SurveyResults({ customerId, customerName, email, phone }: SurveyResultsProps) {
   const { dir } = useLanguage();
+  const { toast } = useToast();
   const isRtl = dir === "rtl";
   const [surveys, setSurveys] = useState<Survey[]>([]);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const list = await fetchSurveys(customerId);
+      setSurveys(list);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [customerId]);
+
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    setSurveys(getSurveysByCustomer(customerId));
-  }, [customerId, refreshKey]);
-
-  useEffect(() => {
-    const handler = () => setRefreshKey(k => k + 1);
+    const handler = () => load(true);
     window.addEventListener("scapex_surveys_update", handler);
     return () => window.removeEventListener("scapex_surveys_update", handler);
-  }, []);
+  }, [load]);
 
-  const stats = getSurveyStats(customerId);
+  const stats = computeStats(surveys);
 
-  const handleSimulateResponse = (surveyId: string) => {
-    simulateResponse(surveyId);
-    setRefreshKey(k => k + 1);
+  const copyLink = async (link: string) => {
+    try { await navigator.clipboard.writeText(link); toast({ title: isRtl ? "تم نسخ الرابط" : "Link copied" }); }
+    catch { toast({ title: isRtl ? "تعذّر النسخ" : "Copy failed", variant: "destructive" }); }
   };
 
-  const renderStars = (rating: number, size = "w-3.5 h-3.5") => {
-    return (
-      <div className="flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5].map(i => (
-          <Star
-            key={i}
-            className={cn(
-              size,
-              i <= rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"
-            )}
-          />
-        ))}
-      </div>
-    );
-  };
+  const renderStars = (rating: number, size = "w-3.5 h-3.5") => (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(i => (
+        <Star key={i} className={cn(size, i <= rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")} />
+      ))}
+    </div>
+  );
 
   const ratingBar = (label: string, value: number) => (
     <div className="flex items-center gap-3">
@@ -71,6 +74,14 @@ export function SurveyResults({ customerId, customerName, email, phone }: Survey
       <span className="text-xs font-medium w-8 text-end">{value}/5</span>
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
   if (surveys.length === 0) {
     return (
@@ -89,7 +100,7 @@ export function SurveyResults({ customerId, customerName, email, phone }: Survey
           customerName={customerName}
           email={email}
           phone={phone}
-          onSurveySent={() => setRefreshKey(k => k + 1)}
+          onSurveySent={() => load(true)}
           trigger={
             <Button size="sm" className="gap-1.5 bg-orange-600 hover:bg-orange-700" data-testid="button-send-first-survey">
               <Send className="w-3.5 h-3.5" />
@@ -101,6 +112,8 @@ export function SurveyResults({ customerId, customerName, email, phone }: Survey
     );
   }
 
+  const hasBreakdown = stats.avgService || stats.avgComm || stats.avgTime || stats.avgValue;
+
   return (
     <ScrollArea className="h-full">
       <div className="px-6 pb-6 space-y-5">
@@ -108,7 +121,7 @@ export function SurveyResults({ customerId, customerName, email, phone }: Survey
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-3 rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200/50 dark:border-orange-800/30">
-                <div className="text-2xl font-bold text-orange-600">{stats.avgRating}</div>
+                <div className="text-2xl font-bold text-orange-600">{stats.avgRating || "—"}</div>
                 <div className="mt-1">{renderStars(Math.round(stats.avgRating), "w-3 h-3")}</div>
                 <p className="text-[10px] text-muted-foreground mt-1">{isRtl ? "التقييم العام" : "Avg Rating"}</p>
               </div>
@@ -125,16 +138,18 @@ export function SurveyResults({ customerId, customerName, email, phone }: Survey
               </div>
             </div>
 
-            <div className="bg-secondary/40 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <TrendingUp className="w-4 h-4 text-primary" />
-                {isRtl ? "تفاصيل التقييم" : "Rating Breakdown"}
+            {hasBreakdown ? (
+              <div className="bg-secondary/40 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  {isRtl ? "تفاصيل التقييم" : "Rating Breakdown"}
+                </div>
+                {stats.avgService > 0 && ratingBar(isRtl ? "جودة الخدمة" : "Service Quality", stats.avgService)}
+                {stats.avgComm > 0 && ratingBar(isRtl ? "التواصل" : "Communication", stats.avgComm)}
+                {stats.avgTime > 0 && ratingBar(isRtl ? "المواعيد" : "Timeliness", stats.avgTime)}
+                {stats.avgValue > 0 && ratingBar(isRtl ? "القيمة / السعر" : "Value / Price", stats.avgValue)}
               </div>
-              {ratingBar(isRtl ? "جودة الخدمة" : "Service Quality", stats.avgService)}
-              {ratingBar(isRtl ? "التواصل" : "Communication", stats.avgComm)}
-              {ratingBar(isRtl ? "المواعيد" : "Timeliness", stats.avgTime)}
-              {ratingBar(isRtl ? "القيمة / السعر" : "Value / Price", stats.avgValue)}
-            </div>
+            ) : null}
           </div>
         )}
 
@@ -143,150 +158,192 @@ export function SurveyResults({ customerId, customerName, email, phone }: Survey
             <ClipboardCheck className="w-4 h-4 text-muted-foreground" />
             {isRtl ? "سجل الاستطلاعات" : "Survey History"} ({surveys.length})
           </h4>
-          <SurveyAction
-            customerId={customerId}
-            customerName={customerName}
-            email={email}
-            phone={phone}
-            onSurveySent={() => setRefreshKey(k => k + 1)}
-            trigger={
-              <Button size="sm" variant="outline" className="h-7 gap-1 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950" data-testid="button-send-another-survey">
-                <Send className="w-3 h-3" />
-                {isRtl ? "إرسال استطلاع جديد" : "Send New Survey"}
-              </Button>
-            }
-          />
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={() => load(true)}
+              disabled={refreshing}
+              title={isRtl ? "تحديث" : "Refresh"}
+              data-testid="button-refresh-surveys"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+            </Button>
+            <SurveyAction
+              customerId={customerId}
+              customerName={customerName}
+              email={email}
+              phone={phone}
+              onSurveySent={() => load(true)}
+              trigger={
+                <Button size="sm" variant="outline" className="h-7 gap-1 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950" data-testid="button-send-another-survey">
+                  <Send className="w-3 h-3" />
+                  {isRtl ? "إرسال جديد" : "Send New"}
+                </Button>
+              }
+            />
+          </div>
         </div>
 
         <div className="space-y-3">
-          {surveys.map(survey => (
-            <div
-              key={survey.id}
-              className={cn(
-                "border rounded-xl p-4 bg-card transition-colors",
-                survey.status === "responded" ? "border-emerald-200/50 dark:border-emerald-800/30" :
-                survey.status === "sent" ? "border-orange-200/50 dark:border-orange-800/30" :
-                "border-border/50"
-              )}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  {survey.sentVia === "email" ? (
-                    <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <Mail className="w-3.5 h-3.5 text-blue-600" />
-                    </div>
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">
-                      {isRtl
-                        ? `عبر ${survey.sentVia === "email" ? "البريد" : "واتساب"}`
-                        : `Via ${survey.sentVia === "email" ? "Email" : "WhatsApp"}`}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3 h-3" />
-                      {new Date(survey.sentAt).toLocaleDateString(isRtl ? "ar-SA" : "en-SA", { year: "numeric", month: "short", day: "numeric" })}
-                    </p>
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-xs border-transparent shrink-0",
-                    survey.status === "responded" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
-                    survey.status === "sent" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
-                    "bg-slate-100 text-slate-600"
-                  )}
-                >
-                  {survey.status === "responded"
-                    ? (isRtl ? "تم الرد" : "Responded")
-                    : survey.status === "sent"
-                    ? (isRtl ? "بانتظار الرد" : "Pending")
-                    : (isRtl ? "منتهي" : "Expired")}
-                </Badge>
-              </div>
+          {surveys.map(survey => {
+            const link = survey.link || `${window.location.origin}/survey/${survey.token}`;
+            const answers = survey.response?.answers || {};
+            const rating = survey.response?.rating ?? 0;
+            const feedback = survey.response?.feedback || (answers["feedback"] as string) || "";
+            const rec = survey.response?.recommendation || (answers["recommendation"] as string) || null;
+            const num = (k: string) => Number(answers[k] || 0);
 
-              {survey.status === "responded" && (
-                <div className="mt-3 pt-3 border-t border-border/40 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{isRtl ? "التقييم العام:" : "Overall Rating:"}</span>
-                    <div className="flex items-center gap-2">
-                      {renderStars(survey.rating || 0)}
-                      <span className="text-sm font-bold">{survey.rating}/5</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
-                      <span className="text-muted-foreground">{isRtl ? "جودة الخدمة" : "Service"}</span>
-                      <span className="font-medium">{survey.serviceQuality}/5</span>
-                    </div>
-                    <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
-                      <span className="text-muted-foreground">{isRtl ? "التواصل" : "Communication"}</span>
-                      <span className="font-medium">{survey.communication}/5</span>
-                    </div>
-                    <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
-                      <span className="text-muted-foreground">{isRtl ? "المواعيد" : "Timeliness"}</span>
-                      <span className="font-medium">{survey.timeliness}/5</span>
-                    </div>
-                    <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
-                      <span className="text-muted-foreground">{isRtl ? "القيمة / السعر" : "Value"}</span>
-                      <span className="font-medium">{survey.valueForMoney}/5</span>
-                    </div>
-                  </div>
-
+            return (
+              <div
+                key={survey.id}
+                className={cn(
+                  "border rounded-xl p-4 bg-card transition-colors",
+                  survey.status === "responded" ? "border-emerald-200/50 dark:border-emerald-800/30" :
+                  survey.status === "sent" ? "border-orange-200/50 dark:border-orange-800/30" :
+                  "border-border/50"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{isRtl ? "التوصية:" : "Recommend:"}</span>
-                    <Badge variant="outline" className={cn("text-xs",
-                      survey.recommendation === "yes" ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20" :
-                      survey.recommendation === "maybe" ? "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-900/20" :
-                      "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20"
-                    )}>
-                      {survey.recommendation === "yes" ? (isRtl ? "نعم ✓" : "Yes ✓") :
-                       survey.recommendation === "maybe" ? (isRtl ? "ربما" : "Maybe") :
-                       (isRtl ? "لا" : "No")}
-                    </Badge>
-                  </div>
-
-                  {(survey.feedback || survey.feedbackEn) && (
-                    <div className="bg-secondary/40 rounded-xl p-3">
-                      <p className="text-xs text-muted-foreground mb-1 font-medium">{isRtl ? "تعليق العميل:" : "Customer Feedback:"}</p>
-                      <p className="text-sm leading-relaxed" dir={isRtl ? "rtl" : "ltr"}>"{isRtl ? survey.feedback : (survey.feedbackEn || survey.feedback)}"</p>
-                      {survey.respondedAt && (
-                        <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                          {isRtl ? "تم الرد في" : "Responded on"}{" "}
-                          {new Date(survey.respondedAt).toLocaleDateString(isRtl ? "ar-SA" : "en-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      )}
+                    {survey.sentVia === "email" ? (
+                      <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                        <Mail className="w-3.5 h-3.5 text-blue-600" />
+                      </div>
+                    ) : survey.sentVia === "whatsapp" ? (
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      </div>
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <LinkIcon className="w-3.5 h-3.5 text-slate-600" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">
+                        {isRtl
+                          ? `عبر ${survey.sentVia === "email" ? "البريد" : survey.sentVia === "whatsapp" ? "واتساب" : "رابط مباشر"}`
+                          : `Via ${survey.sentVia === "email" ? "Email" : survey.sentVia === "whatsapp" ? "WhatsApp" : "Direct Link"}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3" />
+                        {new Date(survey.sentAt).toLocaleDateString(isRtl ? "ar-SA" : "en-SA", { year: "numeric", month: "short", day: "numeric" })}
+                      </p>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {survey.status === "sent" && (
-                <div className="mt-3 pt-3 border-t border-border/40">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 text-orange-500" />
-                      {isRtl ? "لم يتم الرد بعد" : "No response yet"}
-                    </span>
-                    <Button
-                      size="sm" variant="ghost"
-                      className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                      onClick={() => handleSimulateResponse(survey.id)}
-                      data-testid={`button-simulate-response-${survey.id}`}
-                    >
-                      {isRtl ? "محاكاة الرد" : "Simulate Response"}
-                    </Button>
                   </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs border-transparent shrink-0",
+                      survey.status === "responded" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                      survey.status === "sent" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+                      "bg-slate-100 text-slate-600"
+                    )}
+                  >
+                    {survey.status === "responded"
+                      ? (isRtl ? "تم الرد" : "Responded")
+                      : survey.status === "sent"
+                      ? (isRtl ? "بانتظار الرد" : "Pending")
+                      : (isRtl ? "منتهي" : "Expired")}
+                  </Badge>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {survey.status === "responded" && (
+                  <div className="mt-3 pt-3 border-t border-border/40 space-y-3">
+                    {rating > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">{isRtl ? "التقييم العام:" : "Overall Rating:"}</span>
+                        <div className="flex items-center gap-2">
+                          {renderStars(rating)}
+                          <span className="text-sm font-bold">{rating}/5</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {(num("serviceQuality") || num("communication") || num("timeliness") || num("valueForMoney")) > 0 && (
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {num("serviceQuality") > 0 && (
+                          <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
+                            <span className="text-muted-foreground">{isRtl ? "جودة الخدمة" : "Service"}</span>
+                            <span className="font-medium">{num("serviceQuality")}/5</span>
+                          </div>
+                        )}
+                        {num("communication") > 0 && (
+                          <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
+                            <span className="text-muted-foreground">{isRtl ? "التواصل" : "Communication"}</span>
+                            <span className="font-medium">{num("communication")}/5</span>
+                          </div>
+                        )}
+                        {num("timeliness") > 0 && (
+                          <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
+                            <span className="text-muted-foreground">{isRtl ? "المواعيد" : "Timeliness"}</span>
+                            <span className="font-medium">{num("timeliness")}/5</span>
+                          </div>
+                        )}
+                        {num("valueForMoney") > 0 && (
+                          <div className="flex items-center justify-between bg-secondary/40 rounded-lg px-2.5 py-1.5">
+                            <span className="text-muted-foreground">{isRtl ? "القيمة / السعر" : "Value"}</span>
+                            <span className="font-medium">{num("valueForMoney")}/5</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {rec && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{isRtl ? "التوصية:" : "Recommend:"}</span>
+                        <Badge variant="outline" className={cn("text-xs",
+                          rec === "yes" ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20" :
+                          rec === "maybe" ? "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-900/20" :
+                          "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20"
+                        )}>
+                          {rec === "yes" ? (isRtl ? "نعم ✓" : "Yes ✓") :
+                           rec === "maybe" ? (isRtl ? "ربما" : "Maybe") :
+                           (isRtl ? "لا" : "No")}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {feedback && (
+                      <div className="bg-secondary/40 rounded-xl p-3">
+                        <p className="text-xs text-muted-foreground mb-1 font-medium">{isRtl ? "تعليق العميل:" : "Customer Feedback:"}</p>
+                        <p className="text-sm leading-relaxed" dir="auto">"{feedback}"</p>
+                        {survey.respondedAt && (
+                          <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                            {isRtl ? "تم الرد في" : "Responded on"}{" "}
+                            {new Date(survey.respondedAt).toLocaleDateString(isRtl ? "ar-SA" : "en-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {survey.status === "sent" && (
+                  <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-orange-500" />
+                        {isRtl ? "بانتظار رد العميل" : "Awaiting customer response"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 rounded bg-secondary/50 border px-2 py-1.5">
+                      <LinkIcon className="w-3 h-3 text-muted-foreground shrink-0" />
+                      <span className="text-[11px] font-mono text-muted-foreground truncate flex-1" dir="ltr">{link}</span>
+                      <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => copyLink(link)} title={isRtl ? "نسخ" : "Copy"} data-testid={`button-copy-link-${survey.id}`}>
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => window.open(link, "_blank", "noopener")} title={isRtl ? "فتح" : "Open"}>
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </ScrollArea>
