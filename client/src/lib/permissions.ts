@@ -87,6 +87,7 @@ export const ALL_MODULES = [
   { id: "approve_registrations",labelAr: "اعتماد التسجيلات",        labelEn: "Approve Registrations", category: "system" },
   { id: "users",                labelAr: "إدارة المستخدمين",        labelEn: "Users",              category: "system" },
   { id: "system_admin",         labelAr: "لوحة تحكم النظام",        labelEn: "System Admin",       category: "system" },
+  { id: "backup",               labelAr: "النسخ الاحتياطية",        labelEn: "Backups",            category: "system" },
 ];
 
 export const ROLE_DEFAULTS: Record<Role, string[]> = {
@@ -117,7 +118,7 @@ export function hasAccess(user: SystemUser | null, page: string): boolean {
   const roles = new Set<string>([user.role || "", ...((user.roles as string[]) || [])]);
   if (roles.has("admin")) return true;
   // Managers can manage activities/users from System Admin
-  if (roles.has("manager") && (page === "system_admin" || page === "users")) return true;
+  if (roles.has("manager") && (page === "system_admin" || page === "users" || page === "backup")) return true;
   return (user.permissions || []).includes(page);
 }
 

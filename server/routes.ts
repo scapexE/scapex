@@ -29,6 +29,7 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 
 import { seedDefaultActivities as seedActivitiesShared, seedDefaultCompanies as seedCompaniesShared, seedDefaultCatalogs, DEFAULT_ACTIVITY_CATALOG } from "./seed";
+import { BACKUP_MODULES, buildModuleBackup, buildFullBackup } from "./backup";
 import { ACTIVITY_CATALOG, toCatalogId, toActivityId } from "@shared/activityCatalog";
 
 /**
@@ -3404,6 +3405,38 @@ export async function registerRoutes(
       await db.delete(documents).where(eq(documents.id, Number(req.params.id)));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/backup/modules", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    res.json(BACKUP_MODULES.map(({ id, labelEn, labelAr, tables }) => ({ id, labelEn, labelAr, tableCount: tables.length })));
+  });
+
+  app.get("/api/backup/module/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { filename, json, errors } = await buildModuleBackup(req.params.id);
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("X-Backup-Errors", String(Object.keys(errors).length));
+      res.send(json);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Backup failed" });
+    }
+  });
+
+  app.get("/api/backup/full", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { filename, buffer, errors } = await buildFullBackup();
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("X-Backup-Errors", String(Object.keys(errors).length));
+      res.send(buffer);
+    } catch (e: any) {
+      console.error("Full backup error:", e);
+      res.status(500).json({ error: e.message || "Full backup failed" });
+    }
   });
 
   app.post("/api/auth/forgot-send-code", async (req, res) => {

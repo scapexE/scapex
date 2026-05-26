@@ -27,6 +27,7 @@ import {
   UserCheck,
   HelpCircle,
   Activity,
+  Database,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ const menuCategories = [
       { id: "client_portal", icon: Globe, path: "/client-portal" },
       { id: "users", icon: UserCog, path: "/users" },
       { id: "system_admin", icon: Settings, path: "/system-admin" },
+      { id: "backup", icon: Database, path: "/backup" },
       { id: "about", icon: HelpCircle, path: "/about" },
     ],
   },
@@ -131,7 +133,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       if (!currentUser) return false;
       // system_admin is available to admin + manager (matches backend authorization)
       if (item.id === "about" || item.id === "audit_log") return true;
-      if (item.id === "system_admin") {
+      if (item.id === "system_admin" || item.id === "backup") {
         const roles = new Set<string>([currentUser.role || "", ...((currentUser.roles as string[]) || [])]);
         return roles.has("admin") || roles.has("manager");
       }
