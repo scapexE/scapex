@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { dbGetItem } from "@/lib/dbStorage";
 import {
@@ -331,12 +332,17 @@ export default function BackupModule() {
   };
 
   if (!isAdmin && !isManager) {
-    return <div className="p-8 text-center text-muted-foreground" data-testid="text-no-permission">
-      {isRtl ? "غير مصرح لك بالوصول إلى هذه الصفحة" : "Access denied"}
-    </div>;
+    return (
+      <MainLayout>
+        <div className="p-8 text-center text-muted-foreground" data-testid="text-no-permission">
+          {isRtl ? "غير مصرح لك بالوصول إلى هذه الصفحة" : "Access denied"}
+        </div>
+      </MainLayout>
+    );
   }
 
   return (
+    <MainLayout>
     <div className="p-6 max-w-6xl mx-auto" dir={dir}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-3" data-testid="heading-backup">
@@ -713,6 +719,7 @@ export default function BackupModule() {
         </div>
       )}
     </div>
+    </MainLayout>
   );
 }
 
