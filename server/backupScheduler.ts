@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import { appData, systemBackups } from "@shared/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import JSZip from "jszip";
@@ -207,6 +207,168 @@ export async function deleteBackup(id: number) {
   await db.delete(systemBackups).where(eq(systemBackups.id, id));
 }
 
+// ─── RESTORE ──────────────────────────────────────────────────────────────
+const SAFE_IDENT_RE = /^[a-z_][a-z0-9_]*$/;
+const PROTECTED_TABLES = new Set(["system_backups"]);
+
+async function getTableColumns(client: any, table: string): Promise<string[]> {
+  const r = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1
+     ORDER BY ordinal_position`,
+    [table],
+  );
+  return r.rows.map((row: any) => row.column_name);
+}
+
+async function getJsonbColumns(client: any, table: string): Promise<Set<string>> {
+  const r = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1
+       AND data_type IN ('jsonb', 'json')`,
+    [table],
+  );
+  return new Set(r.rows.map((row: any) => row.column_name));
+}
+
+function coerceValue(v: any, isJsonb: boolean): any {
+  if (v === null || v === undefined) return null;
+  if (isJsonb) {
+    if (typeof v === "string") return v;
+    return JSON.stringify(v);
+  }
+  if (typeof v === "object" && !(v instanceof Date) && !Buffer.isBuffer(v)) {
+    return JSON.stringify(v);
+  }
+  return v;
+}
+
+export async function restoreBackup(opts: {
+  id: number;
+  actorId?: string;
+  actorName?: string;
+}): Promise<{
+  preRestoreId: number | null;
+  tablesRestored: number;
+  rowsInserted: number;
+  errors: Record<string, string>;
+  status: "success" | "partial" | "failed";
+}> {
+  if (restoreInProgress) throw new Error("Another restore is already in progress");
+  restoreInProgress = true;
+  try {
+  const row = await getBackupFile(opts.id);
+  if (!row) throw new Error("Backup not found");
+  if (!row.fileContent) throw new Error("Backup file content is missing");
+
+  log(`restore #${opts.id}: creating pre_restore snapshot...`, "backup");
+  let preRestoreId: number | null = null;
+  try {
+    const snap = await createBackup({
+      type: "pre_restore",
+      createdBy: opts.actorId,
+      createdByName: opts.actorName ? `Pre-restore by ${opts.actorName}` : "Pre-restore",
+    });
+    preRestoreId = snap.id;
+    log(`restore #${opts.id}: pre_restore snapshot #${snap.id} created (${snap.status})`, "backup");
+  } catch (e: any) {
+    throw new Error(`Pre-restore snapshot failed, aborting restore: ${e?.message || e}`);
+  }
+
+  const zip = await JSZip.loadAsync(Buffer.from(row.fileContent, "base64"));
+  const manifestFile = zip.file("manifest.json");
+  if (!manifestFile) throw new Error("Backup ZIP missing manifest.json");
+  const manifest = JSON.parse(await manifestFile.async("string"));
+  const moduleSpecs: { id: string; tables: string[] }[] = manifest.modules || [];
+
+  const orderedTables: { module: string; table: string }[] = [];
+  for (const m of moduleSpecs) {
+    for (const t of m.tables) {
+      if (!SAFE_IDENT_RE.test(t)) { continue; }
+      if (PROTECTED_TABLES.has(t)) { continue; }
+      orderedTables.push({ module: m.id, table: t });
+    }
+  }
+
+  const errors: Record<string, string> = {};
+  let tablesRestored = 0;
+  let rowsInserted = 0;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL session_replication_role = 'replica'");
+
+    for (const { module, table } of orderedTables) {
+      try {
+        const entry = zip.file(`${module}/${table}.json`);
+        if (!entry) { errors[table] = "Missing in archive"; continue; }
+        const rows = JSON.parse(await entry.async("string")) as any[];
+        if (!Array.isArray(rows)) { errors[table] = "Invalid file format"; continue; }
+
+        const dbCols = await getTableColumns(client, table);
+        if (dbCols.length === 0) { errors[table] = "Table does not exist"; continue; }
+        const colSet = new Set(dbCols);
+        const jsonbCols = await getJsonbColumns(client, table);
+
+        await client.query(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE`);
+
+        if (rows.length > 0) {
+          const cols = Object.keys(rows[0]).filter((c) => colSet.has(c));
+          if (cols.length === 0) { errors[table] = "No matching columns"; continue; }
+          const colList = cols.map((c) => `"${c}"`).join(", ");
+          const BATCH = 200;
+          for (let i = 0; i < rows.length; i += BATCH) {
+            const slice = rows.slice(i, i + BATCH);
+            const values: any[] = [];
+            const placeholders = slice.map((r, ri) => {
+              const tuple = cols.map((c, ci) => {
+                values.push(coerceValue(r[c], jsonbCols.has(c)));
+                return `$${ri * cols.length + ci + 1}`;
+              });
+              return `(${tuple.join(", ")})`;
+            }).join(", ");
+            await client.query(`INSERT INTO "${table}" (${colList}) VALUES ${placeholders}`, values);
+            rowsInserted += slice.length;
+          }
+        }
+
+        const seqRes = await client.query(`SELECT pg_get_serial_sequence($1, 'id') AS seq`, [table]);
+        const seq = seqRes.rows[0]?.seq;
+        if (seq) {
+          await client.query(
+            `SELECT setval($1, COALESCE((SELECT MAX(id) FROM "${table}"), 1), (SELECT COUNT(*) FROM "${table}") > 0)`,
+            [seq],
+          );
+        }
+
+        tablesRestored++;
+      } catch (e: any) {
+        errors[table] = e?.message || String(e);
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      await client.query("ROLLBACK");
+      log(`restore #${opts.id}: failed atomically (${Object.keys(errors).length} table errors) — no data changed`, "backup");
+      return { preRestoreId, tablesRestored: 0, rowsInserted: 0, errors, status: "failed" };
+    }
+    await client.query("SET LOCAL session_replication_role = 'origin'");
+    await client.query("COMMIT");
+  } catch (e: any) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw new Error(`Restore transaction failed: ${e?.message || e}`);
+  } finally {
+    client.release();
+  }
+
+  log(`restore #${opts.id}: success (${tablesRestored} tables, ${rowsInserted} rows)`, "backup");
+  return { preRestoreId, tablesRestored, rowsInserted, errors, status: "success" };
+  } finally {
+    restoreInProgress = false;
+  }
+}
+
 export async function getBackupStatus() {
   const settings = await getBackupSettings();
   const [lastSuccess] = await db.select({
@@ -258,6 +420,8 @@ function nextMonthlyOccurrence(hour: number, weekday: number): string {
 let schedulerRunning = false;
 let schedulerInterval: NodeJS.Timeout | null = null;
 let tickInFlight = false;
+let restoreInProgress = false;
+export function isRestoreInProgress() { return restoreInProgress; }
 
 async function hasBackupSince(type: BackupType, since: Date): Promise<boolean> {
   const result = await db.execute(sql`
@@ -271,6 +435,10 @@ async function hasBackupSince(type: BackupType, since: Date): Promise<boolean> {
 async function tick() {
   if (tickInFlight) {
     log("scheduler tick skipped — previous run still in progress", "backup");
+    return;
+  }
+  if (restoreInProgress) {
+    log("scheduler tick skipped — restore in progress", "backup");
     return;
   }
   tickInFlight = true;

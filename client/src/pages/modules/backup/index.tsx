@@ -4,6 +4,7 @@ import { dbGetItem } from "@/lib/dbStorage";
 import {
   Download, Database, Loader2, ShieldCheck, History, Settings as SettingsIcon,
   Zap, Clock, HardDrive, CheckCircle2, AlertTriangle, XCircle, Trash2, RefreshCw,
+  RotateCcw, ShieldAlert,
 } from "lucide-react";
 import { logAction } from "@/lib/auditLog";
 
@@ -196,6 +197,10 @@ export default function BackupModule() {
   const [filterType, setFilterType] = useState<string>("");
   const [downloadingHist, setDownloadingHist] = useState<number | null>(null);
   const [deletingHist, setDeletingHist] = useState<number | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<BackupRow | null>(null);
+  const [restoreStep, setRestoreStep] = useState<1 | 2>(1);
+  const [restoreText, setRestoreText] = useState("");
+  const [restoring, setRestoring] = useState(false);
 
   const loadHistory = useCallback(() => {
     setHistoryLoading(true); setHistoryError("");
@@ -226,6 +231,45 @@ export default function BackupModule() {
     } catch (e: any) {
       setError(e.message);
     } finally { setDownloadingHist(null); }
+  };
+
+  const openRestore = (row: BackupRow) => {
+    setRestoreTarget(row); setRestoreStep(1); setRestoreText("");
+  };
+  const closeRestore = () => {
+    if (restoring) return;
+    setRestoreTarget(null); setRestoreStep(1); setRestoreText("");
+  };
+  const handleConfirmRestore = async () => {
+    if (!restoreTarget) return;
+    clearMessages(); setRestoring(true);
+    try {
+      const res = await fetch(`/api/backup/restore/${restoreTarget.id}`, {
+        method: "POST",
+        headers: { ...authHeaders, "x-confirm-restore": "I-UNDERSTAND-THIS-WILL-OVERWRITE-ALL-DATA" },
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || (isRtl ? "فشل الاستعادة" : "Restore failed"));
+      logAction("update", "backup", `Restored backup #${restoreTarget.id}`, `استعادة النسخة #${restoreTarget.id}`);
+      const errCount = Object.keys(d.errors || {}).length;
+      const preMsg = d.preRestoreId
+        ? (isRtl ? ` (نسخة احتياطية ما قبل الاستعادة #${d.preRestoreId})` : ` (pre-restore snapshot #${d.preRestoreId})`)
+        : "";
+      if (d.status === "success") {
+        setSuccess((isRtl
+          ? `تمت الاستعادة بنجاح: ${d.tablesRestored} جدول، ${d.rowsInserted.toLocaleString()} سجل${preMsg}`
+          : `Restore successful: ${d.tablesRestored} tables, ${d.rowsInserted.toLocaleString()} rows${preMsg}`));
+      } else {
+        const firstErr = Object.entries(d.errors || {}).slice(0, 1).map(([k, v]) => `${k}: ${v}`).join("");
+        setError((isRtl
+          ? `فشلت الاستعادة (${errCount} خطأ) — لم يتم تغيير أي بيانات. ${firstErr}${preMsg}`
+          : `Restore failed (${errCount} errors) — no data changed. ${firstErr}${preMsg}`));
+      }
+      closeRestore();
+      loadHistory(); loadStatus();
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setRestoring(false); }
   };
 
   const handleDeleteHistory = async (row: BackupRow) => {
@@ -507,6 +551,13 @@ export default function BackupModule() {
                             {downloadingHist === b.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
                             {isRtl ? "تنزيل" : "Get"}
                           </button>
+                          {isAdmin && b.status !== "failed" && b.sizeBytes > 0 && (
+                            <button onClick={() => openRestore(b)} data-testid={`button-restore-${b.id}`}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded text-xs hover-elevate me-1">
+                              <RotateCcw className="w-3 h-3" />
+                              {isRtl ? "استعادة" : "Restore"}
+                            </button>
+                          )}
                           {isAdmin && (
                             <button onClick={() => handleDeleteHistory(b)} disabled={deletingHist === b.id} data-testid={`button-delete-${b.id}`}
                               className="inline-flex items-center gap-1 px-2 py-1 bg-destructive/10 text-destructive rounded text-xs hover-elevate disabled:opacity-40">
@@ -520,6 +571,93 @@ export default function BackupModule() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore confirmation modal (double-step) */}
+      {restoreTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" data-testid="modal-restore">
+          <div className="bg-card border-2 border-amber-500/50 rounded-xl shadow-2xl max-w-lg w-full p-6" dir={dir}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 bg-amber-500/15 rounded-lg">
+                <ShieldAlert className="w-7 h-7 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-bold mb-1">
+                  {isRtl ? "تأكيد الاستعادة" : "Confirm Restore"}
+                </h2>
+                <p className="text-xs text-muted-foreground">{restoreTarget.filename}</p>
+              </div>
+            </div>
+
+            {restoreStep === 1 && (
+              <>
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 mb-4 text-sm">
+                  <p className="font-semibold text-destructive mb-2">
+                    {isRtl ? "⚠ تحذير: عملية لا يمكن التراجع عنها مباشرة" : "⚠ Warning: This operation cannot be directly undone"}
+                  </p>
+                  <ul className="text-sm space-y-1 text-foreground/80 list-disc ms-5">
+                    <li>{isRtl ? "ستُحذف كل البيانات الحالية في الجداول المشمولة" : "All current data in covered tables will be replaced"}</li>
+                    <li>{isRtl ? "ستُستبدل بمحتويات هذه النسخة الاحتياطية" : "Replaced with contents from this backup"}</li>
+                    <li>{isRtl ? "سيتم إنشاء نسخة احتياطية تلقائية قبل البدء (للتراجع)" : "An automatic pre-restore snapshot will be created (for rollback)"}</li>
+                    <li>{isRtl ? "العملية ذرّية — إذا فشل أي جدول، تُلغى الاستعادة بالكامل دون أي تغيير" : "Atomic operation — if any table fails, the entire restore aborts with zero changes"}</li>
+                    <li>{isRtl ? "سيتوقف المجدوِل التلقائي مؤقتاً أثناء الاستعادة" : "Auto-scheduler pauses during restore"}</li>
+                    <li>{isRtl ? "قد يتأثر المستخدمون المتصلون حالياً" : "Currently connected users may be affected"}</li>
+                  </ul>
+                </div>
+                <div className="text-sm mb-4 space-y-1">
+                  <div><span className="text-muted-foreground">{isRtl ? "النوع:" : "Type:"}</span> {isRtl ? (TYPE_LABELS[restoreTarget.type]?.ar || restoreTarget.type) : (TYPE_LABELS[restoreTarget.type]?.en || restoreTarget.type)}</div>
+                  <div><span className="text-muted-foreground">{isRtl ? "التاريخ:" : "Date:"}</span> {formatWhen(restoreTarget.createdAt, isRtl)}</div>
+                  <div><span className="text-muted-foreground">{isRtl ? "الحجم:" : "Size:"}</span> {formatBytes(restoreTarget.sizeBytes)} • {restoreTarget.totalRows.toLocaleString()} {isRtl ? "سجل" : "rows"}</div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button onClick={closeRestore} data-testid="button-restore-cancel-1"
+                    className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover-elevate">
+                    {isRtl ? "إلغاء" : "Cancel"}
+                  </button>
+                  <button onClick={() => setRestoreStep(2)} data-testid="button-restore-continue"
+                    className="px-4 py-2 bg-amber-600 text-white rounded-md text-sm font-semibold hover-elevate">
+                    {isRtl ? "متابعة" : "Continue"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {restoreStep === 2 && (
+              <>
+                <p className="text-sm mb-3">
+                  {isRtl
+                    ? <>اكتب <code className="px-1.5 py-0.5 bg-muted rounded font-mono">RESTORE</code> للتأكيد:</>
+                    : <>Type <code className="px-1.5 py-0.5 bg-muted rounded font-mono">RESTORE</code> to confirm:</>}
+                </p>
+                <input
+                  type="text"
+                  value={restoreText}
+                  onChange={(e) => setRestoreText(e.target.value)}
+                  disabled={restoring}
+                  data-testid="input-restore-confirm"
+                  className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm mb-4 font-mono"
+                  placeholder="RESTORE"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={closeRestore} disabled={restoring} data-testid="button-restore-cancel-2"
+                    className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover-elevate disabled:opacity-50">
+                    {isRtl ? "إلغاء" : "Cancel"}
+                  </button>
+                  <button
+                    onClick={handleConfirmRestore}
+                    disabled={restoring || restoreText.trim() !== "RESTORE"}
+                    data-testid="button-restore-confirm"
+                    className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-bold hover-elevate disabled:opacity-40"
+                  >
+                    {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                    {restoring ? (isRtl ? "جارٍ الاستعادة..." : "Restoring...") : (isRtl ? "تنفيذ الاستعادة" : "Run Restore")}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

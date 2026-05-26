@@ -33,6 +33,7 @@ import { BACKUP_MODULES, buildModuleBackup, buildFullBackup } from "./backup";
 import {
   createBackup, listBackups, getBackupFile, deleteBackup,
   getBackupStatus, getBackupSettings, saveBackupSettings, DEFAULT_SETTINGS,
+  restoreBackup,
 } from "./backupScheduler";
 import { ACTIVITY_CATALOG, toCatalogId, toActivityId } from "@shared/activityCatalog";
 
@@ -3495,6 +3496,27 @@ export async function registerRoutes(
     } catch (e: any) {
       console.error("Manual backup error:", e);
       res.status(500).json({ error: e.message || "Backup failed" });
+    }
+  });
+
+  app.post("/api/backup/restore/:id", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    const confirm = req.header("x-confirm-restore");
+    if (confirm !== "I-UNDERSTAND-THIS-WILL-OVERWRITE-ALL-DATA") {
+      return res.status(400).json({ error: "Missing or invalid confirmation header" });
+    }
+    try {
+      const actorId = (req.header("x-user-id") || "").trim();
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      const result = await restoreBackup({
+        id: Number(req.params.id),
+        actorId,
+        actorName: actor?.name || actor?.email || "Admin",
+      });
+      res.json(result);
+    } catch (e: any) {
+      console.error("Restore error:", e);
+      res.status(500).json({ error: e.message || "Restore failed" });
     }
   });
 
