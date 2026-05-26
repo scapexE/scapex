@@ -1,6 +1,6 @@
 import { dbGetItem, dbSetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { useState, useEffect, useCallback } from "react";
-import { getUsers, saveUsers, ROLE_DEFAULTS, validateNationalId, type SystemUser } from "@/lib/permissions";
+import { getUsers, validateNationalId } from "@/lib/permissions";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { logAction } from "@/lib/auditLog";
 
@@ -61,10 +61,6 @@ const codeInputStyle: React.CSSProperties = {
   direction: "ltr" as const,
 };
 
-function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 export default function Login() {
   const [tab, setTab] = useState<Tab>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -93,7 +89,6 @@ export default function Login() {
 
   const [forgotStep, setForgotStep] = useState<ForgotStep>("idle");
   const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotCode, setForgotCode] = useState("");
   const [forgotUserCode, setForgotUserCode] = useState("");
   const [forgotNewPass, setForgotNewPass] = useState("");
   const [forgotConfirmPass, setForgotConfirmPass] = useState("");
@@ -113,6 +108,9 @@ export default function Login() {
   const [submittingReg, setSubmittingReg] = useState(false);
   const [verifyingReg, setVerifyingReg] = useState(false);
   const [resendingReg, setResendingReg] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
+  const [resettingForgot, setResettingForgot] = useState(false);
+  const [resendingForgot, setResendingForgot] = useState(false);
 
   const [countdown, setCountdown] = useState(0);
 
@@ -197,35 +195,51 @@ export default function Login() {
     if (e.key === "Enter") handleLogin();
   };
 
-  const handleForgotSendCode = () => {
+  const handleForgotSendCode = async () => {
     setForgotError("");
-    if (!forgotEmail) {
-      setForgotError(isRtl ? "يرجى إدخال البريد الإلكتروني" : "Please enter your email");
+    const trimmedEmail = forgotEmail.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setForgotError(isRtl ? "يرجى إدخال بريد إلكتروني صحيح" : "Please enter a valid email");
       return;
     }
-    const users = getUsers();
-    const user = users.find(u => u.email.toLowerCase() === forgotEmail.toLowerCase());
-    if (!user) {
-      setForgotError(isRtl ? "لا يوجد حساب بهذا البريد الإلكتروني" : "No account found with this email");
-      return;
+    setSendingForgot(true);
+    try {
+      const res = await fetch("/api/auth/forgot-send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail }),
+      });
+      if (!res.ok) {
+        if (res.status === 429) {
+          setForgotError(isRtl ? "يرجى الانتظار قبل طلب رمز جديد" : "Please wait before requesting another code");
+        } else if (res.status >= 500) {
+          setForgotError(isRtl ? "فشل إرسال الرمز — خطأ في السيرفر" : "Failed to send code — server error");
+        } else {
+          setForgotError(isRtl ? "تعذّر إرسال الرمز" : "Could not send code");
+        }
+        return;
+      }
+      setForgotEmail(trimmedEmail);
+      setForgotUserCode("");
+      setForgotStep("enter_code");
+      setCountdown(600);
+    } catch {
+      setForgotError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+    } finally {
+      setSendingForgot(false);
     }
-    const code = generateCode();
-    setForgotCode(code);
-    setForgotUserCode("");
-    setForgotStep("enter_code");
-    setCountdown(120);
   };
 
   const handleForgotVerifyCode = () => {
     setForgotError("");
-    if (forgotUserCode !== forgotCode) {
-      setForgotError(isRtl ? "رمز التحقق غير صحيح" : "Invalid verification code");
+    if (!forgotUserCode || forgotUserCode.length !== 6) {
+      setForgotError(isRtl ? "يرجى إدخال رمز التحقق المكوّن من 6 أرقام" : "Please enter the 6-digit verification code");
       return;
     }
     setForgotStep("new_password");
   };
 
-  const handleForgotResetPassword = () => {
+  const handleForgotResetPassword = async () => {
     setForgotError("");
     if (!forgotNewPass || forgotNewPass.length < 6) {
       setForgotError(isRtl ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل" : "Password must be at least 6 characters");
@@ -235,19 +249,45 @@ export default function Login() {
       setForgotError(isRtl ? "كلمتا المرور غير متطابقتين" : "Passwords do not match");
       return;
     }
-    const users = getUsers();
-    const idx = users.findIndex(u => u.email.toLowerCase() === forgotEmail.toLowerCase());
-    if (idx >= 0) {
-      users[idx].password = forgotNewPass;
-      saveUsers(users);
+    setResettingForgot(true);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail, code: forgotUserCode, newPassword: forgotNewPass }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errMsg = data.error || "";
+        if (errMsg.includes("Too many")) {
+          setForgotError(isRtl ? "تم تجاوز عدد المحاولات. يرجى طلب رمز جديد" : errMsg);
+          setForgotStep("enter_code");
+        } else if (errMsg.includes("expired")) {
+          setForgotError(isRtl ? "انتهت صلاحية الرمز. يرجى طلب رمز جديد" : errMsg);
+          setForgotStep("enter_code");
+        } else if (res.status === 404) {
+          setForgotError(isRtl ? "الحساب غير موجود" : "Account not found");
+        } else if (errMsg.includes("Invalid")) {
+          setForgotError(isRtl ? "رمز التحقق غير صحيح" : "Invalid verification code");
+          setForgotStep("enter_code");
+        } else if (res.status >= 500) {
+          setForgotError(isRtl ? "خطأ في السيرفر" : "Server error");
+        } else {
+          setForgotError(errMsg || (isRtl ? "تعذّر إعادة تعيين كلمة المرور" : "Could not reset password"));
+        }
+        return;
+      }
+      setForgotStep("done");
+    } catch {
+      setForgotError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+    } finally {
+      setResettingForgot(false);
     }
-    setForgotStep("done");
   };
 
   const resetForgot = () => {
     setForgotStep("idle");
     setForgotEmail("");
-    setForgotCode("");
     setForgotUserCode("");
     setForgotNewPass("");
     setForgotConfirmPass("");
@@ -398,12 +438,29 @@ export default function Login() {
         setResendingReg(false);
       }
     } else {
-      const code = generateCode();
-      setForgotCode(code);
-      setForgotUserCode("");
-      setCountdown(120);
+      setForgotError("");
+      setResendingForgot(true);
+      try {
+        const res = await fetch("/api/auth/forgot-send-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: forgotEmail }),
+        });
+        if (res.ok) {
+          setForgotUserCode("");
+          setCountdown(600);
+        } else if (res.status === 429) {
+          setForgotError(isRtl ? "يرجى الانتظار قبل طلب رمز جديد" : "Please wait before requesting another code");
+        } else {
+          setForgotError(isRtl ? "تعذّر إعادة إرسال الرمز" : "Could not resend code");
+        }
+      } catch {
+        setForgotError(isRtl ? "خطأ في الاتصال بالسيرفر" : "Server connection error");
+      } finally {
+        setResendingForgot(false);
+      }
     }
-  }, [regVerifiedEmail, isRtl]);
+  }, [regVerifiedEmail, forgotEmail, isRtl]);
 
   const handleRegisterKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -412,43 +469,8 @@ export default function Login() {
     }
   };
 
-  const renderCodeSimulation = (code: string) => (
-    <div style={{
-      background: "linear-gradient(135deg, #1e3a5f 0%, #0f2a1a 100%)",
-      border: "1px solid #2563eb",
-      borderRadius: "10px",
-      padding: "14px 16px",
-      marginBottom: "4px",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-        <span style={{ fontSize: "16px" }}>📧</span>
-        <span style={{ color: "#93c5fd", fontSize: "12px", fontWeight: "600" }}>
-          {isRtl ? "محاكاة إرسال بريد إلكتروني" : "Email Simulation"}
-        </span>
-      </div>
-      <p style={{ color: "#a5b4fc", fontSize: "11px", margin: "0 0 8px" }}>
-        {isRtl
-          ? "في النظام الفعلي سيتم إرسال الرمز إلى بريدك. للتجربة استخدم الرمز التالي:"
-          : "In production, the code will be sent to your email. For demo, use this code:"}
-      </p>
-      <div style={{
-        background: "#0f172a",
-        borderRadius: "8px",
-        padding: "10px",
-        textAlign: "center",
-        letterSpacing: "0.4em",
-        fontSize: "28px",
-        fontWeight: "bold",
-        color: "#60a5fa",
-        fontFamily: "monospace",
-      }}>
-        {code}
-      </div>
-    </div>
-  );
-
   const renderCountdown = (type: "forgot" | "reg") => {
-    const isResending = type === "reg" && resendingReg;
+    const isResending = type === "reg" ? resendingReg : resendingForgot;
     return (
       <div style={{ textAlign: "center", marginTop: "6px" }}>
         {countdown > 0 ? (
@@ -536,16 +558,16 @@ export default function Login() {
                 <button
                   data-testid="button-forgot-send"
                   onClick={handleForgotSendCode}
-                  style={{ width: "100%", padding: "11px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}
+                  disabled={sendingForgot}
+                  style={{ width: "100%", padding: "11px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: sendingForgot ? "not-allowed" : "pointer", opacity: sendingForgot ? 0.6 : 1 }}
                 >
-                  {isRtl ? "إرسال رمز التحقق" : "Send Verification Code"}
+                  {sendingForgot ? (isRtl ? "جارٍ الإرسال..." : "Sending...") : (isRtl ? "إرسال رمز التحقق" : "Send Verification Code")}
                 </button>
               </>
             )}
 
             {forgotStep === "enter_code" && (
               <>
-                {renderCodeSimulation(forgotCode)}
                 <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0, textAlign: "center" }}>
                   {isRtl
                     ? `تم إرسال رمز التحقق إلى ${forgotEmail}`
@@ -610,9 +632,10 @@ export default function Login() {
                 <button
                   data-testid="button-forgot-reset"
                   onClick={handleForgotResetPassword}
-                  style={{ width: "100%", padding: "11px", background: "#059669", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}
+                  disabled={resettingForgot}
+                  style={{ width: "100%", padding: "11px", background: "#059669", color: "white", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: "600", cursor: resettingForgot ? "not-allowed" : "pointer", opacity: resettingForgot ? 0.6 : 1 }}
                 >
-                  {isRtl ? "تغيير كلمة المرور" : "Reset Password"}
+                  {resettingForgot ? (isRtl ? "جارٍ التغيير..." : "Resetting...") : (isRtl ? "تغيير كلمة المرور" : "Reset Password")}
                 </button>
               </>
             )}

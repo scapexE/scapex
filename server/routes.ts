@@ -197,6 +197,8 @@ export async function registerRoutes(
     "/api/auth/send-code",
     "/api/auth/verify-code",
     "/api/auth/forgot",
+    "/api/auth/forgot-send-code",
+    "/api/auth/reset-password",
   ]);
   // Tiny TTL cache so the auth guard doesn't hit the DB on every request.
   // Maps userId → { active, role, expires }.
@@ -3402,6 +3404,64 @@ export async function registerRoutes(
       await db.delete(documents).where(eq(documents.id, Number(req.params.id)));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/auth/forgot-send-code", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== "string" || !email.includes("@")) {
+        return res.status(400).json({ error: "Valid email is required" });
+      }
+      const key = `reset:${email.toLowerCase()}`;
+      if (!canSendCode(key)) {
+        return res.status(429).json({ error: "Please wait before requesting another code" });
+      }
+      const user = await findUserByEmail(email);
+      if (!user) {
+        return res.json({ success: true });
+      }
+      const code = generateVerificationCode();
+      const sent = await sendVerificationEmail(email, code);
+      if (!sent) {
+        return res.status(500).json({ error: "Failed to send email" });
+      }
+      storeVerificationCode(key, code);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Forgot send-code error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { email, code, newPassword } = req.body;
+      if (!email || !code || !newPassword) {
+        return res.status(400).json({ error: "Email, code and new password are required" });
+      }
+      if (typeof newPassword !== "string" || newPassword.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      const key = `reset:${email.toLowerCase()}`;
+      const result = verifyCode(key, code);
+      if (!result.valid) {
+        const msg = result.error === "max_attempts"
+          ? "Too many attempts. Please request a new code"
+          : result.error === "expired"
+          ? "Code expired. Please request a new code"
+          : "Invalid verification code";
+        return res.status(400).json({ error: msg });
+      }
+      const user = await findUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ error: "Account not found" });
+      }
+      await updateUser(user.id, { password: newPassword });
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Reset password error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
   });
 
   app.post("/api/auth/change-password", async (req, res) => {
