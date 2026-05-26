@@ -43,6 +43,7 @@ import CompanySettingsModule from "@/pages/modules/company-settings/index";
 import BackupModule from "@/pages/modules/backup/index";
 import Profile from "@/pages/Profile";
 import PublicSurvey from "@/pages/PublicSurvey";
+import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 
 function Router() {
   return (
@@ -64,6 +65,7 @@ function Router() {
       {/* Business & Finance */}
       <Route path="/crm" component={CRMModule} />
       <Route path="/sales" component={SalesModule} />
+      <Route path="/smart-proposal" component={SmartProposalModule} />
       <Route path="/purchases" component={PurchasesModule} />
       <Route path="/accounting" component={AccountingModule} />
 

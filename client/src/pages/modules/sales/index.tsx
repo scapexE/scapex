@@ -11,6 +11,8 @@ import { Plus, FileText, CheckCircle2, Send, Clock, TrendingUp, CalendarCheck, H
 import { getProposals, STATUS_META, SERVICE_META, type Proposal } from "@/lib/proposals";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useLocation } from "wouter";
+import { dbSetItem } from "@/lib/dbStorage";
 
 function ProposalQuotationsList({ isRtl, onNewProposal, onViewProposal }: {
   isRtl: boolean;
@@ -122,6 +124,18 @@ export default function SalesModule() {
   const isAdmin = currentUser?.role === "admin" || (currentUser?.roles ?? []).includes("admin");
   const isManager = currentUser?.role === "manager" || (currentUser?.roles ?? []).includes("manager");
   const canSeePartners = isAdmin || isManager;
+  const [, navigate] = useLocation();
+
+  // Open Smart Proposal generator. Optional prefill (e.g. clicking an existing
+  // proposal) is dropped in localStorage so the generator can pick it up.
+  const openProposalGenerator = (proposalId?: string) => {
+    if (proposalId) {
+      navigate(`/smart-proposal?view=${encodeURIComponent(proposalId)}`);
+    } else {
+      try { dbSetItem("scapex_proposal_prefill", JSON.stringify({ clientName: "", projectName: "" })); } catch {}
+      navigate("/smart-proposal");
+    }
+  };
 
   return (
     <MainLayout>
@@ -132,7 +146,12 @@ export default function SalesModule() {
             <p className="text-muted-foreground mt-1 text-sm">{t('sales.desc')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" className="bg-primary hover:bg-primary/90" data-testid="button-new-sale">
+            <Button
+              size="sm"
+              className="bg-primary hover:bg-primary/90"
+              onClick={() => openProposalGenerator()}
+              data-testid="button-new-sale"
+            >
               <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {t('action.create_new')}
             </Button>
@@ -164,7 +183,11 @@ export default function SalesModule() {
 
           <div className="flex-1 mt-4 overflow-hidden relative">
             <TabsContent value="quotations" className="h-full m-0 data-[state=active]:flex flex-col">
-              <ProposalQuotationsList isRtl={isRtl} onNewProposal={() => {}} onViewProposal={() => {}} />
+              <ProposalQuotationsList
+                isRtl={isRtl}
+                onNewProposal={() => openProposalGenerator()}
+                onViewProposal={(id) => openProposalGenerator(id)}
+              />
             </TabsContent>
 
             <TabsContent value="orders" className="h-full m-0 data-[state=active]:flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-xl bg-card/50">

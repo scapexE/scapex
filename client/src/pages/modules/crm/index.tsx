@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useActivityScope } from "@/hooks/useActivityScope";
+import { useLocation } from "wouter";
+import { dbSetItem } from "@/lib/dbStorage";
+import type { ProposalPrefill } from "@/components/crm/PipelineBoard";
 
 export default function CRMModule() {
   const { t, dir } = useLanguage();
@@ -18,6 +21,14 @@ export default function CRMModule() {
   // We only disable creation when no activity is selected (rare; admins on "All").
   const { activityId } = useActivityScope();
   const blockingForCreate = !activityId;
+  const [, navigate] = useLocation();
+
+  // Centralized handler: every "Request Quote" / "Create Proposal" entry point
+  // funnels through here so the prefill payload is consistent.
+  const goToProposal = (data: Partial<ProposalPrefill>) => {
+    dbSetItem("scapex_proposal_prefill", JSON.stringify(data));
+    navigate("/smart-proposal");
+  };
 
   const handleNewLead = () => {
     if (blockingForCreate) return;
@@ -50,11 +61,13 @@ export default function CRMModule() {
 
           <div className="flex-1 mt-4 overflow-hidden relative">
             <TabsContent value="pipeline" className="h-full m-0 data-[state=active]:flex flex-col">
-              <PipelineBoard openAddDialogSignal={addLeadSignal} onCreateProposal={() => {}} />
+              <PipelineBoard openAddDialogSignal={addLeadSignal} onCreateProposal={(d) => goToProposal(d)} />
             </TabsContent>
 
             <TabsContent value="customers" className="h-full m-0 data-[state=active]:flex flex-col">
-              <CustomersList onCreateProposal={() => {}} />
+              <CustomersList onCreateProposal={(clientName, clientEmail, clientContact, contactId) =>
+                goToProposal({ clientName, clientEmail, clientContact, projectName: "", contactId: contactId ?? null })
+              } />
             </TabsContent>
 
             <TabsContent value="dashboard" className="h-full m-0 data-[state=active]:flex flex-col overflow-y-auto pr-2">
