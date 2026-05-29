@@ -180,7 +180,6 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
       )}
 
       <aside
-        dir={dir}
         className={cn(
           "fixed inset-y-0 z-50 bg-sidebar border-sidebar-border flex flex-col transition-all duration-300 ease-in-out",
           dir === "rtl" ? "right-0 border-l" : "left-0 border-r",
@@ -244,7 +243,7 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
             {visibleCategories.map((category) => (
               <div key={category.id} className="space-y-px">
                 {!isCollapsed && (
-                  <h3 className="px-2 text-[10px] font-semibold text-sidebar-foreground/35 uppercase tracking-widest mb-1 text-start">
+                  <h3 className="px-2 text-[10px] font-semibold text-sidebar-foreground/35 uppercase tracking-widest mb-1">
                     {isRtl ? category.labelAr : category.labelEn}
                   </h3>
                 )}
@@ -255,24 +254,24 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
                   const Icon = item.icon;
 
                   const navItem = (
-                    <Link key={item.id} href={item.path} className="block w-full">
+                    <Link key={item.id} href={item.path}>
                       <div
                         className={cn(
                           "flex items-center rounded-lg transition-all duration-150 cursor-pointer group",
                           isCollapsed
                             ? "justify-center w-9 h-9 mx-auto"
-                            : "w-full gap-2.5 px-2.5 py-1.5 text-start",
+                            : "gap-2.5 px-2.5 py-1.5",
                           isActive
                             ? "bg-primary text-primary-foreground shadow-sm"
                             : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                         )}
                         onClick={() => setIsOpen?.(false)}
                       >
-                        <Icon className={cn("shrink-0 transition-colors",
+                        <Icon className={cn("shrink-0 transition-colors", isCollapsed ? "w-4.5 h-4.5" : "w-4 h-4",
                           isActive ? "text-primary-foreground" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"
                         )} style={{ width: isCollapsed ? 18 : 16, height: isCollapsed ? 18 : 16 }} />
                         {!isCollapsed && (
-                          <span className="text-sm font-medium leading-none flex-1 min-w-0 truncate">{label(item.id)}</span>
+                          <span className="text-sm font-medium leading-none">{label(item.id)}</span>
                         )}
                       </div>
                     </Link>
