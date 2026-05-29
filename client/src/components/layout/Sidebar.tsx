@@ -255,13 +255,13 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
                   const Icon = item.icon;
 
                   const navItem = (
-                    <Link key={item.id} href={item.path}>
+                    <Link key={item.id} href={item.path} className="block w-full">
                       <div
                         className={cn(
                           "flex items-center rounded-lg transition-all duration-150 cursor-pointer group",
                           isCollapsed
                             ? "justify-center w-9 h-9 mx-auto"
-                            : "gap-2.5 px-2.5 py-1.5 text-start",
+                            : "w-full gap-2.5 px-2.5 py-1.5 text-start",
                           isActive
                             ? "bg-primary text-primary-foreground shadow-sm"
                             : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
