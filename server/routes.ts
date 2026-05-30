@@ -3636,15 +3636,66 @@ export async function registerRoutes(
   });
 
   // ─────── CRM Documents (linked to contacts + deals) ─────────────────────────
+  // ── Activity isolation helper for CRM documents ─────────────────────────
+  // Returns true if the actor can access data belonging to the given activityId.
+  // Admins and managers see everything. Any other user must be a member of the
+  // target activity. If activityId is null (legacy doc), access is granted to
+  // maintain backward compatibility with pre-activity records.
+  async function crmDocActivityAllowed(actorId: string, activityId: string | null): Promise<boolean> {
+    const [u] = await db.select().from(users).where(eq(users.id, actorId));
+    if (!u) return false;
+    const r = new Set<string>([u.role || "", ...(Array.isArray((u as any).roles) ? ((u as any).roles as string[]) : [])]);
+    if (r.has("admin") || r.has("manager")) return true;
+    if (!activityId) return true; // legacy record with no activity tag
+    const [mem] = await db.select().from(activityMembers)
+      .where(and(eq(activityMembers.activityId, activityId), eq(activityMembers.userId, actorId)));
+    return !!mem;
+  }
+
+  // Resolve the activity that a document effectively belongs to.
+  // Priority: doc.activityId → contact.activityId → deal.activityId → null.
+  async function crmDocEffectiveActivity(doc: any): Promise<string | null> {
+    if (doc.activityId) return doc.activityId;
+    if (doc.contactId) {
+      const [c] = await db.select({ activityId: contacts.activityId }).from(contacts).where(eq(contacts.id, doc.contactId));
+      if (c?.activityId) return c.activityId;
+    }
+    if (doc.dealId) {
+      const [d] = await db.select({ activityId: deals.activityId }).from(deals).where(eq(deals.id, doc.dealId));
+      if (d?.activityId) return d.activityId;
+    }
+    return null;
+  }
+
   app.get("/api/crm-documents", async (req, res) => {
     try {
+      const actorId = staffUserId(req);
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
+
       const contactId = req.query.contactId ? Number(req.query.contactId) : null;
       const dealId = req.query.dealId ? Number(req.query.dealId) : null;
+
+      // Resolve the activity that the requested contact/deal belongs to,
+      // then verify the actor is a member before returning any documents.
+      let scopeActivityId: string | null = null;
+      if (contactId) {
+        const [c] = await db.select({ activityId: contacts.activityId }).from(contacts).where(eq(contacts.id, contactId));
+        scopeActivityId = c?.activityId ?? null;
+      } else if (dealId) {
+        const [d] = await db.select({ activityId: deals.activityId }).from(deals).where(eq(deals.id, dealId));
+        scopeActivityId = d?.activityId ?? null;
+      } else {
+        return res.json([]);
+      }
+
+      if (!(await crmDocActivityAllowed(actorId, scopeActivityId))) {
+        return res.status(403).json({ error: "Forbidden: not in this activity" });
+      }
+
       let rows = await db.select().from(documents).orderBy(desc(documents.createdAt));
       if (contactId) rows = rows.filter(d => (d as any).contactId === contactId);
-      else if (dealId) rows = rows.filter(d => (d as any).dealId === dealId);
-      else rows = [];
-      // Never return file_content in list (performance)
+      else rows = rows.filter(d => (d as any).dealId === dealId);
+
       const safe = rows.map(({ ...r }: any) => { delete r.fileContent; return r; });
       res.json(safe);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -3653,7 +3704,15 @@ export async function registerRoutes(
   app.post("/api/crm-documents", async (req, res) => {
     try {
       const actorId = staffUserId(req);
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
       const b = req.body;
+
+      // Enforce that the actor may upload to the target activity.
+      const targetActivity: string | null = b.activityId || null;
+      if (!(await crmDocActivityAllowed(actorId, targetActivity))) {
+        return res.status(403).json({ error: "Forbidden: not in this activity" });
+      }
+
       const year = new Date().getFullYear();
       const countResult = await db.select().from(documents);
       const seq = String(countResult.length + 1).padStart(4, "0");
@@ -3668,7 +3727,7 @@ export async function registerRoutes(
         originalName: b.originalName || null,
         mimeType: b.mimeType || null,
         fileSize: b.fileSize ? Number(b.fileSize) : null,
-        activityId: b.activityId || null,
+        activityId: targetActivity,
         uploadedBy: actorId || null,
         uploadedByName: b.uploadedByName || null,
         description: b.description || null,
@@ -3686,9 +3745,20 @@ export async function registerRoutes(
 
   app.patch("/api/crm-documents/:id", async (req, res) => {
     try {
-      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Not authorized" });
+      const actorId = staffUserId(req);
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+      // Load doc first so we can check its activity membership.
+      const [existing] = await db.select().from(documents).where(eq(documents.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+
+      const effectiveActivity = await crmDocEffectiveActivity(existing);
+      if (!(await crmDocActivityAllowed(actorId, effectiveActivity))) {
+        return res.status(403).json({ error: "Forbidden: not in this activity" });
+      }
+
       const b = req.body || {};
       const updates: any = { updatedAt: new Date() };
       if (typeof b.clientVisible === "boolean") updates.clientVisible = b.clientVisible;
@@ -3696,7 +3766,6 @@ export async function registerRoutes(
       if (typeof b.titleEn === "string") updates.titleEn = b.titleEn || null;
       if (typeof b.category === "string" && b.category) updates.category = b.category;
       const [doc] = await db.update(documents).set(updates).where(eq(documents.id, id)).returning();
-      if (!doc) return res.status(404).json({ error: "Not found" });
       const { fileContent: _fc, ...safe } = doc as any;
       res.json(safe);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -3704,8 +3773,17 @@ export async function registerRoutes(
 
   app.get("/api/crm-documents/:id/file", async (req, res) => {
     try {
+      const actorId = staffUserId(req);
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
+
       const [doc] = await db.select().from(documents).where(eq(documents.id, Number(req.params.id)));
       if (!doc) return res.status(404).json({ error: "Not found" });
+
+      const effectiveActivity = await crmDocEffectiveActivity(doc);
+      if (!(await crmDocActivityAllowed(actorId, effectiveActivity))) {
+        return res.status(403).json({ error: "Forbidden: not in this activity" });
+      }
+
       const content = (doc as any).fileContent;
       if (!content) return res.status(404).json({ error: "No file content" });
       const buffer = Buffer.from(content, "base64");
@@ -3718,6 +3796,17 @@ export async function registerRoutes(
 
   app.delete("/api/crm-documents/:id", async (req, res) => {
     try {
+      const actorId = staffUserId(req);
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
+
+      const [doc] = await db.select().from(documents).where(eq(documents.id, Number(req.params.id)));
+      if (!doc) return res.status(404).json({ error: "Not found" });
+
+      const effectiveActivity = await crmDocEffectiveActivity(doc);
+      if (!(await crmDocActivityAllowed(actorId, effectiveActivity))) {
+        return res.status(403).json({ error: "Forbidden: not in this activity" });
+      }
+
       await db.delete(documents).where(eq(documents.id, Number(req.params.id)));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
