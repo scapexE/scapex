@@ -236,7 +236,7 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 py-2">
+        <ScrollArea dir={dir} className="flex-1 py-2">
           <div className={cn("space-y-2", isCollapsed ? "px-1.5" : "px-2.5")}>
             {!isCollapsed && <ActivitySwitcher />}
 
