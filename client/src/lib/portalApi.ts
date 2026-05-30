@@ -51,9 +51,12 @@ export interface PortalDocument {
   titleEn: string | null;
   type: string | null;
   fileUrl: string | null;
+  hasBlob: boolean;
   mimeType: string | null;
   fileSize: number | null;
   version: number | null;
+  source: "staff" | "client";
+  scope: "project" | "deal" | "company";
   createdAt: string | null;
 }
 

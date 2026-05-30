@@ -2317,13 +2317,29 @@ export async function registerRoutes(
     const proj = await ensureOwnedProject(req, res, me.id);
     if (!proj) return;
     try {
-      // Only show documents flagged for client visibility.
-      const docs = await db.select().from(documents).where(eq(documents.projectId, proj.id));
-      const visible = docs.filter((d) => d.accessLevel === "client" || d.accessLevel === "public");
-      res.json(visible.map((d) => ({
-        id: d.id, titleAr: d.titleAr, titleEn: d.titleEn,
-        type: d.type, fileUrl: d.fileUrl, mimeType: d.mimeType,
+      // DMS docs linked to this project (fileUrl-based, accessLevel gated).
+      const dmsDocs = await db.select().from(documents).where(eq(documents.projectId, proj.id));
+      const dmsVisible = dmsDocs.filter((d) => d.accessLevel === "client" || d.accessLevel === "public");
+
+      // CRM docs (company-level contactId + deal-level dealId) with clientVisible=true.
+      const crmDocs = await portalOwnedDocs(me.id);
+
+      // Merge, deduplicate by id (DMS first so its entries win on collision).
+      const seen = new Set<number>();
+      const merged: any[] = [];
+      for (const d of [...dmsVisible, ...crmDocs]) {
+        if (!seen.has(d.id)) { seen.add(d.id); merged.push(d); }
+      }
+
+      res.json(merged.map((d: any) => ({
+        id: d.id,
+        titleAr: d.titleAr, titleEn: d.titleEn,
+        type: d.type, mimeType: d.mimeType,
         fileSize: d.fileSize, version: d.version,
+        fileUrl: d.fileUrl || null,
+        hasBlob: !!d.fileContent,
+        source: d.folder === "portal-upload" ? "client" : "staff",
+        scope: d.projectId != null ? "project" : d.dealId != null ? "deal" : "company",
         createdAt: d.createdAt,
       })));
     } catch (err: any) {

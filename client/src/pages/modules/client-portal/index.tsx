@@ -138,6 +138,74 @@ function PortalLoginScreen({ onLogin, theme, isRtl, t, toggleLang }: { onLogin: 
   );
 }
 
+// ── Shared docs list (used in ProjectDetail and standalone My Documents) ──
+const SCOPE_LABEL_AR: Record<string, string> = { project: "مشروع", deal: "صفقة", company: "شركة" };
+const SCOPE_LABEL_EN: Record<string, string> = { project: "Project", deal: "Deal", company: "Company" };
+
+function DocsList({ docs, isRtl, t, theme }: { docs: PortalDocument[]; isRtl: boolean; t: (a: string, e: string) => string; theme: typeof PORTAL_THEMES[number]; }) {
+  const [dlLoading, setDlLoading] = useState<number | null>(null);
+
+  const openDoc = async (d: PortalDocument) => {
+    if (d.fileUrl) { window.open(d.fileUrl, "_blank"); return; }
+    if (!d.hasBlob) return;
+    setDlLoading(d.id);
+    try {
+      const blob = await portalDownloadDocument(d.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch { /* ignore */ }
+    finally { setDlLoading(null); }
+  };
+
+  if (docs.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-8 sm:col-span-2">{t("لا توجد مستندات مشتركة معك", "No documents shared with you")}</p>;
+  }
+
+  return (
+    <div className="grid sm:grid-cols-2 gap-3">
+      {docs.map((d) => {
+        const dtitle = (isRtl ? d.titleAr : (d.titleEn || d.titleAr)) || "—";
+        const scopeLabel = isRtl ? (SCOPE_LABEL_AR[d.scope] || d.scope) : (SCOPE_LABEL_EN[d.scope] || d.scope);
+        const canOpen = !!(d.fileUrl || d.hasBlob);
+        return (
+          <button
+            key={d.id}
+            onClick={() => canOpen && openDoc(d)}
+            disabled={!canOpen || dlLoading === d.id}
+            className={cn(
+              "bg-card border border-border/50 rounded-xl p-4 transition-colors flex items-start gap-3 text-left w-full",
+              canOpen ? "hover:border-primary cursor-pointer" : "opacity-60 cursor-default"
+            )}
+            data-testid={`btn-document-${d.id}`}
+          >
+            <div className={cn("w-10 h-10 rounded-lg bg-gradient-to-r flex items-center justify-center text-white shrink-0", theme.primary)}>
+              {dlLoading === d.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium truncate text-sm">{dtitle}</p>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                <span className="text-xs text-muted-foreground">{d.type || d.mimeType || "—"}{d.version ? ` • v${d.version}` : ""}</span>
+                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                  d.scope === "deal" ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300" :
+                  d.scope === "project" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" :
+                  "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                )}>{scopeLabel}</span>
+                {d.source === "client" && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
+                    {t("رفعتَه أنت", "Uploaded by you")}
+                  </span>
+                )}
+              </div>
+            </div>
+            {canOpen && <Download className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Project detail ────────────────────────────────────────────────────────
 function ProjectDetail({ projectId, onBack, isRtl, t, theme }: { projectId: number; onBack: () => void; isRtl: boolean; t: (a: string, e: string) => string; theme: typeof PORTAL_THEMES[number]; }) {
   const [project, setProject] = useState<PortalProject | null>(null);
@@ -254,30 +322,7 @@ function ProjectDetail({ projectId, onBack, isRtl, t, theme }: { projectId: numb
       )}
 
       {tab === "docs" && (
-        <div className="grid sm:grid-cols-2 gap-3">
-          {docs.length === 0 && <p className="text-sm text-muted-foreground text-center py-8 sm:col-span-2">{t("لا توجد مستندات مشتركة معك", "No documents shared with you")}</p>}
-          {docs.map((d) => {
-            const dtitle = (isRtl ? d.titleAr : (d.titleEn || d.titleAr)) || "—";
-            return (
-              <a
-                key={d.id}
-                href={d.fileUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-card border border-border/50 rounded-xl p-4 hover:border-primary transition-colors flex items-start gap-3"
-                data-testid={`link-document-${d.id}`}
-              >
-                <div className={cn("w-10 h-10 rounded-lg bg-gradient-to-r flex items-center justify-center text-white shrink-0", theme.primary)}>
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate text-sm">{dtitle}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{d.type || d.mimeType || "—"}{d.version ? ` • v${d.version}` : ""}</p>
-                </div>
-              </a>
-            );
-          })}
-        </div>
+        <DocsList docs={docs} isRtl={isRtl} t={t} theme={theme} />
       )}
 
       {tab === "invoices" && (
