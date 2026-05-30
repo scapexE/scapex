@@ -212,6 +212,35 @@ export async function registerRoutes(
   // Maps userId → { active, role, expires }.
   const STAFF_CACHE = new Map<string, { active: boolean; role: string | null; expires: number }>();
   const STAFF_CACHE_TTL_MS = 30_000;
+
+  // ── Brute-force protection for staff login ──────────────────────────────────
+  // Track failed attempts per email+IP; lock the pair after too many failures.
+  const LOGIN_ATTEMPTS = new Map<string, { count: number; first: number; lockedUntil: number }>();
+  const LOGIN_MAX_ATTEMPTS = 8;
+  const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+  const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+  function clientIp(req: any): string {
+    return ((req.header("x-forwarded-for") || "").split(",")[0].trim()) || req.socket?.remoteAddress || "unknown";
+  }
+  function loginKey(email: string, ip: string) { return `${(email || "").toLowerCase()}|${ip}`; }
+  function loginRetryAfter(key: string): number {
+    const e = LOGIN_ATTEMPTS.get(key);
+    if (!e) return 0;
+    const left = e.lockedUntil - Date.now();
+    return left > 0 ? Math.ceil(left / 1000) : 0;
+  }
+  function recordLoginFailure(key: string) {
+    const now = Date.now();
+    const e = LOGIN_ATTEMPTS.get(key);
+    if (!e || now - e.first > LOGIN_WINDOW_MS) {
+      LOGIN_ATTEMPTS.set(key, { count: 1, first: now, lockedUntil: 0 });
+      return;
+    }
+    e.count++;
+    if (e.count >= LOGIN_MAX_ATTEMPTS) e.lockedUntil = now + LOGIN_LOCKOUT_MS;
+  }
+  function clearLoginAttempts(key: string) { LOGIN_ATTEMPTS.delete(key); }
+
   async function resolveStaffUser(userId: string) {
     const now = Date.now();
     const hit = STAFF_CACHE.get(userId);
@@ -1864,13 +1893,23 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email and password are required" });
       }
 
+      // Brute-force guard: reject if this email+IP is currently locked out.
+      const key = loginKey(email, clientIp(req));
+      const retryAfter = loginRetryAfter(key);
+      if (retryAfter > 0) {
+        res.setHeader("Retry-After", String(retryAfter));
+        return res.status(429).json({ error: "Too many failed attempts. Try again later.", retryAfter });
+      }
+
       const user = await findUserByEmail(email);
       if (!user) {
+        recordLoginFailure(key);
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
       const valid = await verifyPassword(password, user.password);
       if (!valid) {
+        recordLoginFailure(key);
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
@@ -1878,6 +1917,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Account is disabled", pendingApproval: true });
       }
 
+      clearLoginAttempts(key);
       await updateLastLogin(user.id);
 
       const { password: _, ...safeUser } = user;
