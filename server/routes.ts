@@ -28,6 +28,36 @@ import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, or } from "drizzle-orm";
 import { db } from "./db";
+
+// ── Signed staff session tokens ─────────────────────────────────────────────
+// Identity is proven by an HMAC-signed token (NOT a client-supplied x-user-id),
+// so a caller cannot impersonate another user by forging a header.
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(48).toString("hex");
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+function signSessionToken(userId: string): string {
+  const exp = Date.now() + SESSION_TTL_MS;
+  const b64 = Buffer.from(`${userId}.${exp}`).toString("base64url");
+  const sig = crypto.createHmac("sha256", SESSION_SECRET).update(b64).digest("base64url");
+  return `${b64}.${sig}`;
+}
+function verifySessionToken(token: string): string | null {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [b64, sig] = parts;
+  const expected = crypto.createHmac("sha256", SESSION_SECRET).update(b64).digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  let payload: string;
+  try { payload = Buffer.from(b64, "base64url").toString(); } catch { return null; }
+  const [userId, expStr] = payload.split(".");
+  const exp = Number(expStr);
+  if (!userId || !exp || Date.now() > exp) return null;
+  return userId;
+}
+// Verified caller id — set by the auth guard from the signed token.
+function staffUserId(req: any): string { return (req as any).staffUserId || ""; }
 import { eq } from "drizzle-orm";
 
 import { seedDefaultActivities as seedActivitiesShared, seedDefaultCompanies as seedCompaniesShared, seedDefaultCatalogs, DEFAULT_ACTIVITY_CATALOG } from "./seed";
@@ -281,8 +311,9 @@ export async function registerRoutes(
     // /api/public/* — anonymous customer-facing endpoints (survey responses, etc.)
     if (req.path.startsWith("/api/public/")) return next();
 
-    const staffId = (req.header("x-user-id") || "").trim();
+    const staffId = verifySessionToken((req.header("x-session-token") || "").trim());
     if (!staffId) return res.status(401).json({ error: "Staff authentication required" });
+    (req as any).staffUserId = staffId;
     try {
       const staff = await resolveStaffUser(staffId);
       if (!staff) return res.status(401).json({ error: "Unknown user" });
@@ -396,7 +427,7 @@ export async function registerRoutes(
 
   // ═══ Business Activities CRUD + Members ═══════════════════════════════
   async function isAdminOrManager(req: any): Promise<boolean> {
-    const actorId = (req.header("x-user-id") || "").trim();
+    const actorId = staffUserId(req);
     if (!actorId) return false;
     const [u] = await db.select().from(users).where(eq(users.id, actorId));
     if (!u) return false;
@@ -406,7 +437,7 @@ export async function registerRoutes(
 
   // Strict admin-only check (used for company/branch mutations).
   async function isAdminOnly(req: any): Promise<boolean> {
-    const actorId = (req.header("x-user-id") || "").trim();
+    const actorId = staffUserId(req);
     if (!actorId) return false;
     const [u] = await db.select().from(users).where(eq(users.id, actorId));
     if (!u) return false;
@@ -417,7 +448,7 @@ export async function registerRoutes(
   app.get("/api/activities", async (req, res) => {
     try {
       // Authenticate caller via x-user-id header (same pattern as other secured routes)
-      const actorId = (req.header("x-user-id") || "").trim();
+      const actorId = staffUserId(req);
       if (!actorId) return res.status(401).json({ error: "Unauthorized" });
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       if (!actor) return res.status(401).json({ error: "Unauthorized" });
@@ -617,7 +648,7 @@ export async function registerRoutes(
   app.patch("/api/users/:id/last-activity", async (req, res) => {
     try {
       const id = req.params.id;
-      const actorId = (req.header("x-user-id") || "").trim();
+      const actorId = staffUserId(req);
       if (!actorId) return res.status(401).json({ error: "Unauthorized" });
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       if (!actor) return res.status(401).json({ error: "Unauthorized" });
@@ -800,7 +831,7 @@ export async function registerRoutes(
   // ═══ Activity-scope helpers ═══════════════════════════════════════════
   // Identify the calling user from the x-user-id header (also used by other routes).
   async function identifyActor(req: any): Promise<{ id: string; roles: Set<string> } | null> {
-    const actorId = (req.header("x-user-id") || "").trim();
+    const actorId = staffUserId(req);
     if (!actorId) return null;
     const [row] = await db.select().from(users).where(eq(users.id, actorId));
     if (!row) return null;
@@ -1921,7 +1952,8 @@ export async function registerRoutes(
       await updateLastLogin(user.id);
 
       const { password: _, ...safeUser } = user;
-      res.json({ user: safeUser });
+      const token = signSessionToken(user.id);
+      res.json({ user: safeUser, token });
     } catch (err: any) {
       console.error("Login error:", err);
       res.status(500).json({ error: "Server error" });
@@ -2518,6 +2550,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/employees", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(employees).values({
@@ -2539,6 +2572,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/employees/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const b = req.body;
@@ -2562,6 +2596,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.delete("/api/employees/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try { await db.delete(employees).where(eq(employees.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -2574,18 +2609,21 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/departments", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const [row] = await db.insert(departments).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, isActive: true }).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/departments/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const [row] = await db.update(departments).set({ nameAr: req.body.nameAr, nameEn: req.body.nameEn }).where(eq(departments.id, parseInt(req.params.id))).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.delete("/api/departments/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try { await db.delete(departments).where(eq(departments.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -2598,6 +2636,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/warehouses", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const [row] = await db.insert(warehouses).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, location: req.body.location, isActive: true }).returning();
       res.json(row);
@@ -2608,6 +2647,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/inventory-items", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(inventoryItems).values({
@@ -2623,6 +2663,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/inventory-items/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.update(inventoryItems).set({
@@ -2638,10 +2679,12 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.delete("/api/inventory-items/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try { await db.delete(inventoryItems).where(eq(inventoryItems.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/stock-movements", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(stockMovements).values({ itemId: b.itemId, type: b.type, qty: String(b.qty), reference: b.reference, notes: b.notes }).returning();
@@ -2668,6 +2711,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/vendors", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(vendors).values({ nameAr: b.nameAr, nameEn: b.nameEn, contactPerson: b.contactPerson, email: b.email, phone: b.phone, vatNumber: b.vatNumber || b.vatNo, address: b.address, category: b.category, rating: b.rating || 0, isActive: b.status !== "inactive" }).returning();
@@ -2675,6 +2719,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/vendors/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.update(vendors).set({ nameAr: b.nameAr, nameEn: b.nameEn, contactPerson: b.contactPerson, email: b.email, phone: b.phone, vatNumber: b.vatNumber || b.vatNo, category: b.category, rating: b.rating, isActive: b.status !== "inactive" }).where(eq(vendors.id, parseInt(req.params.id))).returning();
@@ -2682,6 +2727,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.delete("/api/vendors/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try { await db.delete(vendors).where(eq(vendors.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -2690,6 +2736,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/purchase-orders", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(purchaseOrders).values({ poNumber: b.poNumber, vendorId: b.vendorId ? parseInt(b.vendorId) : null, total: String(b.total || 0), status: b.status || "draft", deliveryDate: b.deliveryDate || b.expectedDate, notes: b.notes }).returning();
@@ -2700,6 +2747,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/purchase-orders/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.update(purchaseOrders).set({ status: b.status, notes: b.notes, deliveryDate: b.deliveryDate || b.expectedDate, total: String(b.total || 0), updatedAt: new Date() }).where(eq(purchaseOrders.id, parseInt(req.params.id))).returning();
@@ -2707,6 +2755,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.delete("/api/purchase-orders/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, id));
@@ -2727,6 +2776,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/asset-categories", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const [row] = await db.insert(assetCategories).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, type: req.body.type }).returning();
       res.json(row);
@@ -2886,6 +2936,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/assets", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(assets).values({
@@ -2904,6 +2955,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/assets/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.update(assets).set({
@@ -2922,6 +2974,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.delete("/api/assets/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try { await db.delete(assets).where(eq(assets.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -2937,6 +2990,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.patch("/api/maintenance-records/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.update(maintenanceRecords).set({
@@ -2947,10 +3001,12 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.delete("/api/maintenance-records/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try { await db.delete(maintenanceRecords).where(eq(maintenanceRecords.id, parseInt(req.params.id))); res.json({ success: true }); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/maintenance-records", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(maintenanceRecords).values({ assetId: parseInt(b.assetId), type: b.type || "preventive", date: b.date, description: b.description, cost: b.cost ? String(b.cost) : null, vendor: b.vendor, technician: b.technician, nextDate: b.nextDate, status: "completed" }).returning();
@@ -2967,6 +3023,7 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/payroll-batches", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(payrollBatches).values({ month: b.month, year: b.year, status: b.status || "draft", totalGross: String(b.totalGross || 0), totalDeductions: String(b.totalDeductions || 0), totalNet: String(b.totalNet || 0), employeeCount: b.employeeCount || 0 }).returning();
@@ -2974,6 +3031,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/payroll-batches/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.update(payrollBatches).set({ status: b.status, totalGross: String(b.totalGross || 0), totalDeductions: String(b.totalDeductions || 0), totalNet: String(b.totalNet || 0), employeeCount: b.employeeCount }).where(eq(payrollBatches.id, parseInt(req.params.id))).returning();
@@ -3236,7 +3294,7 @@ export async function registerRoutes(
 
   app.post("/api/documents", async (req, res) => {
     try {
-      const actorId = (req.header("x-user-id") || "").trim();
+      const actorId = staffUserId(req);
       const actor = actorId ? await resolveStaffUser(actorId) : null;
       const body = req.body;
       // Server-side upload validation — never trust client-reported size.
@@ -3491,7 +3549,7 @@ export async function registerRoutes(
 
   app.post("/api/crm-documents", async (req, res) => {
     try {
-      const actorId = (req.header("x-user-id") || "").trim();
+      const actorId = staffUserId(req);
       const b = req.body;
       const year = new Date().getFullYear();
       const countResult = await db.select().from(documents);
@@ -3616,7 +3674,7 @@ export async function registerRoutes(
   app.post("/api/backup/now", async (req, res) => {
     if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
     try {
-      const actorId = (req.header("x-user-id") || "").trim();
+      const actorId = staffUserId(req);
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       const r = await createBackup({
         type: "manual",
@@ -3637,7 +3695,7 @@ export async function registerRoutes(
       return res.status(400).json({ error: "Missing or invalid confirmation header" });
     }
     try {
-      const actorId = (req.header("x-user-id") || "").trim();
+      const actorId = staffUserId(req);
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       const result = await restoreBackup({
         id: Number(req.params.id),
@@ -3935,6 +3993,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/employee-advances", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(employeeAdvances).values({
@@ -3952,6 +4011,7 @@ export async function registerRoutes(
   });
 
   app.put("/api/employee-advances/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const updateData: any = {};
@@ -3966,6 +4026,7 @@ export async function registerRoutes(
   });
 
   app.delete("/api/employee-advances/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       await db.delete(employeeAdvances).where(eq(employeeAdvances.id, parseInt(req.params.id)));
       res.json({ success: true });
@@ -3986,6 +4047,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/employee-violations", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(employeeViolations).values({
@@ -4002,6 +4064,7 @@ export async function registerRoutes(
   });
 
   app.put("/api/employee-violations/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const updateData: any = {};
@@ -4015,6 +4078,7 @@ export async function registerRoutes(
   });
 
   app.delete("/api/employee-violations/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       await db.delete(employeeViolations).where(eq(employeeViolations.id, parseInt(req.params.id)));
       res.json({ success: true });
@@ -4023,6 +4087,7 @@ export async function registerRoutes(
 
   // Payroll items CRUD (with new fields)
   app.post("/api/payroll-items", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const [row] = await db.insert(payrollItems).values({
@@ -4040,6 +4105,7 @@ export async function registerRoutes(
   });
 
   app.put("/api/payroll-items/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
       const updateData: any = {};
@@ -4242,7 +4308,7 @@ export async function registerRoutes(
 
   app.get("/api/partner-accounts", async (req, res) => {
     try {
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const role = await resolveUserRole(staffId);
       if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
       const companyId = parseInt((req.query.companyId as string) || "1");
@@ -4256,7 +4322,7 @@ export async function registerRoutes(
   // Get contract IDs that already have a partner account (for badge display)
   app.get("/api/partner-accounts/linked-contracts", async (req, res) => {
     try {
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const role = await resolveUserRole(staffId);
       if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
       const rows = await db.execute(`SELECT contract_id, id FROM partner_accounts WHERE contract_id IS NOT NULL`);
@@ -4268,7 +4334,7 @@ export async function registerRoutes(
 
   app.post("/api/partner-accounts", async (req, res) => {
     try {
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const role = await resolveUserRole(staffId);
       if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
       const b = req.body;
@@ -4294,7 +4360,7 @@ export async function registerRoutes(
 
   app.put("/api/partner-accounts/:id", async (req, res) => {
     try {
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const role = await resolveUserRole(staffId);
       if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
       const id = parseInt(req.params.id);
@@ -4318,7 +4384,7 @@ export async function registerRoutes(
 
   app.delete("/api/partner-accounts/:id", async (req, res) => {
     try {
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const role = await resolveUserRole(staffId);
       if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
       const id = parseInt(req.params.id);
@@ -4332,7 +4398,7 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   app.get("/api/contracts", async (req, res) => {
     try {
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const role = await resolveUserRole(staffId);
       const isPriv = isManagerOrAdmin(role);
       const companyId = parseInt((req.query.companyId as string) || "1");
@@ -4359,7 +4425,7 @@ export async function registerRoutes(
   // Staff users list — for viewer selection (manager only)
   app.get("/api/staff-users", async (req, res) => {
     try {
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const role = await resolveUserRole(staffId);
       if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
       const rows = await db.select({
@@ -4384,7 +4450,7 @@ export async function registerRoutes(
   app.post("/api/contracts", async (req, res) => {
     try {
       const b = req.body;
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       // Store all rich data (clauses, items, paymentSchedule, etc.) in terms as JSON
       const extra = {
         localId: b.localId,
@@ -4480,7 +4546,7 @@ export async function registerRoutes(
   app.post("/api/contracts/migrate", async (req, res) => {
     try {
       const list: any[] = req.body.contracts ?? [];
-      const staffId = (req.header("x-user-id") || "").trim();
+      const staffId = staffUserId(req);
       const companyId = parseInt((req.body.companyId as string) || "1");
       const existing = await db.select({ contractNumber: contracts.contractNumber })
         .from(contracts).where(eq(contracts.companyId, companyId));
@@ -4640,7 +4706,7 @@ export async function registerRoutes(
       const text: string | undefined = body.text;
       const category: string = body.category || "manual";
       const isBulk = !!body.isBulk;
-      const senderId = (req.header("x-user-id") || "").trim() || null;
+      const senderId = staffUserId(req) || null;
       // Derive companyId from the calling user — never hardcode in multi-tenant.
       let actorCompanyId: number | null = null;
       if (senderId) {

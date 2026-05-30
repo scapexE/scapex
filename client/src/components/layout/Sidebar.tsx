@@ -134,6 +134,7 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
   const handleLogout = () => {
     logAction("logout", "auth", `User ${currentUser?.name} logged out`, `المستخدم ${currentUser?.name} سجّل خروج`);
     dbRemoveItem("user");
+    localStorage.removeItem("session_token");
     sessionStorage.removeItem("activeRole");
     window.location.href = "/";
   };

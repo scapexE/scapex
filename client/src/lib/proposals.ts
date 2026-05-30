@@ -1,6 +1,7 @@
 import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { getAboutData, getSystemSettings } from "@/lib/companySettings";
 import { getDocumentSignatures } from "@/lib/signatures";
+import { esc } from "@/lib/htmlEscape";
 
 // ─── Proposal Data Layer ────────────────────────────────────────────────────
 
@@ -744,25 +745,25 @@ export function printProposal(proposal: Proposal, isRtl: boolean, options?: Prin
 
   // ── Build logo HTML ───────────────────────────────────────────────────────
   const logoHtml = coLogoUrl
-    ? `<img src="${coLogoUrl}" style="width:64px;height:64px;object-fit:contain;border-radius:10px;display:block;" />`
+    ? `<img src="${esc(coLogoUrl)}" style="width:64px;height:64px;object-fit:contain;border-radius:10px;display:block;" />`
     : `<div style="background:${coLogoColor};color:white;width:64px;height:64px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.15);">${coLogoChar}</div>`;
 
   const itemDesc = (item: ProposalItem) => {
-    if (lang === "both" && item.descAr && item.descEn) return `${item.descAr}<br/><span style="font-size:10px;color:#64748b;">${item.descEn}</span>`;
-    return ar ? item.descAr : item.descEn;
+    if (lang === "both" && item.descAr && item.descEn) return `${esc(item.descAr)}<br/><span style="font-size:10px;color:#64748b;">${esc(item.descEn)}</span>`;
+    return esc(ar ? item.descAr : item.descEn);
   };
   const rows = proposal.items.map((item, i) => `
     <tr>
       <td class="tc bd">${i + 1}</td>
       <td class="bd" style="padding:8px 6px;">${itemDesc(item)}</td>
       <td class="tc bd">${item.qty}</td>
-      <td class="tc bd" style="font-size:11px;">${item.unit}</td>
+      <td class="tc bd" style="font-size:11px;">${esc(item.unit)}</td>
       <td class="tr bd mono">${fmt(item.unitPrice)}</td>
       <td class="tr bd mono fw">${fmt(item.total)}</td>
     </tr>`).join("");
 
   const html = `<!DOCTYPE html><html lang="${ar ? "ar" : "en"}" dir="${mainDir}"><head><meta charset="UTF-8"/>
-<title>${proposal.proposalNumber}</title>
+<title>${esc(proposal.proposalNumber)}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
 .header { display:flex; flex-direction:row; align-items:flex-start; margin-bottom:10px; gap:16px; }
@@ -804,31 +805,31 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
     ${logoHtml}
   </div>
   <div class="header-name" dir="rtl">
-    <div class="co-name-ar">${coNameAr}</div>
-    <div class="co-name-en">${coNameEn}</div>
-    <div class="co-vat">${bi(`الرقم الضريبي: ${coVat}`, `VAT No: ${coVat}`)}</div>
+    <div class="co-name-ar">${esc(coNameAr)}</div>
+    <div class="co-name-en">${esc(coNameEn)}</div>
+    <div class="co-vat">${bi(`الرقم الضريبي: ${esc(coVat)}`, `VAT No: ${esc(coVat)}`)}</div>
   </div>
 </div>
 <hr class="divider"/>
 <div class="doc-num-block" dir="ltr">
-  <div class="doc-num">${proposal.proposalNumber}</div>
+  <div class="doc-num">${esc(proposal.proposalNumber)}</div>
   <div class="doc-date">${bi("التاريخ:", "Date:")} ${date}</div>
 </div>
 <div class="doc-title" dir="${mainDir}">${bi(`عرض سعر ${svc.labelAr}`, `QUOTATION ${svc.labelEn}`)}</div>
 <div class="sec-title">${bi("معلومات العميل والمشروع", "CLIENT & PROJECT INFORMATION")}</div>
 
 <div class="info-grid">
-  <div class="info-item"><label>${bi("اسم العميل / الجهة", "Client / Entity")}</label><span>${proposal.clientName}</span></div>
-  <div class="info-item"><label>${bi("اسم المشروع", "Project Name")}</label><span>${proposal.projectName}</span></div>
-  ${proposal.clientContact ? `<div class="info-item"><label>${bi("التواصل", "Contact")}</label><span dir="ltr">${proposal.clientContact}</span></div>` : ""}
-  ${proposal.clientEmail ? `<div class="info-item"><label>${bi("البريد الإلكتروني", "Email")}</label><span dir="ltr">${proposal.clientEmail}</span></div>` : ""}
+  <div class="info-item"><label>${bi("اسم العميل / الجهة", "Client / Entity")}</label><span>${esc(proposal.clientName)}</span></div>
+  <div class="info-item"><label>${bi("اسم المشروع", "Project Name")}</label><span>${esc(proposal.projectName)}</span></div>
+  ${proposal.clientContact ? `<div class="info-item"><label>${bi("التواصل", "Contact")}</label><span dir="ltr">${esc(proposal.clientContact)}</span></div>` : ""}
+  ${proposal.clientEmail ? `<div class="info-item"><label>${bi("البريد الإلكتروني", "Email")}</label><span dir="ltr">${esc(proposal.clientEmail)}</span></div>` : ""}
 </div>
 ${(() => {
-  const introAr = (proposal.introductionAr || proposal.introduction || "").trim();
-  const introEn = (proposal.introductionEn || "").trim();
+  const introAr = esc((proposal.introductionAr || proposal.introduction || "").trim());
+  const introEn = esc((proposal.introductionEn || "").trim());
   const introText = lang === "both" && introAr && introEn ? `<div dir="rtl" style="margin-bottom:6px;">${introAr}</div><div dir="ltr">${introEn}</div>` : ar ? introAr : (introEn || introAr);
-  const sAr = (proposal.scopeAr || proposal.projectDesc || "").trim();
-  const sEn = (proposal.scopeEn || "").trim();
+  const sAr = esc((proposal.scopeAr || proposal.projectDesc || "").trim());
+  const sEn = esc((proposal.scopeEn || "").trim());
   const scopeText = lang === "both" && sAr && sEn ? `<div dir="rtl" style="margin-bottom:6px;">${sAr}</div><div dir="ltr">${sEn}</div>` : ar ? sAr : (sEn || sAr);
   if (introText && scopeText) {
     return `<div class="intro-box">${introText}</div>
@@ -860,7 +861,7 @@ ${(() => {
 </table>
 <div class="bottom-grid">
   ${showValidity ? `<div class="valid-box"><strong>${bi("صلاحية العرض:", "Validity:")}</strong> ${bi(`${proposal.validity} يوماً (حتى ${validUntilAr})`, `${proposal.validity} days (until ${validUntilEn})`)}</div>` : "<div></div>"}
-  ${proposal.notes ? `<div class="notes-box"><strong>${bi("ملاحظات:", "Notes:")}</strong><br/>${proposal.notes}</div>` : "<div></div>"}
+  ${proposal.notes ? `<div class="notes-box"><strong>${bi("ملاحظات:", "Notes:")}</strong><br/>${esc(proposal.notes)}</div>` : "<div></div>"}
 </div>
 <div style="text-align:center;margin:20px 0 10px;font-size:13px;font-weight:600;color:#1e40af;">
   ${bi("نشكركم على ثقتكم بنا ونتطلع للعمل معكم", "Thank you for your trust, we look forward to working with you")}
@@ -874,23 +875,23 @@ ${(() => {
         ${sig ? `<img src="${sig.signatureDataUrl}" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ""}
       </div>
       <div style="font-weight:700;font-size:12px;">${label}</div>
-      ${sig ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">${sig.signerName} — ${sig.signerRole}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(ar ? "ar-SA" : "en-US", { year:"numeric",month:"short",day:"numeric" })}</div>` : `<div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bi("التوقيع والختم", "Signature & Stamp")}</div>`}
+      ${sig ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">${esc(sig.signerName)} — ${esc(sig.signerRole)}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(ar ? "ar-SA" : "en-US", { year:"numeric",month:"short",day:"numeric" })}</div>` : `<div style="font-size:10px;color:#94a3b8;margin-top:4px;">${bi("التوقيع والختم", "Signature & Stamp")}</div>`}
     </div>`;
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:30px;padding-top:16px;border-top:1px solid #e2e8f0;">
     ${sigBox(bi("الطرف الأول — مقدم الخدمة", "First Party — Service Provider"), sigs.first)}
-    ${sigBox(bi(`الطرف الثاني — ${proposal.clientName}`, `Second Party — ${proposal.clientName}`), sigs.second)}
+    ${sigBox(bi(`الطرف الثاني — ${esc(proposal.clientName)}`, `Second Party — ${esc(proposal.clientName)}`), sigs.second)}
   </div>`;
 })()}
 ${(() => {
   const about = getAboutData();
   const sysCfg = getSystemSettings();
-  const addrAr = (about.address || "").split("\n").join(" — ");
-  const addrEn = (about.addressEn || "").split("\n").join(" — ");
+  const addrAr = esc((about.address || "").split("\n").join(" — "));
+  const addrEn = esc((about.addressEn || "").split("\n").join(" — "));
   const addr = lang === "both" && addrAr && addrEn ? `${addrAr} / ${addrEn}` : ar ? addrAr : addrEn;
-  const email = about.email1 || "info@scapex.sa";
-  const web = about.website || "www.scapex.sa";
-  const phone = about.phone1 || "";
-  const customFooter = lang === "both" ? [sysCfg.proposalFooterAr, sysCfg.proposalFooterEn].filter(Boolean).join(" / ") : ar ? sysCfg.proposalFooterAr : sysCfg.proposalFooterEn;
+  const email = esc(about.email1 || "info@scapex.sa");
+  const web = esc(about.website || "www.scapex.sa");
+  const phone = esc(about.phone1 || "");
+  const customFooter = esc(lang === "both" ? [sysCfg.proposalFooterAr, sysCfg.proposalFooterEn].filter(Boolean).join(" / ") : ar ? sysCfg.proposalFooterAr : sysCfg.proposalFooterEn);
   return `<div class="footer-info"><div class="footer-info-grid">
   ${addr ? `<div class="footer-info-item"><strong>📍</strong> ${addr}</div>` : ""}
   ${phone ? `<div class="footer-info-item"><strong>📞</strong> ${phone}</div>` : ""}
@@ -934,12 +935,12 @@ export function printContract(contract: Contract, isRtl: boolean, options?: { la
     }
   } catch {}
   const cLogoHtml = cLogoUrl
-    ? `<img src="${cLogoUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:8px;" />`
+    ? `<img src="${esc(cLogoUrl)}" style="width:48px;height:48px;object-fit:contain;border-radius:8px;" />`
     : `<div style="background:${cLogoColor};color:white;width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:bold;">${cLogoChar}</div>`;
 
   const clauseContent = (c: Contract["clauses"][0]) => {
-    if (lang === "both") return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${c.titleAr}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;margin-bottom:8px;">${c.bodyAr}</div><div style="font-weight:600;color:#1e40af;margin-bottom:4px;font-size:12px;">${c.titleEn}</div><div style="font-size:11px;line-height:1.8;color:#64748b;white-space:pre-line;">${c.bodyEn}</div>`;
-    return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${ar ? c.titleAr : c.titleEn}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${ar ? c.bodyAr : c.bodyEn}</div>`;
+    if (lang === "both") return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(c.titleAr)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;margin-bottom:8px;">${esc(c.bodyAr)}</div><div style="font-weight:600;color:#1e40af;margin-bottom:4px;font-size:12px;">${esc(c.titleEn)}</div><div style="font-size:11px;line-height:1.8;color:#64748b;white-space:pre-line;">${esc(c.bodyEn)}</div>`;
+    return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(ar ? c.titleAr : c.titleEn)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${esc(ar ? c.bodyAr : c.bodyEn)}</div>`;
   };
   const clausesHtml = contract.clauses.map((c) => `
     <div style="margin-bottom:16px;padding:14px;background:#f8fafc;border-radius:8px;border-${mainDir === "rtl" ? "right" : "left"}:4px solid #1e40af;">
@@ -947,8 +948,8 @@ export function printContract(contract: Contract, isRtl: boolean, options?: { la
     </div>`).join("");
 
   const milestoneText = (m: Contract["paymentSchedule"][0]) => {
-    if (lang === "both" && m.milestoneAr && m.milestoneEn) return `${m.milestoneAr} / ${m.milestoneEn}`;
-    return ar ? m.milestoneAr : m.milestoneEn;
+    if (lang === "both" && m.milestoneAr && m.milestoneEn) return `${esc(m.milestoneAr)} / ${esc(m.milestoneEn)}`;
+    return esc(ar ? m.milestoneAr : m.milestoneEn);
   };
   const payRows = contract.paymentSchedule.map((m, i) => `
     <tr>
@@ -959,7 +960,7 @@ export function printContract(contract: Contract, isRtl: boolean, options?: { la
     </tr>`).join("");
 
   const html = `<!DOCTYPE html><html lang="${ar ? "ar" : "en"}" dir="${mainDir}"><head><meta charset="UTF-8"/>
-<title>${contract.contractNumber}</title>
+<title>${esc(contract.contractNumber)}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
 .header { text-align:center; margin-bottom:28px; padding-bottom:18px; border-bottom:3px solid #1e40af; }
@@ -981,14 +982,14 @@ tbody tr:nth-child(even) { background:#f8fafc; }
   <div class="logo-row">
     ${cLogoHtml}
     <div style="text-align:${mainDir === "rtl" ? "right" : "left"}">
-      <div style="font-size:16px;font-weight:700;color:#1a202c;">${ar ? cNameAr : cNameEn}</div>
-      <div style="font-size:11px;color:#4a5568;">${ar ? cNameEn : cNameAr}</div>
-      <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${bi(`الرقم الضريبي: ${cVat}`, `VAT No: ${cVat}`)}</div>
+      <div style="font-size:16px;font-weight:700;color:#1a202c;">${esc(ar ? cNameAr : cNameEn)}</div>
+      <div style="font-size:11px;color:#4a5568;">${esc(ar ? cNameEn : cNameAr)}</div>
+      <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${bi(`الرقم الضريبي: ${esc(cVat)}`, `VAT No: ${esc(cVat)}`)}</div>
     </div>
   </div>
   <div style="font-size:20px;font-weight:700;color:#1e40af;margin-bottom:4px;">${bi("عقد تقديم خدمات", "SERVICE CONTRACT")}</div>
   <div style="font-size:13px;color:#374151;">${bi(svc.labelAr, svc.labelEn)}</div>
-  <div style="font-size:14px;font-weight:600;color:#374151;margin-top:6px;">${bi("رقم العقد:", "Contract No:")} ${contract.contractNumber}</div>
+  <div style="font-size:14px;font-weight:600;color:#374151;margin-top:6px;">${bi("رقم العقد:", "Contract No:")} ${esc(contract.contractNumber)}</div>
   <div style="font-size:12px;font-weight:700;color:#1e40af;font-family:monospace;margin-top:3px;">${bi("التاريخ:", "Date:")} ${date}</div>
 </div>
 <div class="sec-title">${bi("أطراف العقد", "CONTRACT PARTIES")}</div>
@@ -1001,16 +1002,16 @@ tbody tr:nth-child(even) { background:#f8fafc; }
   </div>
   <div class="party">
     <div class="party-lbl">${bi("الطرف الثاني — العميل", "Second Party — Client")}</div>
-    <div class="party-name">${contract.clientName}</div>
-    ${contract.clientContact ? `<div style="font-size:12px;color:#374151;margin-top:4px;">${contract.clientContact}</div>` : ""}
-    ${contract.clientEmail ? `<div style="font-size:11px;color:#64748b;margin-top:2px;" dir="ltr">${contract.clientEmail}</div>` : ""}
+    <div class="party-name">${esc(contract.clientName)}</div>
+    ${contract.clientContact ? `<div style="font-size:12px;color:#374151;margin-top:4px;">${esc(contract.clientContact)}</div>` : ""}
+    ${contract.clientEmail ? `<div style="font-size:11px;color:#64748b;margin-top:2px;" dir="ltr">${esc(contract.clientEmail)}</div>` : ""}
   </div>
 </div>
 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:20px;font-size:13px;line-height:2;">
-  <strong>${bi("موضوع العقد:", "Subject:")}</strong> ${contract.projectName}<br/>
+  <strong>${bi("موضوع العقد:", "Subject:")}</strong> ${esc(contract.projectName)}<br/>
   <strong>${bi("القيمة الإجمالية:", "Total Value:")}</strong> ${fmt(contract.total)} ${contract.currency} ${bi("(شاملاً ضريبة القيمة المضافة 15%)", "(incl. 15% VAT)")}<br/>
   <strong>${bi("تاريخ البدء:", "Start Date:")}</strong> ${contract.startDate} &nbsp;|&nbsp; <strong>${bi("تاريخ الانتهاء:", "End Date:")}</strong> ${contract.endDate}<br/>
-  <strong>${bi("مرجع عرض السعر:", "Proposal Ref:")}</strong> ${contract.proposalNumber}
+  <strong>${bi("مرجع عرض السعر:", "Proposal Ref:")}</strong> ${esc(contract.proposalNumber)}
 </div>
 <div class="sec-title">${bi("بنود العقد", "CONTRACT ARTICLES")}</div>
 ${clausesHtml}
@@ -1030,11 +1031,11 @@ ${(() => {
     ? `<img src="${sig.signatureDataUrl}" style="max-height:55px;max-width:180px;object-fit:contain;" />`
     : "";
   const sigMeta = (sig: typeof sigs.first) => sig
-    ? `<div style="font-size:10px;color:#64748b;margin-top:4px;">${sig.signerName} — ${sig.signerRole}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(ar ? "ar-SA" : "en-US", { year:"numeric", month:"short", day:"numeric" })}</div>`
+    ? `<div style="font-size:10px;color:#64748b;margin-top:4px;">${esc(sig.signerName)} — ${esc(sig.signerRole)}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(ar ? "ar-SA" : "en-US", { year:"numeric", month:"short", day:"numeric" })}</div>`
     : `<div style="font-size:10px;color:#64748b;margin-top:4px;">${bi("التوقيع والختم والتاريخ", "Signature, Stamp & Date")}</div>`;
   return `<div class="sig-grid">
   <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.first)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الأول — Scapex", "First Party — Scapex")}</div>${sigMeta(sigs.first)}</div>
-  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.second)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الثاني —", "Second Party —")} ${contract.clientName}</div>${sigMeta(sigs.second)}</div>
+  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.second)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الثاني —", "Second Party —")} ${esc(contract.clientName)}</div>${sigMeta(sigs.second)}</div>
 </div>`;
 })()}
 </div>

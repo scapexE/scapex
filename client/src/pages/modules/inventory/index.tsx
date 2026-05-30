@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,7 +87,7 @@ function printStockReport(items: InventoryItem[], isRtl: boolean) {
   <body><h2>${isRtl ? "تقرير المخزون" : "Inventory Stock Report"}</h2><p style="text-align:center;color:#6b7280">${new Date().toLocaleDateString("ar-SA")} — ${isRtl ? `إجمالي القيمة: ${total.toLocaleString()} ر.س` : `Total Value: ${total.toLocaleString()} SAR`}</p>
   ${low.length > 0 ? `<p style="color:#dc2626;font-weight:bold">⚠ ${isRtl ? `${low.length} أصناف تحت الحد الأدنى` : `${low.length} items below minimum stock`}</p>` : ""}
   <table><thead><tr><th>${isRtl ? "الكود" : "Code"}</th><th>${isRtl ? "الصنف" : "Item"}</th><th>${isRtl ? "الكمية" : "On Hand"}</th><th>${isRtl ? "الحد الأدنى" : "Min Stock"}</th><th>${isRtl ? "سعر الوحدة" : "Unit Cost"}</th><th>${isRtl ? "إجمالي القيمة" : "Total Value"}</th></tr></thead>
-  <tbody>${items.map(i => `<tr class="${i.onHand <= i.minStock ? "low" : ""}"><td>${i.code}</td><td>${isRtl ? i.nameAr : i.nameEn}</td><td>${i.onHand} ${i.unit}</td><td>${i.minStock} ${i.unit}</td><td>${i.unitCost.toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</td><td>${(i.onHand * i.unitCost).toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</td></tr>`).join("")}</tbody>
+  <tbody>${items.map(i => `<tr class="${i.onHand <= i.minStock ? "low" : ""}"><td>${esc(i.code)}</td><td>${esc(isRtl ? i.nameAr : i.nameEn)}</td><td>${i.onHand} ${esc(i.unit)}</td><td>${i.minStock} ${esc(i.unit)}</td><td>${i.unitCost.toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</td><td>${(i.onHand * i.unitCost).toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</td></tr>`).join("")}</tbody>
   <tfoot><tr class="sum"><td colspan="5">${isRtl ? "إجمالي قيمة المخزون" : "Total Inventory Value"}</td><td>${total.toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</td></tr></tfoot></table></body></html>`;
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); w.print(); }

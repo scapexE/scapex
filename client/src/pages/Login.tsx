@@ -182,6 +182,7 @@ export default function Login() {
         lastActivityId: user.lastActivityId ?? null,
       };
       dbSetItem("user", JSON.stringify(localUser));
+      if (data.token) localStorage.setItem("session_token", data.token);
       logAction("login", "auth", `User ${user.name} logged in`, `المستخدم ${user.name} سجّل دخول`);
       window.location.href = user.role === "client" ? "/client-portal" : "/dashboard";
     } catch (err) {

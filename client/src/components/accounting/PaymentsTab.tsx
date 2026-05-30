@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ExportMenu } from "@/components/shared/ExportMenu";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ function printVoucher(pmt: Payment, contacts: Contact[], isRtl: boolean) {
   const contact = contacts.find(c => c.id === pmt.contactId);
   const contactName = contact ? (isRtl ? contact.nameAr : contact.nameEn) : "—";
 
-  const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${pmt.paymentNumber}</title>
+  const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${esc(pmt.paymentNumber)}</title>
   <style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;margin:30px;color:#1a1a1a;max-width:600px}
   .header{display:flex;justify-content:space-between;border-bottom:3px solid ${isReceipt ? "#166534" : "#991b1b"};padding-bottom:12px;margin-bottom:20px}
   .logo{font-size:20px;font-weight:900;color:${isReceipt ? "#166534" : "#991b1b"}}
@@ -65,12 +66,12 @@ function printVoucher(pmt: Payment, contacts: Contact[], isRtl: boolean) {
     <div class="amount">${SAR(pmt.amount)}</div>
   </div>
   <div class="grid">
-    <div class="field"><div class="field-label">${isRtl ? "رقم السند" : "Voucher No."}</div><div class="field-value">${pmt.paymentNumber}</div></div>
+    <div class="field"><div class="field-label">${isRtl ? "رقم السند" : "Voucher No."}</div><div class="field-value">${esc(pmt.paymentNumber)}</div></div>
     <div class="field"><div class="field-label">${isRtl ? "التاريخ" : "Date"}</div><div class="field-value">${pmt.date}</div></div>
-    <div class="field"><div class="field-label">${isRtl ? (isReceipt ? "المستلم من" : "المدفوع لـ") : (isReceipt ? "Received from" : "Paid to")}</div><div class="field-value">${contactName}</div></div>
+    <div class="field"><div class="field-label">${isRtl ? (isReceipt ? "المستلم من" : "المدفوع لـ") : (isReceipt ? "Received from" : "Paid to")}</div><div class="field-value">${esc(contactName)}</div></div>
     <div class="field"><div class="field-label">${isRtl ? "طريقة الدفع" : "Method"}</div><div class="field-value">${methodLabel}</div></div>
-    ${pmt.reference ? `<div class="field" style="grid-column:1/-1"><div class="field-label">${isRtl ? "المرجع" : "Reference"}</div><div class="field-value">${pmt.reference}</div></div>` : ""}
-    ${pmt.notes ? `<div class="field" style="grid-column:1/-1"><div class="field-label">${isRtl ? "ملاحظات" : "Notes"}</div><div class="field-value">${pmt.notes}</div></div>` : ""}
+    ${pmt.reference ? `<div class="field" style="grid-column:1/-1"><div class="field-label">${isRtl ? "المرجع" : "Reference"}</div><div class="field-value">${esc(pmt.reference)}</div></div>` : ""}
+    ${pmt.notes ? `<div class="field" style="grid-column:1/-1"><div class="field-label">${isRtl ? "ملاحظات" : "Notes"}</div><div class="field-value">${esc(pmt.notes)}</div></div>` : ""}
   </div>
   <div class="sig">
     <div><div class="sig-line">${isRtl ? "توقيع المستلم" : "Received by"}</div></div>

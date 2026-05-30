@@ -35,6 +35,11 @@ window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
       }
       if (fallback) headers.set("x-user-id", fallback);
     }
+    // Signed session token proves staff identity (server ignores raw x-user-id).
+    if (!headers.has("x-session-token")) {
+      const t = localStorage.getItem("session_token");
+      if (t) headers.set("x-session-token", t);
+    }
     init = { ...init, headers };
   }
   return _origFetch(input, init);

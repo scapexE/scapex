@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,14 +79,14 @@ function mapVendor(r: any): Vendor {
 
 function printPO(po: PurchaseOrder, vendors: Vendor[], isRtl: boolean) {
   const v = vendors.find(v => v.id === po.vendorId);
-  const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>PO ${po.poNumber}</title>
+  const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>PO ${esc(po.poNumber)}</title>
   <style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px}h2{text-align:center;color:#1d4ed8}.info{display:flex;justify-content:space-between;margin:15px 0;padding:10px;background:#f8fafc;border-radius:6px}table{width:100%;border-collapse:collapse;margin-top:15px}th{background:#1d4ed8;color:white;padding:6px}td{padding:5px;border-bottom:1px solid #e5e7eb}.total{text-align:${isRtl ? "left" : "right"};font-weight:bold;margin-top:10px;font-size:13px}</style></head>
-  <body><h2>${isRtl ? "أمر الشراء" : "Purchase Order"} — ${po.poNumber}</h2>
-  <div class="info"><div><strong>${isRtl ? "المورد:" : "Vendor:"}</strong> ${isRtl ? po.vendorAr : (v?.nameEn || po.vendor)}</div><div><strong>${isRtl ? "التاريخ:" : "Date:"}</strong> ${po.orderDate}</div><div><strong>${isRtl ? "التسليم:" : "Delivery:"}</strong> ${po.expectedDate}</div></div>
+  <body><h2>${isRtl ? "أمر الشراء" : "Purchase Order"} — ${esc(po.poNumber)}</h2>
+  <div class="info"><div><strong>${isRtl ? "المورد:" : "Vendor:"}</strong> ${esc(isRtl ? po.vendorAr : (v?.nameEn || po.vendor))}</div><div><strong>${isRtl ? "التاريخ:" : "Date:"}</strong> ${po.orderDate}</div><div><strong>${isRtl ? "التسليم:" : "Delivery:"}</strong> ${po.expectedDate}</div></div>
   <table><thead><tr><th>${isRtl ? "الصنف" : "Item"}</th><th>${isRtl ? "الكمية" : "Qty"}</th><th>${isRtl ? "الوحدة" : "Unit"}</th><th>${isRtl ? "سعر الوحدة" : "Unit Price"}</th><th>${isRtl ? "الإجمالي" : "Total"}</th></tr></thead>
-  <tbody>${po.items.map(i => `<tr><td>${i.name}</td><td>${i.qty}</td><td>${i.unit}</td><td>${i.unitPrice.toLocaleString()}</td><td>${(i.qty * i.unitPrice).toLocaleString()}</td></tr>`).join("")}</tbody></table>
+  <tbody>${po.items.map(i => `<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${esc(i.unit)}</td><td>${i.unitPrice.toLocaleString()}</td><td>${(i.qty * i.unitPrice).toLocaleString()}</td></tr>`).join("")}</tbody></table>
   <div class="total">${isRtl ? "الإجمالي:" : "Total:"} ${po.total.toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</div>
-  <p style="margin-top:20px;color:#6b7280">${po.notes}</p></body></html>`;
+  <p style="margin-top:20px;color:#6b7280">${esc(po.notes)}</p></body></html>`;
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); w.print(); }
 }

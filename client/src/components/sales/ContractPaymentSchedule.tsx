@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,7 +109,7 @@ function printSchedule(summary: ContractSummary, isRtl: boolean) {
   const remaining = summary.contractTotal - summary.totalPaid;
   const pct = summary.contractTotal > 0 ? (summary.totalPaid / summary.contractTotal * 100).toFixed(1) : "0";
   const html = `<!DOCTYPE html><html dir="${isRtl?"rtl":"ltr"}"><head><meta charset="UTF-8">
-  <title>${summary.contractName}</title>
+  <title>${esc(summary.contractName)}</title>
   <style>
     body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;margin:0;padding:24px;color:#1a1a1a}
     .logo{font-size:22px;font-weight:900;color:#1e40af}
@@ -131,8 +132,8 @@ function printSchedule(summary: ContractSummary, isRtl: boolean) {
   <div class="header">
     <div class="logo">Scapex</div>
     <div style="text-align:${isRtl?"left":"right"}">
-      <h1>${isRtl?"جدول الدفعات — ":"Payment Schedule — "}${summary.contractName}</h1>
-      <div class="meta">${isRtl?"العميل:":"Client:"} ${summary.clientName} &nbsp;|&nbsp; ${isRtl?"تاريخ الطباعة:":"Printed:"} ${new Date().toLocaleDateString(isRtl?"ar-SA":"en-GB")}</div>
+      <h1>${isRtl?"جدول الدفعات — ":"Payment Schedule — "}${esc(summary.contractName)}</h1>
+      <div class="meta">${isRtl?"العميل:":"Client:"} ${esc(summary.clientName)} &nbsp;|&nbsp; ${isRtl?"تاريخ الطباعة:":"Printed:"} ${new Date().toLocaleDateString(isRtl?"ar-SA":"en-GB")}</div>
     </div>
   </div>
   <div class="kpi">
@@ -155,7 +156,7 @@ function printSchedule(summary: ContractSummary, isRtl: boolean) {
       const cfg = STATUS_CFG[inst.status] ?? STATUS_CFG.pending;
       return `<tr>
         <td>${inst.installmentNumber}</td>
-        <td>${isRtl ? (inst.descriptionAr || "—") : (inst.descriptionEn || inst.descriptionAr || "—")}</td>
+        <td>${esc(isRtl ? (inst.descriptionAr || "—") : (inst.descriptionEn || inst.descriptionAr || "—"))}</td>
         <td>${parseFloat(inst.percentage).toFixed(1)}%</td>
         <td style="font-weight:600">${SAR(parseFloat(inst.amount))}</td>
         <td>${inst.dueDate || "—"}</td>

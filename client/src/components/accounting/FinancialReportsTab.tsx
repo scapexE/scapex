@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Printer, Download, Loader2, TrendingUp, TrendingDown, Scale, ArrowRight, BarChart3, FileText, Clock, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { esc } from "@/lib/htmlEscape";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Invoice {
@@ -49,7 +50,7 @@ function printReport(title: string, html: string, isRtl: boolean) {
   const w = window.open("", "_blank");
   if (!w) return;
   w.document.write(`<!DOCTYPE html><html dir="${isRtl?"rtl":"ltr"}"><head><meta charset="UTF-8">
-  <title>${title}</title>
+  <title>${esc(title)}</title>
   <style>
     body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;margin:0;padding:24px;color:#1a1a1a}
     h1{font-size:18px;font-weight:900;color:#1e40af;margin:0 0 4px}
@@ -67,7 +68,7 @@ function printReport(title: string, html: string, isRtl: boolean) {
     .footer{margin-top:24px;border-top:1px solid #e2e8f0;padding-top:8px;text-align:center;color:#94a3b8;font-size:9px}
     @media print{body{padding:10px}}
   </style></head><body>
-  <div class="header"><div class="logo">Scapex</div><div style="text-align:${isRtl?"left":"right"}"><h1>${title}</h1><div class="sub">${isRtl?"تاريخ الطباعة:":"Printed:"} ${new Date().toLocaleDateString(isRtl?"ar-SA":"en-GB")}</div></div></div>
+  <div class="header"><div class="logo">Scapex</div><div style="text-align:${isRtl?"left":"right"}"><h1>${esc(title)}</h1><div class="sub">${isRtl?"تاريخ الطباعة:":"Printed:"} ${new Date().toLocaleDateString(isRtl?"ar-SA":"en-GB")}</div></div></div>
   ${html}
   <div class="footer">شركة سكابكس للمقاولات · Scapex Contracting Co. · ${isRtl?"المعايير المحاسبية السعودية SOCPA":"Saudi SOCPA Standards"}</div>
   </body></html>`);
@@ -236,7 +237,7 @@ export function FinancialReportsTab() {
   const printIncomeStatement = () => {
     const d = incomeData;
     const row = (label: string, val: number, cls = "") =>
-      `<tr${cls ? ` class="${cls}"` : ""}><td>${label}</td><td style="text-align:${isRtl?"left":"right"};font-weight:600">${SAR(val)}</td></tr>`;
+      `<tr${cls ? ` class="${cls}"` : ""}><td>${esc(label)}</td><td style="text-align:${isRtl?"left":"right"};font-weight:600">${SAR(val)}</td></tr>`;
     const html = `<table>
       <thead><tr><th>${isRtl?"البيان":"Item"}</th><th style="text-align:${isRtl?"left":"right"}">${isRtl?"المبلغ":"Amount"}</th></tr></thead>
       <tbody>
@@ -259,7 +260,7 @@ export function FinancialReportsTab() {
   const printBalanceSheet = () => {
     const d = balanceData;
     const row = (code: string, name: string, val: number) =>
-      `<tr><td style="color:#64748b;font-size:10px">${code}</td><td>${name}</td><td style="text-align:${isRtl?"left":"right"};font-weight:600">${SAR(val)}</td></tr>`;
+      `<tr><td style="color:#64748b;font-size:10px">${esc(code)}</td><td>${esc(name)}</td><td style="text-align:${isRtl?"left":"right"};font-weight:600">${SAR(val)}</td></tr>`;
     const html = `<table>
       <thead><tr><th>${isRtl?"الرمز":"Code"}</th><th>${isRtl?"الحساب":"Account"}</th><th style="text-align:${isRtl?"left":"right"}">${isRtl?"الرصيد":"Balance"}</th></tr></thead>
       <tbody>
@@ -287,7 +288,7 @@ export function FinancialReportsTab() {
       ${leafAccs.map(a => {
         const bal = parseFloat(a.balance || "0");
         const isDebit = ["asset","expense"].includes(a.type);
-        return `<tr><td style="font-family:monospace;font-size:10px">${a.code}</td><td>${isRtl?a.nameAr:(a.nameEn||a.nameAr)}</td><td>${a.type}</td><td style="text-align:${isRtl?"left":"right"};color:#166534">${isDebit && bal > 0 ? SAR(bal) : "—"}</td><td style="text-align:${isRtl?"left":"right"};color:#dc2626">${!isDebit && bal > 0 ? SAR(bal) : "—"}</td></tr>`;
+        return `<tr><td style="font-family:monospace;font-size:10px">${esc(a.code)}</td><td>${esc(isRtl?a.nameAr:(a.nameEn||a.nameAr))}</td><td>${esc(a.type)}</td><td style="text-align:${isRtl?"left":"right"};color:#166534">${isDebit && bal > 0 ? SAR(bal) : "—"}</td><td style="text-align:${isRtl?"left":"right"};color:#dc2626">${!isDebit && bal > 0 ? SAR(bal) : "—"}</td></tr>`;
       }).join("")}
       <tr class="grand-total"><td colspan="3">${isRtl?"الإجمالي":"Total"}</td>
       <td style="text-align:${isRtl?"left":"right"}">${SAR(leafAccs.filter(a=>["asset","expense"].includes(a.type)).reduce((s,a)=>s+parseFloat(a.balance||"0"),0))}</td>
@@ -520,7 +521,7 @@ export function FinancialReportsTab() {
           <Section title={isRtl ? "تحليل الذمم المدينة (AR Aging)" : "Accounts Receivable Aging"}
             onPrint={() => {
               const html = `<table><thead><tr><th>${isRtl?"الفاتورة":"Invoice"}</th><th>${isRtl?"العميل":"Client"}</th><th>${isRtl?"تاريخ الاستحقاق":"Due Date"}</th><th>${isRtl?"أيام التأخر":"Overdue"}</th><th style="text-align:${isRtl?"left":"right"}">${isRtl?"المبلغ":"Balance"}</th></tr></thead>
-              <tbody>${a.items.map(i=>`<tr><td>${i.inv.invoiceNumber}</td><td>${i.inv.clientName||"—"}</td><td>${i.inv.dueDate||i.inv.issueDate}</td><td style="color:${i.overdue>90?"#dc2626":i.overdue>30?"#d97706":"#16a34a"}">${i.overdue>0?`+${i.overdue} ${isRtl?"يوم":"days"}`:isRtl?"لم يستحق":"Not due"}</td><td style="text-align:${isRtl?"left":"right"};font-weight:600">${SAR(i.balance)}</td></tr>`).join("")}
+              <tbody>${a.items.map(i=>`<tr><td>${esc(i.inv.invoiceNumber)}</td><td>${esc(i.inv.clientName||"—")}</td><td>${i.inv.dueDate||i.inv.issueDate}</td><td style="color:${i.overdue>90?"#dc2626":i.overdue>30?"#d97706":"#16a34a"}">${i.overdue>0?`+${i.overdue} ${isRtl?"يوم":"days"}`:isRtl?"لم يستحق":"Not due"}</td><td style="text-align:${isRtl?"left":"right"};font-weight:600">${SAR(i.balance)}</td></tr>`).join("")}
               <tr class="grand-total"><td colspan="4">${isRtl?"الإجمالي":"Total"}</td><td style="text-align:${isRtl?"left":"right"}">${SAR(a.total)}</td></tr>
               </tbody></table>`;
               printReport(isRtl ? "تحليل الذمم المدينة" : "AR Aging Report", html, isRtl);

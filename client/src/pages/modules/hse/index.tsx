@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,10 +81,10 @@ function printHSEReport(incidents: Incident[], inspections: Inspection[], isRtl:
   <body><h2>${isRtl ? "تقرير السلامة والصحة المهنية" : "HSE Safety Report"}</h2><p style="text-align:center;color:#6b7280">${new Date().toLocaleDateString("ar-SA")} — ${isRtl ? `معدل السلامة: ${avgScore.toFixed(0)}%` : `Safety Score: ${avgScore.toFixed(0)}%`}</p>
   <h3>${isRtl ? "الحوادث" : "Incidents"}</h3>
   <table><thead><tr><th>${isRtl ? "الرقم" : "No."}</th><th>${isRtl ? "التاريخ" : "Date"}</th><th>${isRtl ? "النوع" : "Type"}</th><th>${isRtl ? "الخطورة" : "Severity"}</th><th>${isRtl ? "الموقع" : "Location"}</th><th>${isRtl ? "الحالة" : "Status"}</th></tr></thead>
-  <tbody>${incidents.map(i => `<tr><td>${i.incidentNo}</td><td>${i.date}</td><td>${i.type}</td><td class="${i.severity}">${i.severity}</td><td>${i.location}</td><td>${i.status}</td></tr>`).join("")}</tbody></table>
+  <tbody>${incidents.map(i => `<tr><td>${esc(i.incidentNo)}</td><td>${i.date}</td><td>${esc(i.type)}</td><td class="${i.severity}">${esc(i.severity)}</td><td>${esc(i.location)}</td><td>${esc(i.status)}</td></tr>`).join("")}</tbody></table>
   <h3>${isRtl ? "التفتيشات" : "Inspections"}</h3>
   <table><thead><tr><th>${isRtl ? "الرقم" : "No."}</th><th>${isRtl ? "الموقع" : "Site"}</th><th>${isRtl ? "النوع" : "Type"}</th><th>${isRtl ? "الدرجة" : "Score"}</th><th>${isRtl ? "الحالة" : "Status"}</th></tr></thead>
-  <tbody>${inspections.map(i => `<tr><td>${i.inspectionNo}</td><td>${i.site}</td><td>${i.type}</td><td>${i.score > 0 ? i.score + "%" : "—"}</td><td>${i.status}</td></tr>`).join("")}</tbody></table></body></html>`;
+  <tbody>${inspections.map(i => `<tr><td>${esc(i.inspectionNo)}</td><td>${esc(i.site)}</td><td>${esc(i.type)}</td><td>${i.score > 0 ? i.score + "%" : "—"}</td><td>${esc(i.status)}</td></tr>`).join("")}</tbody></table></body></html>`;
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); w.print(); }
 }

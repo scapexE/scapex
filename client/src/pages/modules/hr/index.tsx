@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,7 +90,7 @@ function printEmployees(employees: Employee[], isRtl: boolean) {
   <style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px}h2{text-align:center;color:#1e40af}table{width:100%;border-collapse:collapse;margin-top:15px}th{background:#1e40af;color:white;padding:6px;text-align:${isRtl ? "right" : "left"}}td{padding:5px;border-bottom:1px solid #e5e7eb}tr:nth-child(even){background:#f8fafc}.badge-active{color:#16a34a}.badge-leave{color:#d97706}.badge-inactive{color:#dc2626}</style></head>
   <body><h2>${isRtl ? "كشف الموظفين" : "Employee Roster"}</h2><p style="text-align:center;color:#6b7280">${new Date().toLocaleDateString("ar-SA")}</p>
   <table><thead><tr><th>${isRtl ? "الرقم" : "No."}</th><th>${isRtl ? "الاسم" : "Name"}</th><th>${isRtl ? "القسم" : "Department"}</th><th>${isRtl ? "المسمى الوظيفي" : "Job Title"}</th><th>${isRtl ? "الجنسية" : "Nationality"}</th><th>${isRtl ? "الراتب الأساسي" : "Basic Salary"}</th><th>${isRtl ? "الحالة" : "Status"}</th></tr></thead>
-  <tbody>${employees.map(e => `<tr><td>${e.empNo}</td><td>${isRtl ? e.nameAr : e.nameEn}</td><td>${e.department}</td><td>${isRtl ? e.jobTitleAr : e.jobTitle}</td><td>${e.nationality}</td><td>${e.baseSalary.toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</td><td class="badge-${e.status === "active" ? "active" : e.status === "on_leave" ? "leave" : "inactive"}">${e.status === "active" ? (isRtl ? "نشط" : "Active") : e.status === "on_leave" ? (isRtl ? "إجازة" : "On Leave") : (isRtl ? "غير نشط" : "Inactive")}</td></tr>`).join("")}</tbody>
+  <tbody>${employees.map(e => `<tr><td>${esc(e.empNo)}</td><td>${esc(isRtl ? e.nameAr : e.nameEn)}</td><td>${esc(e.department)}</td><td>${esc(isRtl ? e.jobTitleAr : e.jobTitle)}</td><td>${esc(e.nationality)}</td><td>${e.baseSalary.toLocaleString()} ${isRtl ? "ر.س" : "SAR"}</td><td class="badge-${e.status === "active" ? "active" : e.status === "on_leave" ? "leave" : "inactive"}">${e.status === "active" ? (isRtl ? "نشط" : "Active") : e.status === "on_leave" ? (isRtl ? "إجازة" : "On Leave") : (isRtl ? "غير نشط" : "Inactive")}</td></tr>`).join("")}</tbody>
   <tfoot><tr><td colspan="7" style="padding-top:10px;color:#6b7280">${isRtl ? `إجمالي الموظفين: ${employees.length}` : `Total Employees: ${employees.length}`}</td></tr></tfoot></table></body></html>`;
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); w.print(); }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,7 +128,7 @@ export function InvoicesTab() {
   };
 
   const printInvoice = (inv: Invoice) => {
-    const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${inv.invoiceNumber}</title>
+    const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${esc(inv.invoiceNumber)}</title>
     <style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;margin:0;padding:20px;color:#1a1a1a}
     .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e40af;padding-bottom:15px;margin-bottom:20px}
     .logo{font-size:22px;font-weight:900;color:#1e40af}.inv-title{font-size:16px;font-weight:700;color:#1e40af;text-align:center;margin:10px 0}
@@ -145,9 +146,9 @@ export function InvoicesTab() {
     <div class="header"><div class="logo">Scapex</div><div><span class="badge badge-${inv.status}">${inv.status.toUpperCase()}</span></div></div>
     <div class="inv-title">${isRtl ? "فاتورة ضريبية" : "Tax Invoice"}</div>
     <div class="info-grid">
-      <div><div class="info-label">${isRtl ? "رقم الفاتورة" : "Invoice No."}</div><div class="info-value">${inv.invoiceNumber}</div></div>
+      <div><div class="info-label">${isRtl ? "رقم الفاتورة" : "Invoice No."}</div><div class="info-value">${esc(inv.invoiceNumber)}</div></div>
       <div><div class="info-label">${isRtl ? "التاريخ" : "Date"}</div><div class="info-value">${inv.issueDate}</div></div>
-      <div><div class="info-label">${isRtl ? "العميل" : "Client"}</div><div class="info-value">${inv.clientName || "—"}</div></div>
+      <div><div class="info-label">${isRtl ? "العميل" : "Client"}</div><div class="info-value">${esc(inv.clientName || "—")}</div></div>
       <div><div class="info-label">${isRtl ? "تاريخ الاستحقاق" : "Due Date"}</div><div class="info-value">${inv.dueDate || "—"}</div></div>
     </div>
     <table><thead><tr>
@@ -157,7 +158,7 @@ export function InvoicesTab() {
       <th>${isRtl ? "سعر الوحدة" : "Unit Price"}</th>
       <th>${isRtl ? "الإجمالي" : "Total"}</th>
     </tr></thead><tbody>
-    ${(inv.items || []).map(i => `<tr><td>${isRtl ? i.descAr : i.descEn}</td><td>${i.qty}</td><td>${i.unit}</td><td>${parseFloat(String(i.unitPrice)).toLocaleString()}</td><td>${parseFloat(String(i.total)).toLocaleString()}</td></tr>`).join("")}
+    ${(inv.items || []).map(i => `<tr><td>${esc(isRtl ? i.descAr : i.descEn)}</td><td>${i.qty}</td><td>${esc(i.unit)}</td><td>${parseFloat(String(i.unitPrice)).toLocaleString()}</td><td>${parseFloat(String(i.total)).toLocaleString()}</td></tr>`).join("")}
     </tbody></table>
     <div class="totals">
       <div class="total-row"><span>${isRtl ? "المجموع قبل الضريبة:" : "Subtotal:"}</span><span>${parseFloat(inv.subtotal).toLocaleString()} ${inv.currency}</span></div>
@@ -165,7 +166,7 @@ export function InvoicesTab() {
       <div class="total-row grand"><span>${isRtl ? "الإجمالي الكلي:" : "Grand Total:"}</span><span>${parseFloat(inv.total).toLocaleString()} ${inv.currency}</span></div>
       ${parseFloat(inv.paidAmount) > 0 ? `<div class="total-row"><span style="color:#16a34a">${isRtl ? "المدفوع:" : "Paid:"}</span><span style="color:#16a34a">${parseFloat(inv.paidAmount).toLocaleString()} ${inv.currency}</span></div>` : ""}
     </div>
-    ${inv.notes ? `<div style="margin-top:15px;padding:10px;background:#f8fafc;border-radius:6px;font-size:11px;color:#475569">${inv.notes}</div>` : ""}
+    ${inv.notes ? `<div style="margin-top:15px;padding:10px;background:#f8fafc;border-radius:6px;font-size:11px;color:#475569">${esc(inv.notes)}</div>` : ""}
     <div class="footer">شركة سكابكس · Scapex Company · VAT No: 310000000000003</div>
     </body></html>`;
     const w = window.open("", "_blank");

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { esc } from "@/lib/htmlEscape";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -87,15 +88,15 @@ function printPartnerAccounts(rows: PartnerAccount[], isRtl: boolean) {
   const rows_html = rows.map((r, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td>${r.contractNumber}</td>
-      <td>${r.clientName}</td>
-      <td><span class="badge" style="background:${r.contractType === "عقد صيانة" ? "#d1fae5" : r.contractType === "توريد وتركيب" ? "#fef3c7" : "#dbeafe"}">${r.contractType}</span></td>
+      <td>${esc(r.contractNumber)}</td>
+      <td>${esc(r.clientName)}</td>
+      <td><span class="badge" style="background:${r.contractType === "عقد صيانة" ? "#d1fae5" : r.contractType === "توريد وتركيب" ? "#fef3c7" : "#dbeafe"}">${esc(r.contractType)}</span></td>
       <td>${fmt(r.contractValue)}</td>
       <td class="pct">${parseFloat(r.companySharePct || "0").toFixed(0)}%</td>
       <td class="money">${fmt(calcCompanyAmount(r.contractValue, r.companySharePct))}</td>
       <td class="money partner">${fmt(calcPartnerAmount(r.contractValue, r.companySharePct))}</td>
       <td class="money received">${fmt(r.receivedAmount)}</td>
-      <td>${r.notes || ""}</td>
+      <td>${esc(r.notes || "")}</td>
       <td>${pm(r.paymentMethod)}</td>
     </tr>
   `).join("");
@@ -125,7 +126,7 @@ function printPartnerAccounts(rows: PartnerAccount[], isRtl: boolean) {
 </style></head>
 <body><div class="page">
   <h1>حسابات الشركاء</h1>
-  <p class="meta">${coName} — ${date}</p>
+  <p class="meta">${esc(coName)} — ${date}</p>
   <table>
     <thead><tr>
       <th>م</th><th>رقم العقد</th><th>البيان</th><th>نوع العقد</th>

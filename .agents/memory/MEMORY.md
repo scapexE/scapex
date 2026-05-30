@@ -1,1 +1,2 @@
-- [CRM survey/email design](crm-survey-email.md) — bulk email uses BCC inline in the route (no sendBulkEmail helper); survey question templates live in app_data + surveys.questions JSONB (no survey_question_sets table). Intentional, don't "fix".
+- [CRM survey/email design](crm-survey-email.md) — bulk email BCC inline in route; survey templates in app_data + surveys.questions JSONB. Intentional, don't "fix".
+- [Auth & print security](auth-and-print-security.md) — staff auth via signed x-session-token (never x-user-id); module mutations gate isAdminOrManager; all user strings in print HTML need esc().
