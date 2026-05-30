@@ -59,8 +59,26 @@ app.use((req, res, next) => {
 
   next();
 });
-// ✅ Webhook GitHub Auto Deploy
+// ✅ Webhook GitHub Auto Deploy (protected by a shared secret)
 app.post("/hooks/deploy", (req, res) => {
+  const secret = process.env.DEPLOY_HOOK_SECRET;
+  // Fail closed: if no secret is configured, the endpoint is disabled entirely.
+  if (!secret) {
+    console.warn("[deploy] /hooks/deploy called but DEPLOY_HOOK_SECRET is not set — rejecting");
+    return res.status(404).send("Not found");
+  }
+  // Secret accepted ONLY via a dedicated header — never the query string or URL,
+  // which leak into proxy/access logs, monitoring and browser history.
+  const provided = (req.header("x-deploy-secret") || "").trim();
+  const crypto = require("crypto");
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!ok) {
+    console.warn("[deploy] /hooks/deploy rejected: invalid or missing secret");
+    return res.status(401).send("Unauthorized");
+  }
+
   console.log("🚀 Webhook وصل من GitHub");
 
   const { exec } = require("child_process");

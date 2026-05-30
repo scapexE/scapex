@@ -1,0 +1,1 @@
+- [CRM survey/email design](crm-survey-email.md) — bulk email uses BCC inline in the route (no sendBulkEmail helper); survey question templates live in app_data + surveys.questions JSONB (no survey_question_sets table). Intentional, don't "fix".

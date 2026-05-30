@@ -3199,6 +3199,19 @@ export async function registerRoutes(
       const actorId = (req.header("x-user-id") || "").trim();
       const actor = actorId ? await resolveStaffUser(actorId) : null;
       const body = req.body;
+      // Server-side upload validation — never trust client-reported size.
+      const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15MB per file (see replit.md)
+      if (typeof body.fileUrl === "string" && body.fileUrl.length > 0) {
+        // base64/data-URL payload: derive real byte size from the encoded length.
+        const b64 = body.fileUrl.includes(",") ? body.fileUrl.split(",").pop() : body.fileUrl;
+        const approxBytes = Math.floor((b64?.length || 0) * 0.75);
+        if (approxBytes > MAX_FILE_BYTES) {
+          return res.status(413).json({ error: "File exceeds the 15MB limit" });
+        }
+      }
+      if (body.fileSize != null && Number(body.fileSize) > MAX_FILE_BYTES) {
+        return res.status(413).json({ error: "File exceeds the 15MB limit" });
+      }
       const year = new Date().getFullYear();
       const countResult = await db.select().from(documents);
       const seq = String(countResult.length + 1).padStart(3, "0");
