@@ -1113,6 +1113,7 @@ export const documents = pgTable("documents", {
   mimeType: text("mime_type"),
   version: integer("version").default(1),
   accessLevel: text("access_level").default("internal"),
+  clientVisible: boolean("client_visible").default(true),
   tags: jsonb("tags").default([]),
   description: text("description"),
   uploadedBy: varchar("uploaded_by").references(() => users.id),

@@ -5,14 +5,17 @@ import {
   LogOut, Bell, Building2, Sun, Moon, Palette, ChevronRight, ChevronLeft,
   FolderKanban, FileText, Receipt, MessageSquare, Loader2, ShieldCheck,
   Calendar, MapPin, User as UserIcon, ArrowLeft, ArrowRight, Send,
+  FolderArchive, Upload, Download, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
   portalLogin, portalGetMe, portalListProjects, portalGetProject,
   portalListStages, portalListDocuments, portalListInvoices, portalSubmitRequest,
+  portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
   getPortalContact, getPortalToken, clearPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
+  type PortalClientDocument,
 } from "@/lib/portalApi";
 
 export type PortalTheme = "default" | "ocean" | "forest" | "royal" | "sunset" | "slate";
@@ -366,6 +369,150 @@ function ContactForm({ projects, onDone, isRtl, t, theme }: { projects: PortalPr
   );
 }
 
+// ── My documents (company + deal docs shared by staff + client uploads) ─────
+function formatBytes(n: number | null): string {
+  if (!n) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function PortalDocuments({ isRtl, t, theme }: { isRtl: boolean; t: (a: string, e: string) => string; theme: typeof PORTAL_THEMES[number]; }) {
+  const [docs, setDocs] = useState<PortalClientDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+
+  const load = () => {
+    setLoading(true);
+    portalListMyDocuments()
+      .then(setDocs)
+      .catch(() => setDocs([]))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  const open = async (d: PortalClientDocument) => {
+    setBusyId(d.id);
+    setErr("");
+    try {
+      const blob = await portalDownloadDocument(d.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      setErr(t("تعذر فتح الملف", "Could not open the file"));
+    } finally { setBusyId(null); }
+  };
+
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErr(""); setOk("");
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const extOk = /\.pdf$/i.test(file.name);
+    const mimeOk = file.type === "application/pdf" || file.type === "";
+    if (!extOk || !mimeOk) { setErr(t("يُسمح بملفات PDF فقط", "Only PDF files are allowed")); return; }
+    if (file.size > 15 * 1024 * 1024) { setErr(t("الملف كبير جداً (الحد 15MB)", "File too large (max 15MB)")); return; }
+    // Magic bytes: a valid PDF starts with "%PDF-".
+    try {
+      const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+      let magic = "";
+      for (let i = 0; i < head.length; i++) magic += String.fromCharCode(head[i]);
+      if (magic !== "%PDF-") {
+        setErr(t("يُسمح بملفات PDF فقط", "Only PDF files are allowed")); return;
+      }
+    } catch {
+      setErr(t("تعذر قراءة الملف", "Could not read the file")); return;
+    }
+    setUploading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await portalUploadDocument({
+        titleAr: file.name.replace(/\.[^.]+$/, ""),
+        fileContent: base64,
+        originalName: file.name,
+        mimeType: "application/pdf",
+      });
+      setOk(t("تم رفع المستند بنجاح", "Document uploaded successfully"));
+      load();
+    } catch (ex: any) {
+      setErr(ex?.message === "Only PDF files are allowed"
+        ? t("يُسمح بملفات PDF فقط", "Only PDF files are allowed")
+        : (ex?.message || t("تعذر رفع الملف", "Upload failed")));
+    } finally { setUploading(false); }
+  };
+
+  return (
+    <div className="space-y-4" data-testid="view-portal-documents">
+      <div className="bg-card border border-border/50 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-semibold flex items-center gap-2">
+            <FolderArchive className="w-4 h-4" />
+            {t("مستنداتي", "My documents")}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            {t("المستندات التي شاركتها الشركة معك، بالإضافة إلى ما ترفعه أنت (PDF فقط)", "Documents your provider shared with you, plus your own uploads (PDF only)")}
+          </p>
+        </div>
+        <label className={cn("inline-flex items-center gap-2 h-10 px-4 rounded-lg text-white text-sm font-medium cursor-pointer bg-gradient-to-r", theme.primary, uploading && "opacity-60 pointer-events-none")} data-testid="button-portal-upload">
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          {t("رفع مستند (PDF)", "Upload (PDF)")}
+          <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={onPick} disabled={uploading} data-testid="input-portal-file" />
+        </label>
+      </div>
+
+      {err && <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2 text-sm text-destructive flex items-center justify-between" data-testid="text-portal-doc-error">{err}<button onClick={() => setErr("")}><X className="w-3.5 h-3.5" /></button></div>}
+      {ok && <div className="bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded-lg px-3 py-2 text-sm" data-testid="text-portal-doc-ok">{ok}</div>}
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+      ) : docs.length === 0 ? (
+        <div className="bg-card border border-dashed border-border/50 rounded-xl p-12 text-center text-sm text-muted-foreground" data-testid="text-no-documents">
+          {t("لا توجد مستندات بعد", "No documents yet")}
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {docs.map((d) => {
+            const dtitle = (isRtl ? d.titleAr : (d.titleEn || d.titleAr)) || "—";
+            return (
+              <div key={d.id} className="bg-card border border-border/50 rounded-xl p-4 flex items-start gap-3" data-testid={`card-portal-doc-${d.id}`}>
+                <div className="w-10 h-10 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate text-sm" data-testid={`text-portal-doc-title-${d.id}`}>{dtitle}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                      {d.scope === "deal" ? t("مستند صفقة", "Deal doc") : t("مستند شركة", "Company doc")}
+                    </span>
+                    {d.source === "client" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                        {t("رفعته أنت", "Uploaded by you")}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-muted-foreground/70">{formatBytes(d.fileSize)}</span>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary" onClick={() => open(d)} disabled={busyId === d.id} title={t("فتح", "Open")} data-testid={`button-open-doc-${d.id}`}>
+                  {busyId === d.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main portal module ────────────────────────────────────────────────────
 export default function ClientPortalModule() {
   const { dir, language, toggleLanguage } = useLanguage();
@@ -378,7 +525,7 @@ export default function ClientPortalModule() {
   const [showThemePicker, setShowThemePicker] = useState(false);
   const theme = useMemo(() => PORTAL_THEMES.find((x) => x.id === portalTheme) || PORTAL_THEMES[0], [portalTheme]);
 
-  const [view, setView] = useState<"projects" | "contact">("projects");
+  const [view, setView] = useState<"projects" | "documents" | "contact">("projects");
   const [projects, setProjects] = useState<PortalProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [openProjectId, setOpenProjectId] = useState<number | null>(null);
@@ -495,6 +642,10 @@ export default function ClientPortalModule() {
                       <FolderKanban className="w-4 h-4 me-2" />
                       {t("مشاريعي", "My projects")}
                     </Button>
+                    <Button variant={view === "documents" ? "default" : "outline"} size="sm" onClick={() => setView("documents")} data-testid="button-view-documents">
+                      <FolderArchive className="w-4 h-4 me-2" />
+                      {t("مستنداتي", "My documents")}
+                    </Button>
                     <Button variant={view === "contact" ? "default" : "outline"} size="sm" onClick={() => setView("contact")} data-testid="button-view-contact">
                       <MessageSquare className="w-4 h-4 me-2" />
                       {t("تواصل معنا", "Contact us")}
@@ -555,6 +706,8 @@ export default function ClientPortalModule() {
                   )}
                 </div>
               )}
+
+              {view === "documents" && <PortalDocuments isRtl={isRtl} t={t} theme={theme} />}
 
               {view === "contact" && <ContactForm projects={projects} onDone={() => setView("projects")} isRtl={isRtl} t={t} theme={theme} />}
             </>

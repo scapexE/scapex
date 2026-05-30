@@ -57,6 +57,21 @@ export interface PortalDocument {
   createdAt: string | null;
 }
 
+export interface PortalClientDocument {
+  id: number;
+  titleAr: string;
+  titleEn: string | null;
+  category: string | null;
+  type: string | null;
+  originalName: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  version: number | null;
+  source: "client" | "staff";
+  scope: "company" | "deal";
+  createdAt: string | null;
+}
+
 export interface PortalInvoice {
   id: number;
   invoiceNumber: string;
@@ -152,6 +167,32 @@ export async function portalListDocuments(id: number): Promise<PortalDocument[]>
 export async function portalListInvoices(id: number): Promise<PortalInvoice[]> {
   const r = await portalFetch(`/api/portal/projects/${id}/invoices`);
   if (!r.ok) throw new Error("Failed to load invoices");
+  return r.json();
+}
+
+export async function portalListMyDocuments(): Promise<PortalClientDocument[]> {
+  const r = await portalFetch("/api/portal/documents");
+  if (!r.ok) throw new Error("Failed to load documents");
+  return r.json();
+}
+
+export async function portalDownloadDocument(id: number): Promise<Blob> {
+  const r = await portalFetch(`/api/portal/documents/${id}/file`);
+  if (!r.ok) throw new Error("Failed to load file");
+  return r.blob();
+}
+
+export async function portalUploadDocument(payload: {
+  titleAr: string; titleEn?: string | null; fileContent: string; originalName: string; mimeType: string;
+}): Promise<{ id: number }> {
+  const r = await portalFetch("/api/portal/documents", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error || "Upload failed");
+  }
   return r.json();
 }
 

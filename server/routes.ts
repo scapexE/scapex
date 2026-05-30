@@ -2351,6 +2351,109 @@ export async function registerRoutes(
     }
   });
 
+  // ── Portal documents (company-level + deal-level for the logged-in client) ──
+  // Returns documents linked to the client's contact record OR to any deal that
+  // belongs to the client, that staff have marked visible (clientVisible !== false).
+  async function portalOwnedDocs(contactId: number) {
+    const myDeals = await db.select({ id: deals.id }).from(deals).where(eq(deals.contactId, contactId));
+    const dealIds = myDeals.map((d) => d.id);
+    const rows = await db.select().from(documents).orderBy(desc(documents.createdAt));
+    return rows.filter((d: any) => {
+      if (d.clientVisible === false) return false;
+      const isCompany = d.contactId === contactId;
+      const isDeal = d.dealId != null && dealIds.includes(d.dealId);
+      if (!isCompany && !isDeal) return false;
+      return !!d.fileContent;
+    });
+  }
+
+  app.get("/api/portal/documents", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const docs = await portalOwnedDocs(me.id);
+      res.json(docs.map((d: any) => ({
+        id: d.id, titleAr: d.titleAr, titleEn: d.titleEn,
+        category: d.category, type: d.type,
+        originalName: d.originalName, mimeType: d.mimeType,
+        fileSize: d.fileSize, version: d.version,
+        source: d.folder === "portal-upload" ? "client" : "staff",
+        scope: d.dealId != null && d.contactId !== me.id ? "deal" : "company",
+        createdAt: d.createdAt,
+      })));
+    } catch (err: any) {
+      console.error("Portal documents error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/documents/:id/file", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const docs = await portalOwnedDocs(me.id);
+      const doc: any = docs.find((d: any) => d.id === Number(req.params.id));
+      if (!doc || !doc.fileContent) { res.status(404).json({ error: "Not found" }); return; }
+      const buffer = Buffer.from(doc.fileContent, "base64");
+      res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
+      res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(doc.originalName || doc.titleAr || "file")}"`);
+      res.setHeader("Content-Length", buffer.length);
+      res.send(buffer);
+    } catch (err: any) {
+      console.error("Portal document file error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // Client uploads — PDF only (defence in depth: mime + extension + magic bytes).
+  app.post("/api/portal/documents", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const b = req.body || {};
+      const fileContent: string = typeof b.fileContent === "string" ? b.fileContent : "";
+      const originalName: string = (b.originalName || "").toString();
+      if (!fileContent) return res.status(400).json({ error: "File is required" });
+      if (!/\.pdf$/i.test(originalName)) return res.status(400).json({ error: "Only PDF files are allowed" });
+      if (b.mimeType !== "application/pdf") return res.status(400).json({ error: "Only PDF files are allowed" });
+      let buffer: Buffer;
+      try { buffer = Buffer.from(fileContent, "base64"); }
+      catch { return res.status(400).json({ error: "Invalid file" }); }
+      if (buffer.length > 15 * 1024 * 1024) return res.status(400).json({ error: "File too large (max 15MB)" });
+      // Magic bytes: a valid PDF starts with "%PDF-".
+      if (buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
+        return res.status(400).json({ error: "Only PDF files are allowed" });
+      }
+      const title = (b.titleAr || originalName.replace(/\.[^.]+$/, "") || "مستند").toString();
+      const year = new Date().getFullYear();
+      const countResult = await db.select().from(documents);
+      const seq = String(countResult.length + 1).padStart(4, "0");
+      const [doc] = await db.insert(documents).values({
+        titleAr: title,
+        titleEn: b.titleEn || null,
+        docNo: `PORTAL-${year}-${seq}`,
+        category: "client-upload",
+        folder: "portal-upload",
+        status: "active",
+        fileContent,
+        originalName,
+        mimeType: "application/pdf",
+        fileSize: buffer.length,
+        contactId: me.id,
+        dealId: null,
+        tags: [],
+        version: 1,
+        accessLevel: "client",
+        clientVisible: true,
+        uploadedByName: (me.nameAr || me.nameEn || "Client").toString(),
+      } as any).returning();
+      res.json({ id: doc.id, titleAr: doc.titleAr });
+    } catch (err: any) {
+      console.error("Portal document upload error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.post("/api/portal/requests", async (req, res) => {
     const me = await requirePortalContact(req, res);
     if (!me) return;
@@ -3574,7 +3677,26 @@ export async function registerRoutes(
         tags: [],
         version: 1,
         accessLevel: "internal",
+        clientVisible: b.clientVisible !== false,
       } as any).returning();
+      const { fileContent: _fc, ...safe } = doc as any;
+      res.json(safe);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.patch("/api/crm-documents/:id", async (req, res) => {
+    try {
+      if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Not authorized" });
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+      const b = req.body || {};
+      const updates: any = { updatedAt: new Date() };
+      if (typeof b.clientVisible === "boolean") updates.clientVisible = b.clientVisible;
+      if (typeof b.titleAr === "string" && b.titleAr.trim()) updates.titleAr = b.titleAr;
+      if (typeof b.titleEn === "string") updates.titleEn = b.titleEn || null;
+      if (typeof b.category === "string" && b.category) updates.category = b.category;
+      const [doc] = await db.update(documents).set(updates).where(eq(documents.id, id)).returning();
+      if (!doc) return res.status(404).json({ error: "Not found" });
       const { fileContent: _fc, ...safe } = doc as any;
       res.json(safe);
     } catch (e: any) { res.status(500).json({ error: e.message }); }

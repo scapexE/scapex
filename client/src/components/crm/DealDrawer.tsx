@@ -14,7 +14,7 @@ import {
   Upload, FileText, Trash2, Download, Loader2, FolderOpen,
   Building2, User, Phone, Mail, Calendar, DollarSign,
   Image, FileSpreadsheet, BookOpen, FlaskConical, ScrollText,
-  Receipt, File, Plus, X, Eye,
+  Receipt, File, Plus, X, Eye, EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scopedFetch, apiRequest } from "@/lib/queryClient";
@@ -65,6 +65,8 @@ interface CrmDocument {
   createdAt: string;
   contactId: number | null;
   dealId: number | null;
+  clientVisible?: boolean;
+  folder?: string | null;
 }
 
 const DOC_CATEGORIES = [
@@ -149,7 +151,7 @@ export function DealDrawer({
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState<"contact" | "deal" | null>(null);
-  const [uploadForm, setUploadForm] = useState({ titleAr: "", titleEn: "", category: "report" });
+  const [uploadForm, setUploadForm] = useState({ titleAr: "", titleEn: "", category: "report", clientVisible: true });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -228,6 +230,7 @@ export function DealDrawer({
         activityId: deal.activityId || null,
         uploadedBy: currentUser?.id || null,
         uploadedByName: currentUser?.name || null,
+        clientVisible: uploadForm.clientVisible,
       };
 
       const res = await apiRequest("POST", "/api/crm-documents", payload);
@@ -235,7 +238,7 @@ export function DealDrawer({
       toast({ title: isRtl ? "تم رفع المستند ✓" : "Document uploaded ✓" });
       setShowUploadForm(null);
       setSelectedFile(null);
-      setUploadForm({ titleAr: "", titleEn: "", category: "report" });
+      setUploadForm({ titleAr: "", titleEn: "", category: "report", clientVisible: true });
       if (fileInputRef.current) fileInputRef.current.value = "";
       await fetchDocs();
     } catch {
@@ -280,6 +283,20 @@ export function DealDrawer({
       else setDealDocs(prev => prev.filter(d => d.id !== docId));
     } catch {
       toast({ title: isRtl ? "تعذر الحذف" : "Delete failed", variant: "destructive" });
+    }
+  };
+
+  const handleToggleVisible = async (doc: CrmDocument, scope: "contact" | "deal") => {
+    const next = doc.clientVisible === false;
+    try {
+      const res = await apiRequest("PATCH", `/api/crm-documents/${doc.id}`, { clientVisible: next });
+      if (!res.ok) throw new Error();
+      const update = (prev: CrmDocument[]) => prev.map(d => d.id === doc.id ? { ...d, clientVisible: next } : d);
+      if (scope === "contact") setContactDocs(update);
+      else setDealDocs(update);
+      toast({ title: next ? (isRtl ? "ظاهر للعميل" : "Visible to client") : (isRtl ? "مخفي عن العميل" : "Hidden from client") });
+    } catch {
+      toast({ title: isRtl ? "تعذر التحديث" : "Update failed", variant: "destructive" });
     }
   };
 
@@ -340,6 +357,14 @@ export function DealDrawer({
       <input ref={fileInputRef} type="file" className="hidden"
         accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.xls,.docx,.doc,.dwg,.dxf,.csv,.zip,.rar,.mp4,.mp3,.txt"
         onChange={handleFileSelect} />
+      <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+        <input type="checkbox" className="h-3.5 w-3.5 accent-primary"
+          checked={uploadForm.clientVisible}
+          onChange={e => setUploadForm(f => ({ ...f, clientVisible: e.target.checked }))} />
+        <span className="text-muted-foreground">
+          {isRtl ? "ظاهر للعميل في البوابة" : "Visible to client in portal"}
+        </span>
+      </label>
       <div className="flex gap-2 justify-end">
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowUploadForm(null); setSelectedFile(null); }}>
           {isRtl ? "إلغاء" : "Cancel"}
@@ -371,10 +396,24 @@ export function DealDrawer({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{doc.titleAr}</p>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className="text-[10px] bg-secondary/80 text-muted-foreground px-1.5 py-0.5 rounded-full">
                   {getCategoryLabel(doc.category, isRtl)}
                 </span>
+                {doc.folder === "portal-upload" && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 px-1.5 py-0.5 rounded-full">
+                    {isRtl ? "رفع العميل" : "Client upload"}
+                  </span>
+                )}
+                {doc.clientVisible === false ? (
+                  <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+                    {isRtl ? "مخفي عن العميل" : "Hidden"}
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 px-1.5 py-0.5 rounded-full">
+                    {isRtl ? "ظاهر للعميل" : "Visible"}
+                  </span>
+                )}
                 {doc.originalName && (
                   <span className="text-[10px] text-muted-foreground/70 truncate">{doc.originalName}</span>
                 )}
@@ -385,6 +424,12 @@ export function DealDrawer({
               </p>
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <Button variant="ghost" size="icon"
+                className={cn("h-7 w-7", doc.clientVisible === false ? "text-amber-600 hover:text-amber-700" : "text-emerald-600 hover:text-emerald-700")}
+                title={doc.clientVisible === false ? (isRtl ? "إظهار للعميل" : "Show to client") : (isRtl ? "إخفاء عن العميل" : "Hide from client")}
+                onClick={() => handleToggleVisible(doc, scope)}>
+                {doc.clientVisible === false ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </Button>
               {(isImage || isPdf) && (
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-blue-600"
                   title={isRtl ? "معاينة" : "Preview"} onClick={() => handlePreview(doc)}>
