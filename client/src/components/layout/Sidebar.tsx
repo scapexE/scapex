@@ -156,7 +156,7 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
         const roles = new Set<string>([currentUser.role || "", ...((currentUser.roles as string[]) || [])]);
         return roles.has("admin") || roles.has("manager");
       }
-      if (item.id === "multi_tenant") {
+      if (item.id === "multi_tenant" || item.id === "client_portal") {
         const roles = new Set<string>([currentUser.role || "", ...((currentUser.roles as string[]) || [])]);
         return roles.has("admin");
       }
