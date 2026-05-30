@@ -283,7 +283,7 @@ export function DealDrawer({
     }
   };
 
-  const UploadForm = ({ scope }: { scope: "contact" | "deal" }) => (
+  const renderUploadForm = (scope: "contact" | "deal") => (
     <div className="border border-dashed border-primary/30 rounded-xl p-4 bg-primary/3 space-y-3 mt-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-primary">
@@ -352,7 +352,7 @@ export function DealDrawer({
     </div>
   );
 
-  const DocList = ({ docs, scope }: { docs: CrmDocument[]; scope: "contact" | "deal" }) => (
+  const renderDocList = (docs: CrmDocument[], scope: "contact" | "deal") => (
     <div className="space-y-2">
       {docs.map(doc => {
         const CatIcon = getCategoryIcon(doc.category);
@@ -631,8 +631,8 @@ export function DealDrawer({
                         {isRtl ? "لا يوجد عميل مرتبط بهذه الصفقة" : "No client linked to this deal"}
                       </div>
                     )}
-                    {deal.contactId && showUploadForm === "contact" && <UploadForm scope="contact" />}
-                    {deal.contactId && <DocList docs={contactDocs} scope="contact" />}
+                    {deal.contactId && showUploadForm === "contact" && renderUploadForm("contact")}
+                    {deal.contactId && renderDocList(contactDocs, "contact")}
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -656,8 +656,8 @@ export function DealDrawer({
                         {isRtl ? "إضافة" : "Add"}
                       </Button>
                     </div>
-                    {showUploadForm === "deal" && <UploadForm scope="deal" />}
-                    <DocList docs={dealDocs} scope="deal" />
+                    {showUploadForm === "deal" && renderUploadForm("deal")}
+                    {renderDocList(dealDocs, "deal")}
                   </div>
                 </ScrollArea>
               </TabsContent>
