@@ -13,7 +13,7 @@ import {
   Building2, Mail, Phone, MapPin, Clock, Globe, Send,
   MessageSquare, Headphones, Shield, Server, Database,
   Linkedin, Twitter, MessageCircle, CheckCircle2, Info,
-  Monitor, Layers, Code2, Cpu
+  Monitor, Layers, Code2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -408,29 +408,6 @@ export default function AboutModule() {
                     </div>
                   </a>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Cpu className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-bold">{t("معلومات تقنية", "Technical Info")}</h3>
-                </div>
-                <div className="space-y-2.5 text-sm">
-                  {[
-                    { label: t("الإصدار", "Version"), value: __APP_VERSION__, testId: "text-tech-version" },
-                    { label: t("الواجهة", "Frontend"), value: "React + TypeScript", testId: "text-tech-frontend" },
-                    { label: t("الخادم", "Backend"), value: "Express.js + Node.js", testId: "text-tech-backend" },
-                    { label: t("قاعدة البيانات", "Database"), value: "PostgreSQL + Drizzle", testId: "text-tech-database" },
-                    { label: t("التصميم", "UI Framework"), value: "Tailwind CSS + shadcn/ui", testId: "text-tech-ui" },
-                  ].map((item) => (
-                    <div key={item.testId} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
-                      <span className="text-muted-foreground text-xs">{item.label}</span>
-                      <span className="font-medium text-xs" data-testid={item.testId}>{item.value}</span>
-                    </div>
-                  ))}
-                </div>
               </CardContent>
             </Card>
           </div>
