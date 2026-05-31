@@ -14,8 +14,9 @@ import {
   Upload, FileText, Trash2, Download, Loader2, FolderOpen,
   Building2, User, Phone, Mail, Calendar, DollarSign,
   Image, FileSpreadsheet, BookOpen, FlaskConical, ScrollText,
-  Receipt, File, Plus, X, Eye, EyeOff,
+  Receipt, File, Plus, X, Eye, EyeOff, FileSignature, CreditCard,
 } from "lucide-react";
+import { dbSetItem } from "@/lib/dbStorage";
 import { cn } from "@/lib/utils";
 import { scopedFetch, apiRequest } from "@/lib/queryClient";
 
@@ -508,13 +509,48 @@ export function DealDrawer({
                   </div>
                 </div>
               </div>
-              {onCreateProposal && (
-                <Button size="sm" className="w-full mt-3 h-8 text-xs" variant="outline"
-                  onClick={() => onCreateProposal(deal, customer)}>
-                  <FileText className="w-3.5 h-3.5 me-1.5" />
-                  {isRtl ? "إنشاء عرض سعر" : "Create Proposal"}
-                </Button>
-              )}
+              <div className="mt-3 flex flex-col gap-2">
+                {(deal.stage === "new" || deal.stage === "qualified" || !deal.stage) && onCreateProposal && (
+                  <Button size="sm" className="w-full h-8 text-xs" variant="outline"
+                    onClick={() => onCreateProposal(deal, customer)}
+                    data-testid="btn-create-proposal">
+                    <FileText className="w-3.5 h-3.5 me-1.5" />
+                    {isRtl ? "إنشاء عرض سعر" : "Create Proposal"}
+                  </Button>
+                )}
+                {(deal.stage === "proposal" || deal.stage === "negotiation") && (
+                  <div className="flex gap-2">
+                    {onCreateProposal && (
+                      <Button size="sm" className="flex-1 h-8 text-xs" variant="outline"
+                        onClick={() => onCreateProposal(deal, customer)}
+                        data-testid="btn-create-proposal-secondary">
+                        <FileText className="w-3.5 h-3.5 me-1.5" />
+                        {isRtl ? "عرض سعر" : "Proposal"}
+                      </Button>
+                    )}
+                    <Button size="sm" className="flex-1 h-8 text-xs bg-violet-600 hover:bg-violet-700 text-white border-0"
+                      onClick={() => {
+                        const clientName = customer
+                          ? (isRtl ? (customer.nameAr || customer.nameEn || "") : (customer.nameEn || customer.nameAr || ""))
+                          : (deal.titleAr || deal.titleEn || "");
+                        dbSetItem("scapex_contract_prefill", JSON.stringify({ clientName, contactId: deal.contactId, dealId: deal.id }));
+                        window.location.href = "/sales";
+                      }}
+                      data-testid="btn-create-contract">
+                      <FileSignature className="w-3.5 h-3.5 me-1.5" />
+                      {isRtl ? "إنشاء عقد" : "Contract"}
+                    </Button>
+                  </div>
+                )}
+                {deal.stage === "won" && (
+                  <Button size="sm" className="w-full h-8 text-xs bg-cyan-600 hover:bg-cyan-700 text-white border-0"
+                    onClick={() => { window.location.href = "/accounting"; }}
+                    data-testid="btn-issue-invoice">
+                    <CreditCard className="w-3.5 h-3.5 me-1.5" />
+                    {isRtl ? "إصدار فاتورة" : "Issue Invoice"}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* ─── Tabs ────────────────────────────────────────────── */}

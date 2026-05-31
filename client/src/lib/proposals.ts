@@ -65,6 +65,8 @@ export interface Proposal {
   convertedToContractId?: string;
   convertedToInvoiceId?: string;
   createdBy: string;
+  crmContactId?: number;
+  crmDealId?: number;
 }
 
 // ─── Contract Types ──────────────────────────────────────────────────────────
@@ -204,6 +206,85 @@ export function generateContractNumber(): string {
   const year = new Date().getFullYear();
   const count = getContracts().length + 1;
   return `CON-${year}-${String(count).padStart(4, "0")}`;
+}
+
+export async function saveProposalToDB(
+  proposal: Proposal,
+  userId?: string,
+  contactId?: number,
+): Promise<number | null> {
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (userId) headers["x-user-id"] = userId;
+    const res = await fetch("/api/proposals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        proposalNumber: proposal.proposalNumber,
+        contactId: contactId ?? null,
+        clientName: proposal.clientName,
+        clientContact: proposal.clientContact ?? null,
+        clientEmail: proposal.clientEmail ?? null,
+        projectName: proposal.projectName,
+        projectDesc: proposal.projectDesc,
+        serviceType: proposal.serviceType,
+        subtotal: proposal.subtotal,
+        vatRate: proposal.vatRate,
+        vatAmount: proposal.vatAmount,
+        total: proposal.total,
+        currency: proposal.currency || "SAR",
+        status: proposal.status,
+        notes: proposal.notes ?? null,
+        createdBy: userId || null,
+        items: proposal.items,
+      }),
+    });
+    if (res.ok) {
+      const row = await res.json();
+      return row.id as number;
+    }
+  } catch {}
+  return null;
+}
+
+export async function saveInvoiceToDB(
+  proposal: Proposal,
+  invoiceNumber: string,
+  userId?: string,
+  contactId?: number,
+): Promise<boolean> {
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (userId) headers["x-user-id"] = userId;
+    const res = await fetch("/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        invoiceNumber,
+        type: "sales",
+        contactId: contactId ?? null,
+        clientName: proposal.clientName,
+        issueDate: new Date().toISOString().slice(0, 10),
+        subtotal: proposal.subtotal,
+        vatRate: proposal.vatRate,
+        vatAmount: proposal.vatAmount,
+        total: proposal.total,
+        currency: proposal.currency || "SAR",
+        status: "draft",
+        notes: `من عرض سعر رقم ${proposal.proposalNumber}`,
+        items: (proposal.items || []).map((it: any) => ({
+          descAr: it.descAr || "",
+          descEn: it.descEn || "",
+          qty: it.qty || 1,
+          unit: it.unit || null,
+          unitPrice: it.unitPrice || 0,
+          total: it.total || (it.qty || 1) * (it.unitPrice || 0),
+        })),
+      }),
+    });
+    return res.ok;
+  } catch {}
+  return false;
 }
 
 // ─── Service Meta ─────────────────────────────────────────────────────────────

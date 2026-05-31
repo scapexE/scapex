@@ -199,6 +199,24 @@ export async function portalUploadDocument(payload: {
   return r.json();
 }
 
+export interface PortalProposal {
+  id: number;
+  proposalNumber: string;
+  projectName: string | null;
+  subtotal: string | null;
+  vatAmount: string | null;
+  total: string | null;
+  currency: string | null;
+  status: string | null;
+  createdAt: string | null;
+}
+
+export async function portalListProposals(): Promise<PortalProposal[]> {
+  const r = await portalFetch("/api/portal/proposals");
+  if (!r.ok) return [];
+  return r.json();
+}
+
 export async function portalSubmitRequest(payload: { subject: string; message: string; projectId?: number | null }): Promise<{ id: number }> {
   const r = await portalFetch("/api/portal/requests", {
     method: "POST",

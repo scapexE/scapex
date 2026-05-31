@@ -11,11 +11,11 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
   portalLogin, portalGetMe, portalListProjects, portalGetProject,
-  portalListStages, portalListDocuments, portalListInvoices, portalSubmitRequest,
+  portalListStages, portalListDocuments, portalListInvoices, portalListProposals, portalSubmitRequest,
   portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
   getPortalContact, getPortalToken, clearPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
-  type PortalClientDocument,
+  type PortalClientDocument, type PortalProposal,
 } from "@/lib/portalApi";
 
 export type PortalTheme = "default" | "ocean" | "forest" | "royal" | "sunset" | "slate";
@@ -212,7 +212,8 @@ function ProjectDetail({ projectId, onBack, isRtl, t, theme }: { projectId: numb
   const [stages, setStages] = useState<PortalStage[]>([]);
   const [docs, setDocs] = useState<PortalDocument[]>([]);
   const [invs, setInvs] = useState<PortalInvoice[]>([]);
-  const [tab, setTab] = useState<"stages" | "docs" | "invoices">("stages");
+  const [props, setProps] = useState<PortalProposal[]>([]);
+  const [tab, setTab] = useState<"stages" | "docs" | "invoices" | "proposals">("stages");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -222,11 +223,13 @@ function ProjectDetail({ projectId, onBack, isRtl, t, theme }: { projectId: numb
       portalListStages(projectId),
       portalListDocuments(projectId),
       portalListInvoices(projectId).catch(() => []),
-    ]).then(([p, s, d, i]) => {
+      portalListProposals().catch(() => []),
+    ]).then(([p, s, d, i, pr]) => {
       setProject(p);
       setStages(s.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)));
       setDocs(d);
       setInvs(i);
+      setProps(pr);
     }).catch(() => { /* show empty */ })
       .finally(() => setLoading(false));
   }, [projectId]);
@@ -263,11 +266,12 @@ function ProjectDetail({ projectId, onBack, isRtl, t, theme }: { projectId: numb
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-border/50">
+      <div className="flex gap-2 border-b border-border/50 flex-wrap">
         {([
           { id: "stages", label: t("المراحل", "Stages"), icon: FolderKanban },
           { id: "docs", label: t("المستندات", "Documents"), icon: FileText },
           { id: "invoices", label: t("الفواتير", "Invoices"), icon: Receipt },
+          { id: "proposals", label: t("عروض الأسعار", "Proposals"), icon: FileText },
         ] as const).map((tt) => (
           <button
             key={tt.id}
@@ -346,6 +350,55 @@ function ProjectDetail({ projectId, onBack, isRtl, t, theme }: { projectId: numb
                     <td className="px-4 py-2.5">{i.issueDate || "—"}</td>
                     <td className="px-4 py-2.5">{i.total} {i.currency}</td>
                     <td className="px-4 py-2.5"><span className="text-xs px-2 py-0.5 rounded-full bg-muted">{i.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === "proposals" && (
+        <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
+          {props.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8" data-testid="text-no-proposals">
+              {t("لا توجد عروض أسعار", "No proposals yet")}
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الرقم", "No.")}</th>
+                  <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
+                  <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
+                  <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
+                  <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("التاريخ", "Date")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {props.map((pr) => (
+                  <tr key={pr.id} className="border-t border-border/50" data-testid={`row-proposal-${pr.id}`}>
+                    <td className="px-4 py-2.5 font-mono text-xs">{pr.proposalNumber}</td>
+                    <td className="px-4 py-2.5 max-w-[180px] truncate">{pr.projectName || "—"}</td>
+                    <td className="px-4 py-2.5 tabular-nums">{pr.total} {pr.currency}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                        pr.status === "approved" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                        pr.status === "sent" ? "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300" :
+                        pr.status === "rejected" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                        "bg-muted text-muted-foreground")}>
+                        {pr.status === "draft" ? t("مسودة", "Draft") :
+                         pr.status === "sent" ? t("مُرسل", "Sent") :
+                         pr.status === "approved" ? t("مُوافق عليه", "Approved") :
+                         pr.status === "rejected" ? t("مرفوض", "Rejected") :
+                         pr.status === "converted_contract" ? t("تحوّل لعقد", "Converted") :
+                         pr.status === "converted_invoice" ? t("تحوّل لفاتورة", "Invoiced") :
+                         pr.status || "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground text-xs">
+                      {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -21,7 +21,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, type SurveyQuestionDef } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, type SurveyQuestionDef } from "@shared/schema";
 import { sendEmail } from "./email";
 import crypto from "crypto";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
@@ -2470,6 +2470,30 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/portal/proposals", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const rows = await db.select().from(proposals)
+        .where(eq(proposals.contactId, me.id))
+        .orderBy(desc(proposals.createdAt));
+      res.json(rows.map((p) => ({
+        id: p.id,
+        proposalNumber: p.proposalNumber,
+        projectName: p.projectName,
+        subtotal: p.subtotal,
+        vatAmount: p.vatAmount,
+        total: p.total,
+        currency: p.currency,
+        status: p.status,
+        createdAt: p.createdAt,
+      })));
+    } catch (err: any) {
+      console.error("Portal proposals error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.post("/api/portal/requests", async (req, res) => {
     const me = await requirePortalContact(req, res);
     if (!me) return;
@@ -4812,6 +4836,55 @@ export async function registerRoutes(
         imported++;
       }
       res.json({ imported, skipped: list.length - imported });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROPOSALS — persist to DB so Accounting + Client Portal can read them
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/proposals", async (req, res) => {
+    try {
+      const b = req.body;
+      const staffId = staffUserId(req);
+      // Idempotent: return existing record if proposalNumber already saved
+      const existing = await db.select({ id: proposals.id })
+        .from(proposals).where(eq(proposals.proposalNumber, b.proposalNumber));
+      if (existing.length > 0) { res.json(existing[0]); return; }
+      const [row] = await db.insert(proposals).values({
+        proposalNumber: b.proposalNumber,
+        contactId: b.contactId ? parseInt(b.contactId) : null,
+        clientName: b.clientName || "",
+        clientContact: b.clientContact || null,
+        clientEmail: b.clientEmail || null,
+        projectName: b.projectName || null,
+        projectDesc: b.projectDesc || null,
+        serviceType: b.serviceType || null,
+        subtotal: String(b.subtotal || 0),
+        vatRate: String(b.vatRate || 15),
+        vatAmount: String(b.vatAmount || 0),
+        total: String(b.total || 0),
+        currency: b.currency || "SAR",
+        status: b.status || "draft",
+        notes: b.notes || null,
+        createdBy: staffId || b.createdBy || null,
+        activityId: b.activityId || null,
+        companyId: 1,
+      }).returning();
+      if (b.items && Array.isArray(b.items) && b.items.length > 0) {
+        await db.insert(proposalItems).values(
+          b.items.map((it: any, idx: number) => ({
+            proposalId: row.id,
+            descAr: it.descAr || "",
+            descEn: it.descEn || "",
+            qty: String(it.qty || 1),
+            unit: it.unit || null,
+            unitPrice: String(it.unitPrice || 0),
+            total: String(it.total || (it.qty || 1) * (it.unitPrice || 0)),
+            sortOrder: idx,
+          }))
+        );
+      }
+      res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

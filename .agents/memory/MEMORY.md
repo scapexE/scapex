@@ -1,2 +1,1 @@
-- [CRM survey/email design](crm-survey-email.md) — bulk email BCC inline in route; survey templates in app_data + surveys.questions JSONB. Intentional, don't "fix".
-- [Auth & print security](auth-and-print-security.md) — staff auth via signed x-session-token (never x-user-id); module mutations gate isAdminOrManager; all user strings in print HTML need esc().
+- [Proposal scope bug](proposal-scope.md) — crmContactId must be stored in Proposal object itself; ProposalDetail has no closure access to CreateProposal state.

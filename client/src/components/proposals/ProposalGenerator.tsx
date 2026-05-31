@@ -27,7 +27,7 @@ import {
   SERVICE_META, STATUS_META, REGION_META, SIZE_META,
   generateAITemplate, generateId, generateProposalNumber,
   saveProposal, getProposals, deleteProposal,
-  generateContractFromProposal, saveContract, saveContractToDB, getContracts,
+  generateContractFromProposal, saveContract, saveContractToDB, saveProposalToDB, saveInvoiceToDB, getContracts,
   getPriceSuggestions, analyzeProposalPrices, getSmartPricing,
   printProposal, printContract,
 } from "@/lib/proposals";
@@ -474,6 +474,8 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         validity: SERVICE_META[selectedService].defaultValidity,
         aiGenerated: useAI, createdAt: now, updatedAt: now,
         createdBy: JSON.parse(dbGetItem("user") || "{}").name || "Admin",
+        crmContactId: crmContactId ?? undefined,
+        crmDealId: crmDealId ?? undefined,
       };
       setIsGenerating(false);
       onCreated(newProposal);
@@ -889,7 +891,13 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
     if (status === "sent") updates.sentAt = now;
     if (status === "approved") updates.approvedAt = now;
     if (status === "rejected") updates.rejectedAt = now;
-    setProposal((prev) => ({ ...prev, ...updates }));
+    const updated = { ...proposal, ...updates, updatedAt: now };
+    setProposal(updated);
+    onSave(updated);
+    if (status === "sent") {
+      const userId = (() => { try { const s = localStorage.getItem("session"); if (s) { const p = JSON.parse(s); return p.id || p.userId || ""; } } catch {} return ""; })();
+      saveProposalToDB(updated, userId, updated.crmContactId).catch(() => {});
+    }
   };
 
   const handleSave = () => {
@@ -905,7 +913,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
     saveContract(contract);
     // Also persist to PostgreSQL DB (with CRM contact linkage if available)
     const userId = (() => { try { const s = localStorage.getItem("session"); if (s) { const p = JSON.parse(s); return p.id || p.userId || ""; } } catch {} return ""; })();
-    saveContractToDB(contract, userId, crmContactId ?? undefined).catch(() => {});
+    saveContractToDB(contract, userId, proposal.crmContactId).catch(() => {});
     onSave(saved);
     setProposal(saved);
     // Auto-create a project linked to this contract
@@ -933,7 +941,9 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
     const saved = { ...proposal, status: "converted_invoice" as ProposalStatus, convertedToInvoiceId: invNum, updatedAt: new Date().toISOString() };
     onSave(saved);
     setProposal(saved);
-    toast({ title: isRtl ? "تم التحويل إلى فاتورة!" : "Converted to Invoice!", description: isRtl ? `رقم الفاتورة: ${invNum} — ستظهر في وحدة المحاسبة` : `Invoice No: ${invNum} — Will appear in Accounting module` });
+    const userId = (() => { try { const s = localStorage.getItem("session"); if (s) { const p = JSON.parse(s); return p.id || p.userId || ""; } } catch {} return ""; })();
+    saveInvoiceToDB(saved, invNum, userId, saved.crmContactId).catch(() => {});
+    toast({ title: isRtl ? "تم التحويل إلى فاتورة!" : "Converted to Invoice!", description: isRtl ? `رقم الفاتورة: ${invNum} — ستظهر في المحاسبة وبوابة العميل` : `Invoice No: ${invNum} — Will appear in Accounting & Client Portal` });
   };
 
   const existingContract = proposal.convertedToContractId
