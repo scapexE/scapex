@@ -121,7 +121,11 @@ async function portalFetch(path: string, init: RequestInit = {}): Promise<Respon
   return fetch(path, { ...init, headers });
 }
 
-export async function portalLogin(nationalId: string, password: string): Promise<{ token: string; contact: PortalContact }> {
+export type PortalLoginResult =
+  | { token: string; contact: PortalContact; requiresOtp?: never }
+  | { requiresOtp: true; tempKey: string; hint: string; devCode?: string };
+
+export async function portalLogin(nationalId: string, password: string): Promise<PortalLoginResult> {
   const r = await fetch("/api/portal/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -132,8 +136,30 @@ export async function portalLogin(nationalId: string, password: string): Promise
     throw new Error(j.error || "Login failed");
   }
   const data = await r.json();
+  if (data.requiresOtp) return data as PortalLoginResult;
   setPortalSession(data.token, data.contact);
   return data;
+}
+
+export async function portalVerifyLoginOtp(tempKey: string, code: string): Promise<{ token: string; contact: PortalContact }> {
+  const r = await fetch("/api/portal/login/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tempKey, code }),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error || "Invalid code");
+  }
+  const data = await r.json();
+  setPortalSession(data.token, data.contact);
+  return data;
+}
+
+export async function portalSendSignOtp(): Promise<{ ok: boolean; hint?: string; noPhone?: boolean; devCode?: string }> {
+  const r = await portalFetch("/api/portal/sign-otp", { method: "POST", body: "{}" });
+  if (!r.ok) throw new Error("Failed to send OTP");
+  return r.json();
 }
 
 export async function portalGetMe(): Promise<PortalContact> {
@@ -259,7 +285,7 @@ export async function portalListMyContracts(): Promise<PortalMyContract[]> {
   return r.json();
 }
 
-export async function portalApproveProposal(id: number, payload: { signerName: string; signature: string }): Promise<void> {
+export async function portalApproveProposal(id: number, payload: { signerName: string; signature: string; otp?: string }): Promise<void> {
   const r = await portalFetch(`/api/portal/proposals/${id}/approve`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -270,7 +296,7 @@ export async function portalApproveProposal(id: number, payload: { signerName: s
   }
 }
 
-export async function portalSignContract(id: number, payload: { signerName: string; signature: string }): Promise<void> {
+export async function portalSignContract(id: number, payload: { signerName: string; signature: string; otp?: string }): Promise<void> {
   const r = await portalFetch(`/api/portal/contracts/${id}/sign`, {
     method: "POST",
     body: JSON.stringify(payload),

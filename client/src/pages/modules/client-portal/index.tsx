@@ -6,11 +6,13 @@ import {
   FolderKanban, FileText, Receipt, MessageSquare, Loader2, ShieldCheck,
   Calendar, MapPin, User as UserIcon, ArrowLeft, ArrowRight, Send,
   FolderArchive, Upload, Download, X, FileSignature, ClipboardList, Pen, Check, RotateCcw,
+  Smartphone, KeyRound, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
-  portalLogin, portalGetMe, portalListProjects, portalGetProject,
+  portalLogin, portalVerifyLoginOtp, portalSendSignOtp,
+  portalGetMe, portalListProjects, portalGetProject,
   portalListStages, portalListDocuments, portalListInvoices, portalListProposals,
   portalListMyInvoices, portalListMyContracts,
   portalApproveProposal, portalSignContract,
@@ -48,6 +50,13 @@ function PortalLoginScreen({ onLogin, theme, isRtl, t, toggleLang }: { onLogin: 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // OTP step state
+  const [step, setStep] = useState<"credentials" | "otp">("credentials");
+  const [tempKey, setTempKey] = useState("");
+  const [otpHint, setOtpHint] = useState("");
+  const [otpDevCode, setOtpDevCode] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+
   const submit = async () => {
     setError("");
     if (!nationalId.trim() || !password) {
@@ -57,11 +66,33 @@ function PortalLoginScreen({ onLogin, theme, isRtl, t, toggleLang }: { onLogin: 
     setLoading(true);
     try {
       const res = await portalLogin(nationalId.trim(), password);
-      onLogin(res.contact);
+      if (res.requiresOtp) {
+        setTempKey(res.tempKey);
+        setOtpHint(res.hint);
+        setOtpDevCode(res.devCode || "");
+        setStep("otp");
+      } else {
+        onLogin(res.contact);
+      }
     } catch (e: any) {
       setError(e?.message === "Invalid credentials"
         ? t("رقم الهوية أو كلمة المرور غير صحيحة", "Invalid national ID or password")
         : (e?.message || t("فشل تسجيل الدخول", "Login failed")));
+    } finally { setLoading(false); }
+  };
+
+  const verifyOtp = async () => {
+    setError("");
+    if (!otpCode.trim()) {
+      setError(t("يرجى إدخال رمز التحقق", "Please enter the verification code"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await portalVerifyLoginOtp(tempKey, otpCode.trim());
+      onLogin(res.contact);
+    } catch (e: any) {
+      setError(e?.message || t("رمز غير صحيح. حاول مجدداً.", "Incorrect code. Please try again."));
     } finally { setLoading(false); }
   };
 
@@ -81,6 +112,7 @@ function PortalLoginScreen({ onLogin, theme, isRtl, t, toggleLang }: { onLogin: 
         </div>
 
         <div className="bg-card border border-t-0 border-border/50 shadow-xl rounded-b-2xl p-8">
+          {step === "credentials" ? (
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium block">{t("رقم الهوية الوطنية", "National ID")}</label>
@@ -110,7 +142,7 @@ function PortalLoginScreen({ onLogin, theme, isRtl, t, toggleLang }: { onLogin: 
             </div>
 
             {error && (
-              <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2.5 text-sm text-destructive" data-testid="text-portal-error">
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2.5 text-sm text-destructive" data-testid="text-portal-login-error">
                 {error}
               </div>
             )}
@@ -124,6 +156,71 @@ function PortalLoginScreen({ onLogin, theme, isRtl, t, toggleLang }: { onLogin: 
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("تسجيل الدخول", "Sign In")}
             </Button>
           </div>
+          ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+              <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  {t("تم إرسال رمز التحقق", "Verification code sent")}
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5" dir="ltr">
+                  {otpHint}
+                </p>
+              </div>
+            </div>
+
+            {otpDevCode && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700">
+                <KeyRound className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{t("وضع التطوير — الرمز:", "Dev mode — Code:")}</p>
+                  <p className="text-xl font-mono font-bold tracking-widest text-amber-800 dark:text-amber-200" data-testid="text-dev-otp">{otpDevCode}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium block">{t("رمز التحقق (6 أرقام)", "Verification Code (6 digits)")}</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="• • • • • •"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => { if (e.key === "Enter") verifyOtp(); }}
+                className="w-full h-12 rounded-lg border border-input bg-secondary/30 text-center text-xl font-mono tracking-widest outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                dir="ltr"
+                autoFocus
+                data-testid="input-portal-otp"
+              />
+            </div>
+
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2.5 text-sm text-destructive" data-testid="text-portal-otp-error">
+                {error}
+              </div>
+            )}
+
+            <Button
+              className={cn("w-full h-11 text-base font-medium bg-gradient-to-r text-white border-0", theme.primary)}
+              onClick={verifyOtp}
+              disabled={loading}
+              data-testid="button-portal-verify-otp"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("تحقق وادخل", "Verify & Sign In")}
+            </Button>
+
+            <button
+              className="w-full text-xs text-muted-foreground hover:text-foreground text-center pt-1"
+              onClick={() => { setStep("credentials"); setError(""); setOtpCode(""); }}
+              data-testid="button-portal-back-to-credentials"
+            >
+              {t("← العودة لإدخال البيانات", "← Back to credentials")}
+            </button>
+          </div>
+          )}
 
           <div className="mt-6 pt-4 border-t border-border/50 space-y-2 text-center">
             <Button variant="ghost" size="sm" onClick={toggleLang} className="text-xs">
@@ -471,7 +568,7 @@ function ContactForm({ projects, onDone, isRtl, t, theme }: { projects: PortalPr
 
 // ── Signature canvas ─────────────────────────────────────────────────────
 function SigCanvas({ canvasRef, onDraw }: {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onDraw: () => void;
 }) {
   const drawing = useRef(false);
@@ -525,20 +622,48 @@ function SigCanvas({ canvasRef, onDraw }: {
   );
 }
 
-// ── Sign / Approval modal ─────────────────────────────────────────────────
+// ── Sign / Approval modal (2-step: OTP → Signature) ──────────────────────
 function SignModal({
   docTitle, docType, onSign, onClose, isRtl, t, theme, busy,
 }: {
   docTitle: string; docType: "proposal" | "contract";
-  onSign: (name: string, sig: string) => Promise<void>;
+  onSign: (name: string, sig: string, otp?: string) => Promise<void>;
   onClose: () => void; isRtl: boolean;
   t: (a: string, e: string) => string;
   theme: typeof PORTAL_THEMES[number]; busy: boolean;
 }) {
+  const [sigStep, setSigStep] = useState<"otp" | "sign">("otp");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpHint, setOtpHint] = useState("");
+  const [otpDevCode, setOtpDevCode] = useState("");
+  const [noPhone, setNoPhone] = useState(false);
+  const [otpErr, setOtpErr] = useState("");
+
   const [name, setName] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [err, setErr] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const sendOtp = async () => {
+    setOtpSending(true); setOtpErr("");
+    try {
+      const res = await portalSendSignOtp();
+      if (res.noPhone) { setNoPhone(true); setSigStep("sign"); return; }
+      setOtpSent(true);
+      setOtpHint(res.hint || "");
+      setOtpDevCode(res.devCode || "");
+    } catch (e: any) {
+      setOtpErr(e?.message || t("فشل إرسال الرمز", "Failed to send code"));
+    } finally { setOtpSending(false); }
+  };
+
+  const proceedToSign = () => {
+    setOtpErr("");
+    if (!otp.trim()) { setOtpErr(t("يرجى إدخال رمز التحقق", "Please enter the verification code")); return; }
+    setSigStep("sign");
+  };
 
   const clearSig = () => {
     const c = canvasRef.current; if (!c) return;
@@ -552,9 +677,12 @@ function SignModal({
     if (!hasDrawn) { setErr(t("يرجى رسم توقيعك في المربع أدناه", "Please draw your signature below")); return; }
     const c = canvasRef.current; if (!c) return;
     try {
-      await onSign(name.trim(), c.toDataURL("image/png"));
+      await onSign(name.trim(), c.toDataURL("image/png"), noPhone ? undefined : otp.trim());
     } catch (e: any) {
-      setErr(e?.message || t("حدث خطأ", "An error occurred"));
+      const msg = e?.message || "";
+      if (msg === "otp_invalid") setErr(t("رمز التحقق غير صحيح", "Incorrect verification code"));
+      else if (msg === "otp_expired") setErr(t("انتهت صلاحية الرمز. أعد الإرسال.", "Code expired. Please resend."));
+      else setErr(msg || t("حدث خطأ", "An error occurred"));
     }
   };
 
@@ -576,46 +704,163 @@ function SignModal({
           </button>
         </div>
 
-        <div>
-          <label className="text-xs font-medium block mb-1.5">{t("اسمك الكامل", "Full name")}</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full h-10 rounded-lg border border-input bg-background text-sm px-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            placeholder={t("الاسم كما هو في الهوية الرسمية", "Name as on official ID")}
-            data-testid="input-signer-name"
-          />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-medium">{t("التوقيع الإلكتروني", "Electronic Signature")}</label>
-            <button onClick={clearSig} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted" data-testid="button-clear-sig">
-              <RotateCcw className="w-3 h-3" />{t("مسح", "Clear")}
-            </button>
+        {/* Step indicator */}
+        {!noPhone && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className={cn("flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
+              sigStep === "otp" ? "bg-primary text-primary-foreground" : "bg-emerald-500 text-white")}>
+              {sigStep === "otp" ? "1" : <Check className="w-3 h-3" />}
+            </span>
+            <span className={sigStep === "otp" ? "font-medium text-foreground" : "text-muted-foreground"}>
+              {t("التحقق بالجوال", "Phone Verification")}
+            </span>
+            <div className="flex-1 h-px bg-border mx-1" />
+            <span className={cn("flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
+              sigStep === "sign" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>2</span>
+            <span className={sigStep === "sign" ? "font-medium text-foreground" : "text-muted-foreground"}>
+              {t("التوقيع الإلكتروني", "Electronic Signature")}
+            </span>
           </div>
-          <SigCanvas canvasRef={canvasRef} onDraw={() => setHasDrawn(true)} />
-          <p className="text-[11px] text-muted-foreground mt-1.5 text-center">
-            {t("ارسم توقيعك بالماوس أو بإصبعك على الشاشة", "Draw your signature with mouse or finger")}
-          </p>
-        </div>
+        )}
 
-        {err && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{err}</p>}
+        {/* ── Step 1: OTP ── */}
+        {sigStep === "otp" && (
+          <div className="space-y-3">
+            {!otpSent ? (
+              <div className="text-center space-y-3 py-2">
+                <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center mx-auto">
+                  <Smartphone className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {t("سيتم إرسال رمز تحقق إلى رقم جوالك المسجل للتأكيد قبل التوقيع",
+                     "A verification code will be sent to your registered mobile number before signing")}
+                </p>
+                {otpErr && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{otpErr}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" onClick={onClose} className="flex-1" data-testid="button-cancel-sign">{t("إلغاء", "Cancel")}</Button>
+                  <Button
+                    onClick={sendOtp}
+                    disabled={otpSending}
+                    className={cn("flex-1 bg-gradient-to-r text-white border-0", theme.primary)}
+                    data-testid="button-send-otp"
+                  >
+                    {otpSending ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <Smartphone className="w-4 h-4 me-1" />}
+                    {t("أرسل رمز التحقق", "Send Verification Code")}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">{t("تم الإرسال إلى", "Code sent to")}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-mono" dir="ltr">{otpHint}</p>
+                  </div>
+                </div>
 
-        <div className="flex gap-3 pt-1">
-          <Button variant="outline" onClick={onClose} className="flex-1" disabled={busy} data-testid="button-cancel-sign">
-            {t("إلغاء", "Cancel")}
-          </Button>
-          <Button
-            onClick={confirm}
-            disabled={busy}
-            className={cn("flex-1 bg-gradient-to-r text-white border-0", theme.primary)}
-            data-testid="button-confirm-sign"
-          >
-            {busy ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Check className="w-4 h-4 me-2" />}
-            {t("تأكيد وتوقيع", "Confirm & Sign")}
-          </Button>
-        </div>
+                {otpDevCode && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700">
+                    <KeyRound className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{t("وضع التطوير — الرمز:", "Dev mode — Code:")}</p>
+                      <p className="text-2xl font-mono font-bold tracking-widest text-amber-800 dark:text-amber-200" data-testid="text-sign-dev-otp">{otpDevCode}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium block">{t("رمز التحقق", "Verification Code")}</label>
+                  <input
+                    type="text" inputMode="numeric" maxLength={6}
+                    placeholder="• • • • • •"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={(e) => { if (e.key === "Enter") proceedToSign(); }}
+                    className="w-full h-12 rounded-lg border border-input bg-background text-center text-xl font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    dir="ltr" autoFocus
+                    data-testid="input-sign-otp"
+                  />
+                </div>
+
+                {otpErr && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{otpErr}</p>}
+
+                <div className="flex gap-2">
+                  <button
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-md hover:bg-muted"
+                    onClick={sendOtp} disabled={otpSending}
+                    data-testid="button-resend-otp"
+                  >
+                    <RefreshCw className="w-3 h-3" />{t("إعادة الإرسال", "Resend")}
+                  </button>
+                  <div className="flex-1" />
+                  <Button variant="outline" onClick={onClose} data-testid="button-cancel-sign-otp">{t("إلغاء", "Cancel")}</Button>
+                  <Button
+                    onClick={proceedToSign}
+                    className={cn("bg-gradient-to-r text-white border-0", theme.primary)}
+                    data-testid="button-next-to-sign"
+                  >
+                    {t("التالي →", "Next →")}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Step 2: Signature ── */}
+        {sigStep === "sign" && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium block mb-1.5">{t("اسمك الكامل", "Full name")}</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full h-10 rounded-lg border border-input bg-background text-sm px-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder={t("الاسم كما هو في الهوية الرسمية", "Name as on official ID")}
+                data-testid="input-signer-name"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium">{t("التوقيع الإلكتروني", "Electronic Signature")}</label>
+                <button onClick={clearSig} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted" data-testid="button-clear-sig">
+                  <RotateCcw className="w-3 h-3" />{t("مسح", "Clear")}
+                </button>
+              </div>
+              <SigCanvas canvasRef={canvasRef} onDraw={() => setHasDrawn(true)} />
+              <p className="text-[11px] text-muted-foreground mt-1.5 text-center">
+                {t("ارسم توقيعك بالماوس أو بإصبعك على الشاشة", "Draw your signature with mouse or finger")}
+              </p>
+            </div>
+
+            {err && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{err}</p>}
+
+            <div className="flex gap-3 pt-1">
+              {!noPhone && (
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md hover:bg-muted"
+                  onClick={() => { setSigStep("otp"); setErr(""); }}
+                  data-testid="button-back-to-otp"
+                >
+                  {t("← رجوع", "← Back")}
+                </button>
+              )}
+              <div className="flex-1" />
+              <Button variant="outline" onClick={onClose} disabled={busy} data-testid="button-cancel-sign">{t("إلغاء", "Cancel")}</Button>
+              <Button
+                onClick={confirm}
+                disabled={busy}
+                className={cn("bg-gradient-to-r text-white border-0", theme.primary)}
+                data-testid="button-confirm-sign"
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Check className="w-4 h-4 me-2" />}
+                {t("تأكيد وتوقيع", "Confirm & Sign")}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -789,17 +1034,17 @@ export default function ClientPortalModule() {
   const [signModal, setSignModal] = useState<{ type: "proposal" | "contract"; id: number; title: string } | null>(null);
   const [signBusy, setSignBusy] = useState(false);
 
-  const handleSign = useCallback(async (signerName: string, signature: string) => {
+  const handleSign = useCallback(async (signerName: string, signature: string, otp?: string) => {
     if (!signModal) return;
     setSignBusy(true);
     try {
       if (signModal.type === "proposal") {
-        await portalApproveProposal(signModal.id, { signerName, signature });
+        await portalApproveProposal(signModal.id, { signerName, signature, otp });
         const now = new Date().toISOString();
         setMyProposals(prev => prev.map(p => p.id === signModal.id
           ? { ...p, status: "approved", clientApprovedAt: now, clientSignedBy: signerName } : p));
       } else {
-        await portalSignContract(signModal.id, { signerName, signature });
+        await portalSignContract(signModal.id, { signerName, signature, otp });
         const now = new Date().toISOString();
         setMyContracts(prev => prev.map(c => c.id === signModal.id
           ? { ...c, clientSignedAt: now, clientSignedBy: signerName } : c));

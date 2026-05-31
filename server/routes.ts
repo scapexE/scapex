@@ -291,7 +291,7 @@ export async function registerRoutes(
 
     if (isPortalPath) {
       // Public portal endpoints (no token needed yet).
-      if (req.path === "/api/portal/login" || req.path === "/api/portal/logout") return next();
+      if (req.path === "/api/portal/login" || req.path === "/api/portal/logout" || req.path === "/api/portal/login/verify-otp") return next();
       if (!portalDecoded) return res.status(401).json({ error: "Portal session required" });
       return next();
     }
@@ -2176,6 +2176,39 @@ export async function registerRoutes(
     return { name }; // Name only — no internal ids/emails leak to portal users.
   }
 
+  // ── Portal OTP stores (in-memory, node-scoped) ──────────────────────────
+  // loginTempStore: key=tempKey → {contactId, code, expiry}
+  // signOtpStore:  key=contactId → {code, expiry}
+  const loginTempStore = new Map<string, { contactId: number; code: string; expiry: number }>();
+  const signOtpStore   = new Map<number, { code: string; expiry: number }>();
+
+  function genPortalOtp(): string {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+  function maskPhone(p: string): string {
+    if (!p || p.length < 4) return "****";
+    return p.slice(0, -4).replace(/\d/g, "•") + p.slice(-4);
+  }
+  async function dispatchSms(phone: string, code: string, contactId: number): Promise<string | undefined> {
+    const sid   = process.env.TWILIO_ACCOUNT_SID;
+    const auth  = process.env.TWILIO_AUTH_TOKEN;
+    const from  = process.env.TWILIO_FROM_NUMBER;
+    if (sid && auth && from) {
+      try {
+        const body = `رمز التحقق من Scapex: ${code} (صالح 10 دقائق)`;
+        const basicAuth = Buffer.from(`${sid}:${auth}`).toString("base64");
+        await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+          method: "POST",
+          headers: { Authorization: `Basic ${basicAuth}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ To: phone, From: from, Body: body }).toString(),
+        });
+        return undefined;
+      } catch (e) { console.error("[Portal OTP] SMS error:", e); }
+    }
+    console.log(`\n🔐 [Portal OTP - DEV] Contact ${contactId} | ${phone} | CODE: ${code}\n`);
+    return code; // dev mode: expose to frontend for testing
+  }
+
   app.post("/api/portal/login", async (req, res) => {
     try {
       const { nationalId, password } = req.body || {};
@@ -2191,17 +2224,49 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid credentials" });
       }
       if (matches.length > 1) {
-        // Ambiguous: same nationalId+password matches multiple tenants. Refuse rather
-        // than risk picking the wrong contact.
         console.warn(`[portal] ambiguous login nationalId=${nationalId} matches=${matches.length}`);
         return res.status(409).json({ error: "Ambiguous account — contact your administrator" });
       }
       const matched = matches[0];
       await db.update(contacts).set({ portalLastLogin: new Date() }).where(eq(contacts.id, matched.id));
+
+      const phone = (matched.mobile || matched.phone || "").trim();
+      if (phone) {
+        const code = genPortalOtp();
+        const tempKey = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        loginTempStore.set(tempKey, { contactId: matched.id, code, expiry: Date.now() + 10 * 60 * 1000 });
+        const devCode = await dispatchSms(phone, code, matched.id);
+        return res.json({ requiresOtp: true, tempKey, hint: maskPhone(phone), devCode });
+      }
+
       const token = signPortalToken(matched.id);
       res.json({ token, contact: sanitizeContact(matched) });
     } catch (err: any) {
       console.error("Portal login error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/portal/login/verify-otp", async (req, res) => {
+    try {
+      const { tempKey, code } = req.body || {};
+      if (!tempKey || !code) return res.status(400).json({ error: "tempKey and code are required" });
+      const stored = loginTempStore.get(String(tempKey));
+      if (!stored) return res.status(401).json({ error: "انتهت الجلسة. يرجى المحاولة من جديد." });
+      if (Date.now() > stored.expiry) {
+        loginTempStore.delete(String(tempKey));
+        return res.status(401).json({ error: "انتهت صلاحية الرمز. يرجى تسجيل الدخول من جديد." });
+      }
+      if (stored.code !== String(code).trim()) {
+        return res.status(401).json({ error: "الرمز غير صحيح. يرجى المحاولة مجدداً." });
+      }
+      loginTempStore.delete(String(tempKey));
+      const [contact] = await db.select().from(contacts).where(eq(contacts.id, stored.contactId));
+      if (!contact) return res.status(404).json({ error: "Account not found" });
+      const token = signPortalToken(stored.contactId);
+      res.json({ token, contact: sanitizeContact(contact) });
+    } catch (err: any) {
+      console.error("Portal verify OTP error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -2470,6 +2535,22 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/portal/sign-otp", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const phone = ((me as any).mobile || (me as any).phone || "").trim();
+      if (!phone) return res.json({ ok: true, noPhone: true });
+      const code = genPortalOtp();
+      signOtpStore.set(me.id, { code, expiry: Date.now() + 10 * 60 * 1000 });
+      const devCode = await dispatchSms(phone, code, me.id);
+      res.json({ ok: true, hint: maskPhone(phone), devCode });
+    } catch (err: any) {
+      console.error("Portal sign-otp error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.get("/api/portal/proposals", async (req, res) => {
     const me = await requirePortalContact(req, res);
     if (!me) return;
@@ -2505,8 +2586,19 @@ export async function registerRoutes(
     if (!me) return;
     try {
       const id = Number(req.params.id);
-      const { signerName, signature } = req.body || {};
+      const { signerName, signature, otp } = req.body || {};
       if (!signerName || !signature) return res.status(400).json({ error: "signerName and signature required" });
+      const mePhone = ((me as any).mobile || (me as any).phone || "").trim();
+      if (mePhone) {
+        if (!otp) return res.status(400).json({ error: "otp_required" });
+        const storedOtp = signOtpStore.get(me.id);
+        if (!storedOtp || Date.now() > storedOtp.expiry) {
+          signOtpStore.delete(me.id);
+          return res.status(401).json({ error: "otp_expired" });
+        }
+        if (storedOtp.code !== String(otp).trim()) return res.status(401).json({ error: "otp_invalid" });
+        signOtpStore.delete(me.id);
+      }
       const [p] = await db.select().from(proposals).where(eq(proposals.id, id));
       if (!p) return res.status(404).json({ error: "Not found" });
       const allowed = p.contactId === me.id ||
@@ -2592,8 +2684,19 @@ export async function registerRoutes(
     if (!me) return;
     try {
       const id = Number(req.params.id);
-      const { signerName, signature } = req.body || {};
+      const { signerName, signature, otp } = req.body || {};
       if (!signerName || !signature) return res.status(400).json({ error: "signerName and signature required" });
+      const mePhone = ((me as any).mobile || (me as any).phone || "").trim();
+      if (mePhone) {
+        if (!otp) return res.status(400).json({ error: "otp_required" });
+        const storedOtp = signOtpStore.get(me.id);
+        if (!storedOtp || Date.now() > storedOtp.expiry) {
+          signOtpStore.delete(me.id);
+          return res.status(401).json({ error: "otp_expired" });
+        }
+        if (storedOtp.code !== String(otp).trim()) return res.status(401).json({ error: "otp_invalid" });
+        signOtpStore.delete(me.id);
+      }
       const [c] = await db.select().from(contracts).where(eq(contracts.id, id));
       if (!c) return res.status(404).json({ error: "Not found" });
       const allowed = c.contactId === me.id ||
