@@ -1309,15 +1309,15 @@ export default function ClientPortalModule() {
                                 <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                                   {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
+                                <td className={cn("px-4 py-3 whitespace-nowrap", isRtl ? "text-right" : "text-left")}>
                                   {pr.clientApprovedAt ? (
-                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                      <Check className="w-3.5 h-3.5" />{t("موقّع", "Signed")}
+                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
+                                      <Check className="w-3.5 h-3.5 shrink-0" />{t("موقّع", "Signed")}
                                     </span>
                                   ) : pr.status === "sent" ? (
                                     <Button
                                       size="sm"
-                                      className={cn("h-7 text-xs bg-gradient-to-r text-white border-0 gap-1", theme.primary)}
+                                      className={cn("h-7 text-xs bg-gradient-to-r text-white border-0 gap-1 inline-flex", theme.primary)}
                                       onClick={() => setSignModal({ type: "proposal", id: pr.id, title: pr.proposalNumber })}
                                       data-testid={`button-approve-proposal-${pr.id}`}
                                     >
@@ -1439,15 +1439,15 @@ export default function ClientPortalModule() {
                                      c.status || "—"}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
+                                <td className={cn("px-4 py-3 whitespace-nowrap", isRtl ? "text-right" : "text-left")}>
                                   {c.clientSignedAt ? (
-                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                      <Check className="w-3.5 h-3.5" />{t("موقّع", "Signed")}
+                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
+                                      <Check className="w-3.5 h-3.5 shrink-0" />{t("موقّع", "Signed")}
                                     </span>
                                   ) : (
                                     <Button
                                       size="sm"
-                                      className={cn("h-7 text-xs bg-gradient-to-r text-white border-0 gap-1", theme.primary)}
+                                      className={cn("h-7 text-xs bg-gradient-to-r text-white border-0 gap-1 inline-flex", theme.primary)}
                                       onClick={() => setSignModal({ type: "contract", id: c.id, title: c.contractNumber })}
                                       data-testid={`button-sign-contract-${c.id}`}
                                     >
