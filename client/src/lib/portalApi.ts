@@ -209,6 +209,8 @@ export interface PortalProposal {
   currency: string | null;
   status: string | null;
   createdAt: string | null;
+  clientApprovedAt: string | null;
+  clientSignedBy: string | null;
 }
 
 export interface PortalMyInvoice {
@@ -235,6 +237,8 @@ export interface PortalMyContract {
   startDate: string | null;
   endDate: string | null;
   createdAt: string | null;
+  clientSignedAt: string | null;
+  clientSignedBy: string | null;
 }
 
 export async function portalListProposals(): Promise<PortalProposal[]> {
@@ -253,6 +257,28 @@ export async function portalListMyContracts(): Promise<PortalMyContract[]> {
   const r = await portalFetch("/api/portal/contracts");
   if (!r.ok) return [];
   return r.json();
+}
+
+export async function portalApproveProposal(id: number, payload: { signerName: string; signature: string }): Promise<void> {
+  const r = await portalFetch(`/api/portal/proposals/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error || "Approval failed");
+  }
+}
+
+export async function portalSignContract(id: number, payload: { signerName: string; signature: string }): Promise<void> {
+  const r = await portalFetch(`/api/portal/contracts/${id}/sign`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error || "Signing failed");
+  }
 }
 
 export async function portalSubmitRequest(payload: { subject: string; message: string; projectId?: number | null }): Promise<{ id: number }> {

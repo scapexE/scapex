@@ -276,6 +276,9 @@ export const proposals = pgTable("proposals", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   activityId: text("activity_id").references(() => businessActivities.id),
+  clientApprovedAt: timestamp("client_approved_at"),
+  clientSignedBy: text("client_signed_by"),
+  clientSignature: text("client_signature"),
 });
 
 export const proposalItems = pgTable("proposal_items", {
@@ -316,6 +319,9 @@ export const contracts = pgTable("contracts", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   activityId: text("activity_id").references(() => businessActivities.id),
+  clientSignedAt: timestamp("client_signed_at"),
+  clientSignedBy: text("client_signed_by"),
+  clientSignature: text("client_signature"),
 });
 
 export const contractItems = pgTable("contract_items", {

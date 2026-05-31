@@ -2491,9 +2491,40 @@ export async function registerRoutes(
         currency: p.currency,
         status: p.status,
         createdAt: p.createdAt,
+        clientApprovedAt: p.clientApprovedAt,
+        clientSignedBy: p.clientSignedBy,
       })));
     } catch (err: any) {
       console.error("Portal proposals error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/portal/proposals/:id/approve", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const id = Number(req.params.id);
+      const { signerName, signature } = req.body || {};
+      if (!signerName || !signature) return res.status(400).json({ error: "signerName and signature required" });
+      const [p] = await db.select().from(proposals).where(eq(proposals.id, id));
+      if (!p) return res.status(404).json({ error: "Not found" });
+      const allowed = p.contactId === me.id ||
+        (me.email && p.clientEmail === me.email) ||
+        p.clientName === me.nameAr ||
+        (me.nameEn && p.clientName === me.nameEn);
+      if (!allowed) return res.status(404).json({ error: "Not found" });
+      if (p.status !== "sent") return res.status(400).json({ error: "Only proposals with status 'sent' can be approved" });
+      await db.update(proposals).set({
+        status: "approved",
+        clientSignedBy: signerName,
+        clientSignature: signature,
+        clientApprovedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(proposals.id, id));
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("Portal approve proposal error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -2547,9 +2578,38 @@ export async function registerRoutes(
         startDate: c.startDate,
         endDate: c.endDate,
         createdAt: c.createdAt,
+        clientSignedAt: c.clientSignedAt,
+        clientSignedBy: c.clientSignedBy,
       })));
     } catch (err: any) {
       console.error("Portal contracts error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/portal/contracts/:id/sign", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const id = Number(req.params.id);
+      const { signerName, signature } = req.body || {};
+      if (!signerName || !signature) return res.status(400).json({ error: "signerName and signature required" });
+      const [c] = await db.select().from(contracts).where(eq(contracts.id, id));
+      if (!c) return res.status(404).json({ error: "Not found" });
+      const allowed = c.contactId === me.id ||
+        c.clientName === me.nameAr ||
+        (me.nameEn && c.clientName === me.nameEn);
+      if (!allowed) return res.status(404).json({ error: "Not found" });
+      if (c.clientSignedAt) return res.status(400).json({ error: "Contract already signed" });
+      await db.update(contracts).set({
+        clientSignedAt: new Date(),
+        clientSignedBy: signerName,
+        clientSignature: signature,
+        updatedAt: new Date(),
+      }).where(eq(contracts.id, id));
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("Portal sign contract error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });

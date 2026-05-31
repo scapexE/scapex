@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import {
   LogOut, Bell, Building2, Sun, Moon, Palette, ChevronRight, ChevronLeft,
   FolderKanban, FileText, Receipt, MessageSquare, Loader2, ShieldCheck,
   Calendar, MapPin, User as UserIcon, ArrowLeft, ArrowRight, Send,
-  FolderArchive, Upload, Download, X, FileSignature, ClipboardList,
+  FolderArchive, Upload, Download, X, FileSignature, ClipboardList, Pen, Check, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -13,6 +13,7 @@ import {
   portalLogin, portalGetMe, portalListProjects, portalGetProject,
   portalListStages, portalListDocuments, portalListInvoices, portalListProposals,
   portalListMyInvoices, portalListMyContracts,
+  portalApproveProposal, portalSignContract,
   portalSubmitRequest, portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
   getPortalContact, getPortalToken, clearPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
@@ -468,6 +469,158 @@ function ContactForm({ projects, onDone, isRtl, t, theme }: { projects: PortalPr
   );
 }
 
+// ── Signature canvas ─────────────────────────────────────────────────────
+function SigCanvas({ canvasRef, onDraw }: {
+  canvasRef: React.RefObject<HTMLCanvasElement>;
+  onDraw: () => void;
+}) {
+  const drawing = useRef(false);
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext("2d")!;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#1e293b";
+  }, [canvasRef]);
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, c: HTMLCanvasElement) => {
+    const r = c.getBoundingClientRect();
+    const sx = c.width / r.width, sy = c.height / r.height;
+    if ("touches" in e.nativeEvent && (e.nativeEvent as TouchEvent).touches.length > 0) {
+      const touch = (e.nativeEvent as TouchEvent).touches[0];
+      return { x: (touch.clientX - r.left) * sx, y: (touch.clientY - r.top) * sy };
+    }
+    const m = e as React.MouseEvent;
+    return { x: (m.clientX - r.left) * sx, y: (m.clientY - r.top) * sy };
+  };
+
+  const start = (e: React.MouseEvent | React.TouchEvent) => {
+    const c = canvasRef.current; if (!c) return;
+    drawing.current = true;
+    const p = getPos(e, c), ctx = c.getContext("2d")!;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y);
+  };
+
+  const move = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!drawing.current) return;
+    const c = canvasRef.current; if (!c) return;
+    const p = getPos(e, c), ctx = c.getContext("2d")!;
+    ctx.lineTo(p.x, p.y); ctx.stroke(); onDraw();
+  };
+
+  const stop = () => { drawing.current = false; };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={520} height={160}
+      className="w-full rounded-xl border-2 border-dashed border-input bg-white cursor-crosshair"
+      style={{ touchAction: "none", height: "160px" }}
+      onMouseDown={start} onMouseMove={move} onMouseUp={stop} onMouseLeave={stop}
+      onTouchStart={start} onTouchMove={move} onTouchEnd={stop}
+    />
+  );
+}
+
+// ── Sign / Approval modal ─────────────────────────────────────────────────
+function SignModal({
+  docTitle, docType, onSign, onClose, isRtl, t, theme, busy,
+}: {
+  docTitle: string; docType: "proposal" | "contract";
+  onSign: (name: string, sig: string) => Promise<void>;
+  onClose: () => void; isRtl: boolean;
+  t: (a: string, e: string) => string;
+  theme: typeof PORTAL_THEMES[number]; busy: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const [err, setErr] = useState("");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const clearSig = () => {
+    const c = canvasRef.current; if (!c) return;
+    c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    setHasDrawn(false);
+  };
+
+  const confirm = async () => {
+    setErr("");
+    if (!name.trim()) { setErr(t("يرجى كتابة اسمك الكامل", "Please enter your full name")); return; }
+    if (!hasDrawn) { setErr(t("يرجى رسم توقيعك في المربع أدناه", "Please draw your signature below")); return; }
+    const c = canvasRef.current; if (!c) return;
+    try {
+      await onSign(name.trim(), c.toDataURL("image/png"));
+    } catch (e: any) {
+      setErr(e?.message || t("حدث خطأ", "An error occurred"));
+    }
+  };
+
+  const label = docType === "proposal"
+    ? t("الموافقة على عرض السعر والتوقيع", "Approve Proposal & Sign")
+    : t("توقيع العقد", "Sign Contract");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4"
+        onClick={(e) => e.stopPropagation()} data-testid="modal-sign">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-bold text-lg">{label}</h3>
+            <p className="text-sm text-muted-foreground font-mono mt-0.5">{docTitle}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted shrink-0" data-testid="button-close-modal">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium block mb-1.5">{t("اسمك الكامل", "Full name")}</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full h-10 rounded-lg border border-input bg-background text-sm px-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            placeholder={t("الاسم كما هو في الهوية الرسمية", "Name as on official ID")}
+            data-testid="input-signer-name"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-medium">{t("التوقيع الإلكتروني", "Electronic Signature")}</label>
+            <button onClick={clearSig} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted" data-testid="button-clear-sig">
+              <RotateCcw className="w-3 h-3" />{t("مسح", "Clear")}
+            </button>
+          </div>
+          <SigCanvas canvasRef={canvasRef} onDraw={() => setHasDrawn(true)} />
+          <p className="text-[11px] text-muted-foreground mt-1.5 text-center">
+            {t("ارسم توقيعك بالماوس أو بإصبعك على الشاشة", "Draw your signature with mouse or finger")}
+          </p>
+        </div>
+
+        {err && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{err}</p>}
+
+        <div className="flex gap-3 pt-1">
+          <Button variant="outline" onClick={onClose} className="flex-1" disabled={busy} data-testid="button-cancel-sign">
+            {t("إلغاء", "Cancel")}
+          </Button>
+          <Button
+            onClick={confirm}
+            disabled={busy}
+            className={cn("flex-1 bg-gradient-to-r text-white border-0", theme.primary)}
+            data-testid="button-confirm-sign"
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Check className="w-4 h-4 me-2" />}
+            {t("تأكيد وتوقيع", "Confirm & Sign")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── My documents (company + deal docs shared by staff + client uploads) ─────
 function formatBytes(n: number | null): string {
   if (!n) return "—";
@@ -632,6 +785,30 @@ export default function ClientPortalModule() {
   const [myInvoices, setMyInvoices] = useState<PortalMyInvoice[]>([]);
   const [myContracts, setMyContracts] = useState<PortalMyContract[]>([]);
   const [loadingFinancial, setLoadingFinancial] = useState(false);
+
+  const [signModal, setSignModal] = useState<{ type: "proposal" | "contract"; id: number; title: string } | null>(null);
+  const [signBusy, setSignBusy] = useState(false);
+
+  const handleSign = useCallback(async (signerName: string, signature: string) => {
+    if (!signModal) return;
+    setSignBusy(true);
+    try {
+      if (signModal.type === "proposal") {
+        await portalApproveProposal(signModal.id, { signerName, signature });
+        const now = new Date().toISOString();
+        setMyProposals(prev => prev.map(p => p.id === signModal.id
+          ? { ...p, status: "approved", clientApprovedAt: now, clientSignedBy: signerName } : p));
+      } else {
+        await portalSignContract(signModal.id, { signerName, signature });
+        const now = new Date().toISOString();
+        setMyContracts(prev => prev.map(c => c.id === signModal.id
+          ? { ...c, clientSignedAt: now, clientSignedBy: signerName } : c));
+      }
+      setSignModal(null);
+    } finally {
+      setSignBusy(false);
+    }
+  }, [signModal]);
 
   // Validate the saved token on mount; if expired, drop the session.
   useEffect(() => {
@@ -850,45 +1027,66 @@ export default function ClientPortalModule() {
                     </div>
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-                          <tr>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الرقم", "No.")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("التاريخ", "Date")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {myProposals.map((pr) => (
-                            <tr key={pr.id} className="border-t border-border/50" data-testid={`row-proposal-top-${pr.id}`}>
-                              <td className="px-4 py-2.5 font-mono text-xs">{pr.proposalNumber}</td>
-                              <td className="px-4 py-2.5 max-w-[160px] truncate">{pr.projectName || "—"}</td>
-                              <td className="px-4 py-2.5 tabular-nums">{pr.total} {pr.currency}</td>
-                              <td className="px-4 py-2.5">
-                                <span className={cn("text-xs px-2 py-0.5 rounded-full",
-                                  pr.status === "approved" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
-                                  pr.status === "sent" ? "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300" :
-                                  pr.status === "rejected" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
-                                  pr.status === "converted_contract" || pr.status === "converted_invoice" ? "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300" :
-                                  "bg-muted text-muted-foreground")}>
-                                  {pr.status === "draft" ? t("مسودة", "Draft") :
-                                   pr.status === "sent" ? t("مُرسل", "Sent") :
-                                   pr.status === "approved" ? t("مُوافق عليه", "Approved") :
-                                   pr.status === "rejected" ? t("مرفوض", "Rejected") :
-                                   pr.status === "converted_contract" ? t("تحوّل لعقد", "Converted") :
-                                   pr.status === "converted_invoice" ? t("تحوّل لفاتورة", "Invoiced") :
-                                   pr.status || "—"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-muted-foreground text-xs">
-                                {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[700px] text-sm">
+                          <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                            <tr>
+                              <th className={cn("px-4 py-3 font-semibold w-[130px]", isRtl ? "text-right" : "text-left")}>{t("الرقم", "No.")}</th>
+                              <th className={cn("px-4 py-3 font-semibold", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[160px]", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[110px]", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[100px]", isRtl ? "text-right" : "text-left")}>{t("التاريخ", "Date")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("الإجراء", "Action")}</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {myProposals.map((pr) => (
+                              <tr key={pr.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-proposal-top-${pr.id}`}>
+                                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{pr.proposalNumber}</td>
+                                <td className="px-4 py-3"><span className="block truncate max-w-[180px]">{pr.projectName || "—"}</span></td>
+                                <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{pr.currency} {Number(pr.total || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                    pr.status === "approved" || pr.clientApprovedAt ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                                    pr.status === "sent" ? "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300" :
+                                    pr.status === "rejected" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                                    pr.status === "converted_contract" || pr.status === "converted_invoice" ? "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300" :
+                                    "bg-muted text-muted-foreground")}>
+                                    {pr.status === "draft" ? t("مسودة", "Draft") :
+                                     pr.status === "sent" ? t("مُرسل", "Sent") :
+                                     pr.status === "approved" ? t("مُوافق عليه", "Approved") :
+                                     pr.status === "rejected" ? t("مرفوض", "Rejected") :
+                                     pr.status === "converted_contract" ? t("تحوّل لعقد", "Converted") :
+                                     pr.status === "converted_invoice" ? t("تحوّل لفاتورة", "Invoiced") :
+                                     pr.status || "—"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
+                                  {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {pr.clientApprovedAt ? (
+                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                      <Check className="w-3.5 h-3.5" />{t("موقّع", "Signed")}
+                                    </span>
+                                  ) : pr.status === "sent" ? (
+                                    <Button
+                                      size="sm"
+                                      className={cn("h-7 text-xs bg-gradient-to-r text-white border-0 gap-1", theme.primary)}
+                                      onClick={() => setSignModal({ type: "proposal", id: pr.id, title: pr.proposalNumber })}
+                                      data-testid={`button-approve-proposal-${pr.id}`}
+                                    >
+                                      <Pen className="w-3 h-3" />{t("وافق وقّع", "Approve & Sign")}
+                                    </Button>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -905,43 +1103,45 @@ export default function ClientPortalModule() {
                     </div>
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-                          <tr>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("رقم الفاتورة", "Invoice #")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("تاريخ الإصدار", "Issue date")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("تاريخ الاستحقاق", "Due date")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("المدفوع", "Paid")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {myInvoices.map((inv) => (
-                            <tr key={inv.id} className="border-t border-border/50" data-testid={`row-invoice-top-${inv.id}`}>
-                              <td className="px-4 py-2.5 font-mono text-xs">{inv.invoiceNumber}</td>
-                              <td className="px-4 py-2.5">{inv.issueDate || "—"}</td>
-                              <td className="px-4 py-2.5">{inv.dueDate || "—"}</td>
-                              <td className="px-4 py-2.5 tabular-nums font-medium">{inv.total} {inv.currency}</td>
-                              <td className="px-4 py-2.5 tabular-nums text-emerald-600 dark:text-emerald-400">{inv.paidAmount || "0"} {inv.currency}</td>
-                              <td className="px-4 py-2.5">
-                                <span className={cn("text-xs px-2 py-0.5 rounded-full",
-                                  inv.status === "paid" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
-                                  inv.status === "sent" || inv.status === "overdue" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
-                                  inv.status === "cancelled" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
-                                  "bg-muted text-muted-foreground")}>
-                                  {inv.status === "draft" ? t("مسودة", "Draft") :
-                                   inv.status === "sent" ? t("مُرسلة", "Sent") :
-                                   inv.status === "paid" ? t("مدفوعة", "Paid") :
-                                   inv.status === "overdue" ? t("متأخرة", "Overdue") :
-                                   inv.status === "cancelled" ? t("ملغاة", "Cancelled") :
-                                   inv.status || "—"}
-                                </span>
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[680px] text-sm">
+                          <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                            <tr>
+                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("رقم الفاتورة", "Invoice #")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[110px]", isRtl ? "text-right" : "text-left")}>{t("تاريخ الإصدار", "Issue date")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[110px]", isRtl ? "text-right" : "text-left")}>{t("تاريخ الاستحقاق", "Due date")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[150px]", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("المدفوع", "Paid")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[100px]", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {myInvoices.map((inv) => (
+                              <tr key={inv.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-invoice-top-${inv.id}`}>
+                                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{inv.invoiceNumber}</td>
+                                <td className="px-4 py-3 text-xs whitespace-nowrap">{inv.issueDate || "—"}</td>
+                                <td className="px-4 py-3 text-xs whitespace-nowrap">{inv.dueDate || "—"}</td>
+                                <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{inv.currency} {Number(inv.total || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 tabular-nums text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{inv.currency} {Number(inv.paidAmount || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                    inv.status === "paid" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                                    inv.status === "sent" || inv.status === "overdue" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
+                                    inv.status === "cancelled" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                                    "bg-muted text-muted-foreground")}>
+                                    {inv.status === "draft" ? t("مسودة", "Draft") :
+                                     inv.status === "sent" ? t("مُرسلة", "Sent") :
+                                     inv.status === "paid" ? t("مدفوعة", "Paid") :
+                                     inv.status === "overdue" ? t("متأخرة", "Overdue") :
+                                     inv.status === "cancelled" ? t("ملغاة", "Cancelled") :
+                                     inv.status || "—"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -958,42 +1158,63 @@ export default function ClientPortalModule() {
                     </div>
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-                          <tr>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("رقم العقد", "Contract #")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الفترة", "Period")}</th>
-                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {myContracts.map((c) => (
-                            <tr key={c.id} className="border-t border-border/50" data-testid={`row-contract-top-${c.id}`}>
-                              <td className="px-4 py-2.5 font-mono text-xs">{c.contractNumber}</td>
-                              <td className="px-4 py-2.5 max-w-[160px] truncate">{c.projectName || "—"}</td>
-                              <td className="px-4 py-2.5 tabular-nums font-medium">{c.total} {c.currency}</td>
-                              <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                                {c.startDate || "—"} {(c.startDate || c.endDate) ? "→" : ""} {c.endDate || ""}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <span className={cn("text-xs px-2 py-0.5 rounded-full",
-                                  c.status === "active" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
-                                  c.status === "expired" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
-                                  c.status === "terminated" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
-                                  "bg-muted text-muted-foreground")}>
-                                  {c.status === "active" ? t("نشط", "Active") :
-                                   c.status === "draft" ? t("مسودة", "Draft") :
-                                   c.status === "expired" ? t("منتهي", "Expired") :
-                                   c.status === "terminated" ? t("مُنهى", "Terminated") :
-                                   c.status || "—"}
-                                </span>
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[740px] text-sm">
+                          <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                            <tr>
+                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("رقم العقد", "Contract #")}</th>
+                              <th className={cn("px-4 py-3 font-semibold", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[160px]", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[210px]", isRtl ? "text-right" : "text-left")}>{t("الفترة", "Period")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[100px]", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
+                              <th className={cn("px-4 py-3 font-semibold w-[130px]", isRtl ? "text-right" : "text-left")}>{t("التوقيع", "Signature")}</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {myContracts.map((c) => (
+                              <tr key={c.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-contract-top-${c.id}`}>
+                                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{c.contractNumber}</td>
+                                <td className="px-4 py-3"><span className="block truncate max-w-[180px]">{c.projectName || "—"}</span></td>
+                                <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{c.currency} {Number(c.total || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                                  {c.startDate ? new Date(c.startDate).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
+                                  {(c.startDate || c.endDate) ? " → " : ""}
+                                  {c.endDate ? new Date(c.endDate).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : ""}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                    c.status === "active" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                                    c.status === "expired" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
+                                    c.status === "terminated" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                                    "bg-muted text-muted-foreground")}>
+                                    {c.status === "active" ? t("نشط", "Active") :
+                                     c.status === "draft" ? t("مسودة", "Draft") :
+                                     c.status === "expired" ? t("منتهي", "Expired") :
+                                     c.status === "terminated" ? t("مُنهى", "Terminated") :
+                                     c.status || "—"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {c.clientSignedAt ? (
+                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                      <Check className="w-3.5 h-3.5" />{t("موقّع", "Signed")}
+                                    </span>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      className={cn("h-7 text-xs bg-gradient-to-r text-white border-0 gap-1", theme.primary)}
+                                      onClick={() => setSignModal({ type: "contract", id: c.id, title: c.contractNumber })}
+                                      data-testid={`button-sign-contract-${c.id}`}
+                                    >
+                                      <Pen className="w-3 h-3" />{t("وقّع العقد", "Sign Contract")}
+                                    </Button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1010,6 +1231,19 @@ export default function ClientPortalModule() {
           )}
         </div>
       </main>
+
+      {signModal && (
+        <SignModal
+          docTitle={signModal.title}
+          docType={signModal.type}
+          onSign={handleSign}
+          onClose={() => !signBusy && setSignModal(null)}
+          isRtl={isRtl}
+          t={t}
+          theme={theme}
+          busy={signBusy}
+        />
+      )}
 
       <footer className="border-t border-border/30 py-4 px-6 text-center text-xs text-muted-foreground">
         <p>Scapex ERP Platform © 2026 — {t("بوابة العملاء", "Customer Portal")}</p>
