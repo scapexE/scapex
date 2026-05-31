@@ -2474,8 +2474,12 @@ export async function registerRoutes(
     const me = await requirePortalContact(req, res);
     if (!me) return;
     try {
+      const conds: ReturnType<typeof eq>[] = [eq(proposals.contactId, me.id)];
+      if (me.email) conds.push(eq(proposals.clientEmail, me.email));
+      if (me.nameAr) conds.push(eq(proposals.clientName, me.nameAr));
+      if (me.nameEn) conds.push(eq(proposals.clientName, me.nameEn));
       const rows = await db.select().from(proposals)
-        .where(eq(proposals.contactId, me.id))
+        .where(or(...conds))
         .orderBy(desc(proposals.createdAt));
       res.json(rows.map((p) => ({
         id: p.id,
@@ -2490,6 +2494,62 @@ export async function registerRoutes(
       })));
     } catch (err: any) {
       console.error("Portal proposals error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/invoices", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const conds: ReturnType<typeof eq>[] = [eq(invoices.contactId, me.id)];
+      if (me.nameAr) conds.push(eq(invoices.clientName, me.nameAr));
+      if (me.nameEn) conds.push(eq(invoices.clientName, me.nameEn));
+      const rows = await db.select().from(invoices)
+        .where(or(...conds))
+        .orderBy(desc(invoices.createdAt));
+      res.json(rows.map((i) => ({
+        id: i.id,
+        invoiceNumber: i.invoiceNumber,
+        clientName: i.clientName,
+        issueDate: i.issueDate,
+        dueDate: i.dueDate,
+        total: i.total,
+        paidAmount: i.paidAmount,
+        currency: i.currency,
+        status: i.status,
+        createdAt: i.createdAt,
+      })));
+    } catch (err: any) {
+      console.error("Portal invoices error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/contracts", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const conds: ReturnType<typeof eq>[] = [eq(contracts.contactId, me.id)];
+      if (me.nameAr) conds.push(eq(contracts.clientName, me.nameAr));
+      if (me.nameEn) conds.push(eq(contracts.clientName, me.nameEn));
+      const rows = await db.select().from(contracts)
+        .where(or(...conds))
+        .orderBy(desc(contracts.createdAt));
+      res.json(rows.map((c) => ({
+        id: c.id,
+        contractNumber: c.contractNumber,
+        clientName: c.clientName,
+        projectName: c.projectName,
+        total: c.total,
+        currency: c.currency,
+        status: c.status,
+        startDate: c.startDate,
+        endDate: c.endDate,
+        createdAt: c.createdAt,
+      })));
+    } catch (err: any) {
+      console.error("Portal contracts error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });

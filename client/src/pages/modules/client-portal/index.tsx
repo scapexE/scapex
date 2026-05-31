@@ -5,17 +5,18 @@ import {
   LogOut, Bell, Building2, Sun, Moon, Palette, ChevronRight, ChevronLeft,
   FolderKanban, FileText, Receipt, MessageSquare, Loader2, ShieldCheck,
   Calendar, MapPin, User as UserIcon, ArrowLeft, ArrowRight, Send,
-  FolderArchive, Upload, Download, X,
+  FolderArchive, Upload, Download, X, FileSignature, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
   portalLogin, portalGetMe, portalListProjects, portalGetProject,
-  portalListStages, portalListDocuments, portalListInvoices, portalListProposals, portalSubmitRequest,
-  portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
+  portalListStages, portalListDocuments, portalListInvoices, portalListProposals,
+  portalListMyInvoices, portalListMyContracts,
+  portalSubmitRequest, portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
   getPortalContact, getPortalToken, clearPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
-  type PortalClientDocument, type PortalProposal,
+  type PortalClientDocument, type PortalProposal, type PortalMyInvoice, type PortalMyContract,
 } from "@/lib/portalApi";
 
 export type PortalTheme = "default" | "ocean" | "forest" | "royal" | "sunset" | "slate";
@@ -623,10 +624,14 @@ export default function ClientPortalModule() {
   const [showThemePicker, setShowThemePicker] = useState(false);
   const theme = useMemo(() => PORTAL_THEMES.find((x) => x.id === portalTheme) || PORTAL_THEMES[0], [portalTheme]);
 
-  const [view, setView] = useState<"projects" | "documents" | "contact">("projects");
+  const [view, setView] = useState<"projects" | "proposals" | "invoices" | "contracts" | "documents" | "contact">("projects");
   const [projects, setProjects] = useState<PortalProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [openProjectId, setOpenProjectId] = useState<number | null>(null);
+  const [myProposals, setMyProposals] = useState<PortalProposal[]>([]);
+  const [myInvoices, setMyInvoices] = useState<PortalMyInvoice[]>([]);
+  const [myContracts, setMyContracts] = useState<PortalMyContract[]>([]);
+  const [loadingFinancial, setLoadingFinancial] = useState(false);
 
   // Validate the saved token on mount; if expired, drop the session.
   useEffect(() => {
@@ -641,6 +646,20 @@ export default function ClientPortalModule() {
       .then((rows) => setProjects(rows))
       .catch(() => setProjects([]))
       .finally(() => setLoadingProjects(false));
+  }, [contact]);
+
+  useEffect(() => {
+    if (!contact) return;
+    setLoadingFinancial(true);
+    Promise.all([
+      portalListProposals().catch(() => []),
+      portalListMyInvoices().catch(() => []),
+      portalListMyContracts().catch(() => []),
+    ]).then(([props, invs, cnts]) => {
+      setMyProposals(props);
+      setMyInvoices(invs);
+      setMyContracts(cnts);
+    }).finally(() => setLoadingFinancial(false));
   }, [contact]);
 
   const handleLogout = () => {
@@ -735,14 +754,29 @@ export default function ClientPortalModule() {
                       {contact.phone && <span dir="ltr">{contact.phone}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button variant={view === "projects" ? "default" : "outline"} size="sm" onClick={() => setView("projects")} data-testid="button-view-projects">
                       <FolderKanban className="w-4 h-4 me-2" />
-                      {t("مشاريعي", "My projects")}
+                      {t("مشاريعي", "Projects")}
+                    </Button>
+                    <Button variant={view === "proposals" ? "default" : "outline"} size="sm" onClick={() => setView("proposals")} data-testid="button-view-proposals">
+                      <ClipboardList className="w-4 h-4 me-2" />
+                      {t("عروض الأسعار", "Proposals")}
+                      {myProposals.length > 0 && <span className="ms-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary tabular-nums">{myProposals.length}</span>}
+                    </Button>
+                    <Button variant={view === "invoices" ? "default" : "outline"} size="sm" onClick={() => setView("invoices")} data-testid="button-view-invoices">
+                      <Receipt className="w-4 h-4 me-2" />
+                      {t("فواتيري", "Invoices")}
+                      {myInvoices.length > 0 && <span className="ms-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary tabular-nums">{myInvoices.length}</span>}
+                    </Button>
+                    <Button variant={view === "contracts" ? "default" : "outline"} size="sm" onClick={() => setView("contracts")} data-testid="button-view-contracts">
+                      <FileSignature className="w-4 h-4 me-2" />
+                      {t("عقودي", "Contracts")}
+                      {myContracts.length > 0 && <span className="ms-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary tabular-nums">{myContracts.length}</span>}
                     </Button>
                     <Button variant={view === "documents" ? "default" : "outline"} size="sm" onClick={() => setView("documents")} data-testid="button-view-documents">
                       <FolderArchive className="w-4 h-4 me-2" />
-                      {t("مستنداتي", "My documents")}
+                      {t("مستنداتي", "Documents")}
                     </Button>
                     <Button variant={view === "contact" ? "default" : "outline"} size="sm" onClick={() => setView("contact")} data-testid="button-view-contact">
                       <MessageSquare className="w-4 h-4 me-2" />
@@ -800,6 +834,166 @@ export default function ClientPortalModule() {
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {view === "proposals" && (
+                <div data-testid="view-portal-proposals">
+                  <h2 className={cn("text-sm font-semibold mb-3", theme.text)}>{t("عروض الأسعار", "Proposals")}</h2>
+                  {loadingFinancial ? (
+                    <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                  ) : myProposals.length === 0 ? (
+                    <div className="bg-card border border-dashed border-border/50 rounded-xl p-12 text-center text-sm text-muted-foreground" data-testid="text-no-proposals-top">
+                      {t("لا توجد عروض أسعار مرتبطة بحسابك", "No proposals linked to your account yet")}
+                    </div>
+                  ) : (
+                    <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الرقم", "No.")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("التاريخ", "Date")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {myProposals.map((pr) => (
+                            <tr key={pr.id} className="border-t border-border/50" data-testid={`row-proposal-top-${pr.id}`}>
+                              <td className="px-4 py-2.5 font-mono text-xs">{pr.proposalNumber}</td>
+                              <td className="px-4 py-2.5 max-w-[160px] truncate">{pr.projectName || "—"}</td>
+                              <td className="px-4 py-2.5 tabular-nums">{pr.total} {pr.currency}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                  pr.status === "approved" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                                  pr.status === "sent" ? "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300" :
+                                  pr.status === "rejected" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                                  pr.status === "converted_contract" || pr.status === "converted_invoice" ? "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300" :
+                                  "bg-muted text-muted-foreground")}>
+                                  {pr.status === "draft" ? t("مسودة", "Draft") :
+                                   pr.status === "sent" ? t("مُرسل", "Sent") :
+                                   pr.status === "approved" ? t("مُوافق عليه", "Approved") :
+                                   pr.status === "rejected" ? t("مرفوض", "Rejected") :
+                                   pr.status === "converted_contract" ? t("تحوّل لعقد", "Converted") :
+                                   pr.status === "converted_invoice" ? t("تحوّل لفاتورة", "Invoiced") :
+                                   pr.status || "—"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-muted-foreground text-xs">
+                                {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {view === "invoices" && (
+                <div data-testid="view-portal-invoices">
+                  <h2 className={cn("text-sm font-semibold mb-3", theme.text)}>{t("الفواتير", "Invoices")}</h2>
+                  {loadingFinancial ? (
+                    <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                  ) : myInvoices.length === 0 ? (
+                    <div className="bg-card border border-dashed border-border/50 rounded-xl p-12 text-center text-sm text-muted-foreground" data-testid="text-no-invoices-top">
+                      {t("لا توجد فواتير مرتبطة بحسابك", "No invoices linked to your account yet")}
+                    </div>
+                  ) : (
+                    <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("رقم الفاتورة", "Invoice #")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("تاريخ الإصدار", "Issue date")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("تاريخ الاستحقاق", "Due date")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("المدفوع", "Paid")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {myInvoices.map((inv) => (
+                            <tr key={inv.id} className="border-t border-border/50" data-testid={`row-invoice-top-${inv.id}`}>
+                              <td className="px-4 py-2.5 font-mono text-xs">{inv.invoiceNumber}</td>
+                              <td className="px-4 py-2.5">{inv.issueDate || "—"}</td>
+                              <td className="px-4 py-2.5">{inv.dueDate || "—"}</td>
+                              <td className="px-4 py-2.5 tabular-nums font-medium">{inv.total} {inv.currency}</td>
+                              <td className="px-4 py-2.5 tabular-nums text-emerald-600 dark:text-emerald-400">{inv.paidAmount || "0"} {inv.currency}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                  inv.status === "paid" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                                  inv.status === "sent" || inv.status === "overdue" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
+                                  inv.status === "cancelled" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                                  "bg-muted text-muted-foreground")}>
+                                  {inv.status === "draft" ? t("مسودة", "Draft") :
+                                   inv.status === "sent" ? t("مُرسلة", "Sent") :
+                                   inv.status === "paid" ? t("مدفوعة", "Paid") :
+                                   inv.status === "overdue" ? t("متأخرة", "Overdue") :
+                                   inv.status === "cancelled" ? t("ملغاة", "Cancelled") :
+                                   inv.status || "—"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {view === "contracts" && (
+                <div data-testid="view-portal-contracts">
+                  <h2 className={cn("text-sm font-semibold mb-3", theme.text)}>{t("العقود", "Contracts")}</h2>
+                  {loadingFinancial ? (
+                    <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                  ) : myContracts.length === 0 ? (
+                    <div className="bg-card border border-dashed border-border/50 rounded-xl p-12 text-center text-sm text-muted-foreground" data-testid="text-no-contracts-top">
+                      {t("لا توجد عقود مرتبطة بحسابك", "No contracts linked to your account yet")}
+                    </div>
+                  ) : (
+                    <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("رقم العقد", "Contract #")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الفترة", "Period")}</th>
+                            <th className={cn("px-4 py-2.5", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {myContracts.map((c) => (
+                            <tr key={c.id} className="border-t border-border/50" data-testid={`row-contract-top-${c.id}`}>
+                              <td className="px-4 py-2.5 font-mono text-xs">{c.contractNumber}</td>
+                              <td className="px-4 py-2.5 max-w-[160px] truncate">{c.projectName || "—"}</td>
+                              <td className="px-4 py-2.5 tabular-nums font-medium">{c.total} {c.currency}</td>
+                              <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                                {c.startDate || "—"} {(c.startDate || c.endDate) ? "→" : ""} {c.endDate || ""}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                  c.status === "active" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                                  c.status === "expired" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
+                                  c.status === "terminated" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                                  "bg-muted text-muted-foreground")}>
+                                  {c.status === "active" ? t("نشط", "Active") :
+                                   c.status === "draft" ? t("مسودة", "Draft") :
+                                   c.status === "expired" ? t("منتهي", "Expired") :
+                                   c.status === "terminated" ? t("مُنهى", "Terminated") :
+                                   c.status || "—"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

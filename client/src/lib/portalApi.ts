@@ -211,8 +211,46 @@ export interface PortalProposal {
   createdAt: string | null;
 }
 
+export interface PortalMyInvoice {
+  id: number;
+  invoiceNumber: string;
+  clientName: string | null;
+  issueDate: string | null;
+  dueDate: string | null;
+  total: string | null;
+  paidAmount: string | null;
+  currency: string | null;
+  status: string | null;
+  createdAt: string | null;
+}
+
+export interface PortalMyContract {
+  id: number;
+  contractNumber: string;
+  clientName: string | null;
+  projectName: string | null;
+  total: string | null;
+  currency: string | null;
+  status: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string | null;
+}
+
 export async function portalListProposals(): Promise<PortalProposal[]> {
   const r = await portalFetch("/api/portal/proposals");
+  if (!r.ok) return [];
+  return r.json();
+}
+
+export async function portalListMyInvoices(): Promise<PortalMyInvoice[]> {
+  const r = await portalFetch("/api/portal/invoices");
+  if (!r.ok) return [];
+  return r.json();
+}
+
+export async function portalListMyContracts(): Promise<PortalMyContract[]> {
+  const r = await portalFetch("/api/portal/contracts");
   if (!r.ok) return [];
   return r.json();
 }
