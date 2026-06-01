@@ -2839,10 +2839,12 @@ export async function registerRoutes(
   ${opts.terms ? `<div class="section"><h3>الشروط والأحكام</h3><p style="color:#475569;font-size:12px;line-height:1.7;white-space:pre-line">${opts.terms}</p></div>` : ""}
   <div class="footer">
     <span>وثيقة إلكترونية — Scapex ERP</span>
-    <span>طُبع بتاريخ ${new Date().toLocaleDateString("ar-SA")}</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span>أُنشئت بتاريخ ${new Date().toLocaleDateString("ar-SA")}</span>
+      <button onclick="window.print()" style="background:#1e40af;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">🖨 طباعة / حفظ PDF</button>
+    </div>
   </div>
 </div>
-<script>window.onload=function(){window.print()}</script>
 </body></html>`;
   }
 
@@ -2885,11 +2887,35 @@ export async function registerRoutes(
       if (!allowed) return res.status(404).json({ error: "Not found" });
       const items = await db.select().from(contractItems).where(eq(contractItems.contractId, id)).orderBy(contractItems.sortOrder);
       const STATUS_AR: Record<string, string> = { draft: "مسودة", active: "نشط", expired: "منتهي", terminated: "مُنهى" };
-      const extra = (c.startDate || c.endDate) ? `<div class="meta-box" style="padding-top:12px;padding-bottom:12px">
+      const dateMeta = (c.startDate || c.endDate || c.clientSignedAt) ? `<div class="meta-box" style="padding-top:12px;padding-bottom:12px">
         ${c.startDate ? `<div class="meta-item"><label>تاريخ البدء</label><span>${new Date(c.startDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
         ${c.endDate ? `<div class="meta-item"><label>تاريخ الانتهاء</label><span>${new Date(c.endDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
         ${c.clientSignedAt ? `<div class="meta-item"><label>وُقِّع بتاريخ</label><span>${new Date(c.clientSignedAt).toLocaleDateString("ar-SA")} — ${c.clientSignedBy || ""}</span></div>` : ""}
       </div>` : "";
+
+      // Parse clauses from the JSON stored in `terms`
+      let clausesHtml = "";
+      let termsForGeneric: string | null = null;
+      try {
+        const parsed = c.terms ? JSON.parse(c.terms) : null;
+        if (parsed && Array.isArray(parsed.clauses) && parsed.clauses.length > 0) {
+          const esc2 = (s: string) => (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+          clausesHtml = `<div class="section">
+            <h3>بنود العقد والشروط والأحكام</h3>
+            ${parsed.clauses.map((cl: any) => `
+              <div style="margin-bottom:20px;padding:16px;background:#f8fafc;border-radius:8px;border-right:4px solid #1e40af">
+                <p style="font-weight:700;color:#1e40af;font-size:13px;margin-bottom:8px">${esc2(cl.titleAr || cl.titleEn || "")}</p>
+                <p style="color:#374151;font-size:12px;line-height:1.9;white-space:pre-line">${esc2(cl.bodyAr || cl.bodyEn || "")}</p>
+              </div>`).join("")}
+          </div>`;
+        } else if (typeof c.terms === "string" && c.terms && !c.terms.startsWith("{")) {
+          termsForGeneric = c.terms;
+        }
+      } catch {
+        termsForGeneric = c.terms;
+      }
+
+      const extra = dateMeta + clausesHtml;
       const html = portalDocHtml({
         title: "العقد", number: c.contractNumber,
         clientName: c.clientName, projectName: c.projectName,
@@ -2897,7 +2923,7 @@ export async function registerRoutes(
         status: STATUS_AR[c.status || ""] || c.status || "",
         rows: items.map(i => ({ desc: i.descAr || i.descEn || "", qty: i.qty || "1", unit: i.unit || "", unitPrice: i.unitPrice || "0", total: i.total || "0" })),
         subtotal: c.subtotal || "0", vatRate: c.vatRate || "15", vatAmount: c.vatAmount || "0", total: c.total || "0",
-        notes: null, terms: c.terms, extra,
+        notes: null, terms: termsForGeneric, extra,
       });
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(html);
