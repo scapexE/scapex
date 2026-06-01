@@ -1,4 +1,5 @@
 import { dbGetItem, dbRemoveItem } from "@/lib/dbStorage";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,29 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
   const { activeRole, isMultiRole } = useActiveRole();
   const { activeActivity } = useBusinessActivity();
 
+  // Pending-activation badge — fetch count every 60 s for admins
+  const [pendingUsersCount, setPendingUsersCount] = useState(0);
+  const isAdmin = currentUser?.role === "admin" ||
+    (currentUser?.roles as string[] | undefined)?.includes("admin");
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const load = () => {
+      const uid = (currentUser as any)?.id;
+      const token = localStorage.getItem("session_token") || "";
+      if (!uid || !token) return;
+      fetch("/api/users/pending-count", {
+        headers: { "x-user-id": String(uid), "x-session-token": token },
+      })
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then(d => setPendingUsersCount(Number(d.count) || 0))
+        .catch(() => {});
+    };
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => clearInterval(timer);
+  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleLogout = () => {
     logAction("logout", "auth", `User ${currentUser?.name} logged out`, `المستخدم ${currentUser?.name} سجّل خروج`);
     dbRemoveItem("user");
@@ -254,13 +278,15 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
                   const isActive = location === item.path || (item.path !== "/dashboard" && location.startsWith(item.path));
                   const Icon = item.icon;
 
+                  const showUsersBadge = item.id === "users" && pendingUsersCount > 0;
+
                   const navItem = (
                     <Link key={item.id} href={item.path}>
                       <div
                         className={cn(
                           "flex items-center rounded-lg transition-all duration-150 cursor-pointer group",
                           isCollapsed
-                            ? "justify-center w-9 h-9 mx-auto"
+                            ? "relative justify-center w-9 h-9 mx-auto"
                             : "gap-2.5 px-2.5 py-1.5",
                           isActive
                             ? "bg-primary text-primary-foreground shadow-sm"
@@ -271,8 +297,19 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
                         <Icon className={cn("shrink-0 transition-colors", isCollapsed ? "w-4.5 h-4.5" : "w-4 h-4",
                           isActive ? "text-primary-foreground" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"
                         )} style={{ width: isCollapsed ? 18 : 16, height: isCollapsed ? 18 : 16 }} />
+                        {/* Dot badge in collapsed mode */}
+                        {isCollapsed && showUsersBadge && (
+                          <span className="absolute top-1 end-1 w-2 h-2 rounded-full bg-amber-500 border border-sidebar ring-1 ring-sidebar" />
+                        )}
                         {!isCollapsed && (
-                          <span className="text-sm font-medium leading-none">{label(item.id)}</span>
+                          <>
+                            <span className="text-sm font-medium leading-none flex-1">{label(item.id)}</span>
+                            {showUsersBadge && (
+                              <span className="ms-auto text-[10px] font-bold leading-none bg-amber-500 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center tabular-nums">
+                                {pendingUsersCount}
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </Link>

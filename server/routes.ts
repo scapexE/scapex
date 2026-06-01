@@ -1997,6 +1997,24 @@ export async function registerRoutes(
       });
 
       const { password: _, ...safeUser } = user;
+
+      // Notify all admin users that a new registration is pending activation
+      try {
+        const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+        for (const admin of adminUsers) {
+          await db.insert(notifications).values({
+            companyId: null,
+            userId: admin.id,
+            type: "user_registration",
+            titleAr: "طلب تسجيل ينتظر التفعيل",
+            titleEn: "New registration pending activation",
+            message: `${user.name} (${user.email})`,
+            module: "users",
+            entityId: String(user.id),
+          }).catch(() => {});
+        }
+      } catch {}
+
       res.status(201).json({ user: safeUser, pendingApproval: true });
     } catch (err: any) {
       console.error("Register error:", err);
@@ -2055,6 +2073,16 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Verify code error:", err);
       res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // Lightweight endpoint — returns count of inactive (pending approval) users for sidebar badge
+  app.get("/api/users/pending-count", async (_req, res) => {
+    try {
+      const pending = await db.select({ id: users.id }).from(users).where(eq(users.isActive, false));
+      res.json({ count: pending.length });
+    } catch {
+      res.json({ count: 0 });
     }
   });
 
