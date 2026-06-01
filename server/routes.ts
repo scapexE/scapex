@@ -21,7 +21,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, type SurveyQuestionDef } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, type SurveyQuestionDef } from "@shared/schema";
 import { sendEmail } from "./email";
 import crypto from "crypto";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
@@ -87,7 +87,7 @@ async function syncCompanyActivities(
   const existingByCatalogId = new Map(existing.map(a => [toCatalogId(a.id), a.id]));
 
   // Delete activities no longer in the selection
-  for (const [catId, actId] of existingByCatalogId) {
+  for (const [catId, actId] of Array.from(existingByCatalogId)) {
     if (!catalogIds.includes(catId)) {
       await db.delete(activityMembers).where(eq(activityMembers.activityId, actId));
       await db.delete(businessActivities).where(eq(businessActivities.id, actId));

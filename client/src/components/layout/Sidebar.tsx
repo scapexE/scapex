@@ -4,12 +4,13 @@ import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Users, Briefcase, Smartphone, CalendarCheck,
-  Settings, ShieldAlert, FileText, BarChart3, BrainCircuit,
+  LayoutDashboard, Smartphone, CalendarCheck,
+  Settings, ShieldAlert, BarChart3, BrainCircuit,
   ShoppingBag, Truck, Calculator, Package, Building2,
-  Globe2, HardDrive, LogOut, UserCog, Info, Activity,
+  Globe2, HardDrive, LogOut, UserCog, Info,
   FolderOpen, SlidersHorizontal, UserRound, Wallet,
   Wrench, ScrollText, FolderKanban, ChevronLeft, ChevronRight, X, Users2,
+  GripVertical, Check,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -90,40 +91,55 @@ const menuCategories = [
 ];
 
 const NAV_LABELS: Record<string, { ar: string; en: string }> = {
-  dashboard:        { ar: "لوحة التحكم",          en: "Dashboard" },
+  dashboard:        { ar: "لوحة التحكم",           en: "Dashboard" },
   ai_control:       { ar: "مركز الذكاء الاصطناعي", en: "AI Control" },
-  bi:               { ar: "تحليلات الأعمال",        en: "BI Analytics" },
-  multi_tenant:     { ar: "إدارة الشركات",          en: "Companies" },
-  company_settings: { ar: "إعدادات الشركة",         en: "Company Settings" },
-  crm:              { ar: "إدارة العملاء",           en: "CRM" },
-  sales:            { ar: "المبيعات",               en: "Sales" },
-  purchases:        { ar: "المشتريات",              en: "Purchases" },
-  accounting:       { ar: "المحاسبة",               en: "Accounting" },
-  projects:         { ar: "المشاريع",               en: "Projects" },
-  inventory:        { ar: "المخزون",                en: "Inventory" },
-  equipment:        { ar: "الأصول والمعدات",         en: "Equipment" },
-  hr:               { ar: "الموارد البشرية",         en: "HR" },
-  payroll:          { ar: "الرواتب",                en: "Payroll" },
-  attendance:       { ar: "الحضور والإجازات",        en: "Attendance" },
-  mobile_app:       { ar: "التطبيق الميداني",        en: "Mobile App" },
-  hse:              { ar: "السلامة والصحة المهنية",  en: "HSE" },
-  audit_log:        { ar: "سجل النشاطات",            en: "Audit Log" },
-  dms:              { ar: "إدارة الوثائق",           en: "DMS" },
-  client_portal:    { ar: "بوابة العملاء",           en: "Client Portal" },
-  users:            { ar: "المستخدمون",              en: "Users" },
-  system_admin:     { ar: "إعدادات النظام",           en: "System Admin" },
-  backup:           { ar: "النسخ الاحتياطي",          en: "Backup" },
-  about:            { ar: "عن النظام",               en: "About" },
+  bi:               { ar: "تحليلات الأعمال",         en: "BI Analytics" },
+  multi_tenant:     { ar: "إدارة الشركات",           en: "Companies" },
+  company_settings: { ar: "إعدادات الشركة",          en: "Company Settings" },
+  crm:              { ar: "إدارة العملاء",            en: "CRM" },
+  sales:            { ar: "المبيعات",                en: "Sales" },
+  purchases:        { ar: "المشتريات",               en: "Purchases" },
+  accounting:       { ar: "المحاسبة",                en: "Accounting" },
+  projects:         { ar: "المشاريع",                en: "Projects" },
+  inventory:        { ar: "المخزون",                 en: "Inventory" },
+  equipment:        { ar: "الأصول والمعدات",          en: "Equipment" },
+  hr:               { ar: "الموارد البشرية",          en: "HR" },
+  payroll:          { ar: "الرواتب",                 en: "Payroll" },
+  attendance:       { ar: "الحضور والإجازات",         en: "Attendance" },
+  mobile_app:       { ar: "التطبيق الميداني",         en: "Mobile App" },
+  hse:              { ar: "السلامة والصحة المهنية",   en: "HSE" },
+  audit_log:        { ar: "سجل النشاطات",             en: "Audit Log" },
+  dms:              { ar: "إدارة الوثائق",            en: "DMS" },
+  client_portal:    { ar: "بوابة العملاء",            en: "Client Portal" },
+  users:            { ar: "المستخدمون",               en: "Users" },
+  system_admin:     { ar: "إعدادات النظام",            en: "System Admin" },
+  backup:           { ar: "النسخ الاحتياطي",           en: "Backup" },
+  about:            { ar: "عن النظام",                en: "About" },
 };
+
+const SIDEBAR_ORDER_KEY = "scapex_sidebar_order";
+
+function readOrder(): string[] {
+  try {
+    const r = localStorage.getItem(SIDEBAR_ORDER_KEY);
+    return r ? (JSON.parse(r) as string[]) : [];
+  } catch { return []; }
+}
 
 interface SidebarProps {
   isOpen?: boolean;
   setIsOpen?: (v: boolean) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  isHidden?: boolean;
+  onHide?: () => void;
 }
 
-export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollapse }: SidebarProps) {
+export function Sidebar({
+  isOpen, setIsOpen,
+  isCollapsed = false, onToggleCollapse,
+  isHidden = false, onHide,
+}: SidebarProps) {
   const [location] = useLocation();
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
@@ -132,9 +148,9 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
   const { activeRole, isMultiRole } = useActiveRole();
   const { activeActivity } = useBusinessActivity();
 
-  // Pending-activation badge — fetch count every 60 s for admins
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
-  const isAdmin = currentUser?.role === "admin" ||
+  const isAdmin =
+    currentUser?.role === "admin" ||
     (currentUser?.roles as string[] | undefined)?.includes("admin");
 
   useEffect(() => {
@@ -155,6 +171,16 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
     return () => clearInterval(timer);
   }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [itemOrder, setItemOrder] = useState<string[]>(readOrder);
+  const [isCustomizing, setIsCustomizing] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const saveOrder = (newOrder: string[]) => {
+    setItemOrder(newOrder);
+    try { localStorage.setItem(SIDEBAR_ORDER_KEY, JSON.stringify(newOrder)); } catch {}
+  };
+
   const handleLogout = () => {
     logAction("logout", "auth", `User ${currentUser?.name} logged out`, `المستخدم ${currentUser?.name} سجّل خروج`);
     dbRemoveItem("user");
@@ -165,15 +191,15 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
 
   const userPerms = currentUser?.permissions || [];
   const roleFilteredPerms = isMultiRole && activeRole
-    ? userPerms.filter((p) => ROLE_DEFAULTS[activeRole as keyof typeof ROLE_DEFAULTS]?.includes(p))
+    ? userPerms.filter(p => ROLE_DEFAULTS[activeRole as keyof typeof ROLE_DEFAULTS]?.includes(p))
     : userPerms;
   const effectivePerms = activeActivity
-    ? roleFilteredPerms.filter((p) => activeActivity.modules.includes(p))
+    ? roleFilteredPerms.filter(p => activeActivity.modules.includes(p))
     : roleFilteredPerms;
 
-  const visibleCategories = menuCategories.map((cat) => ({
+  const visibleCategories = menuCategories.map(cat => ({
     ...cat,
-    items: cat.items.filter((item) => {
+    items: cat.items.filter(item => {
       if (!currentUser) return false;
       if (item.id === "about" || item.id === "audit_log") return true;
       if (item.id === "system_admin" || item.id === "backup") {
@@ -190,10 +216,132 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
       }
       return effectivePerms.includes(item.id);
     }),
-  })).filter((cat) => cat.items.length > 0);
+  })).filter(cat => cat.items.length > 0);
 
-  const label = (id: string) => isRtl ? (NAV_LABELS[id]?.ar || id) : (NAV_LABELS[id]?.en || id);
-  const CollapseIcon = isRtl ? (isCollapsed ? ChevronLeft : ChevronRight) : (isCollapsed ? ChevronRight : ChevronLeft);
+  const allVisibleItems = visibleCategories.flatMap(c => c.items);
+
+  const sortedAllItems = [...allVisibleItems].sort((a, b) => {
+    const ai = itemOrder.indexOf(a.id);
+    const bi = itemOrder.indexOf(b.id);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+
+  const sortedCategories = visibleCategories
+    .map(cat => ({
+      ...cat,
+      items: [...cat.items].sort((a, b) => {
+        const ai = itemOrder.indexOf(a.id);
+        const bi = itemOrder.indexOf(b.id);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      }),
+    }))
+    .sort((a, b) => {
+      const fa = a.items[0] ? itemOrder.indexOf(a.items[0].id) : 9999;
+      const fb = b.items[0] ? itemOrder.indexOf(b.items[0].id) : 9999;
+      return (fa < 0 ? 9999 : fa) - (fb < 0 ? 9999 : fb);
+    });
+
+  const label = (id: string) =>
+    isRtl ? (NAV_LABELS[id]?.ar || id) : (NAV_LABELS[id]?.en || id);
+
+  const CollapseIcon = isRtl
+    ? isCollapsed ? ChevronLeft : ChevronRight
+    : isCollapsed ? ChevronRight : ChevronLeft;
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverId !== id) setDragOverId(id);
+  };
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
+    const base = sortedAllItems.map(i => i.id);
+    const from = base.indexOf(dragId);
+    const to = base.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    const next = [...base];
+    next.splice(from, 1);
+    next.splice(to, 0, dragId);
+    saveOrder(next);
+    setDragId(null);
+    setDragOverId(null);
+  };
+  const handleDragEnd = () => { setDragId(null); setDragOverId(null); };
+
+  const renderNavItem = (item: typeof allVisibleItems[number]) => {
+    const isActive =
+      location === item.path ||
+      (item.path !== "/dashboard" && location.startsWith(item.path));
+    const Icon = item.icon;
+    const showUsersBadge = item.id === "users" && pendingUsersCount > 0;
+
+    const inner = (
+      <div
+        className={cn(
+          "flex items-center rounded-lg transition-all duration-150 cursor-pointer group",
+          isCollapsed
+            ? "relative justify-center w-9 h-9 mx-auto"
+            : "gap-2.5 px-2.5 py-1.5",
+          isActive
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+        )}
+        onClick={() => setIsOpen?.(false)}
+      >
+        <Icon
+          className={cn(
+            "shrink-0 transition-colors",
+            isActive
+              ? "text-primary-foreground"
+              : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
+          )}
+          style={{ width: isCollapsed ? 18 : 16, height: isCollapsed ? 18 : 16 }}
+        />
+        {isCollapsed && showUsersBadge && (
+          <span className="absolute top-1 end-1 w-2 h-2 rounded-full bg-amber-500 border border-sidebar ring-1 ring-sidebar" />
+        )}
+        {!isCollapsed && (
+          <>
+            <span className="text-sm font-medium leading-none flex-1">{label(item.id)}</span>
+            {showUsersBadge && (
+              <span className="ms-auto text-[10px] font-bold leading-none bg-amber-500 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center tabular-nums">
+                {pendingUsersCount}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    );
+
+    const linked = (
+      <Link key={item.id} href={item.path}>
+        {inner}
+      </Link>
+    );
+
+    if (isCollapsed) {
+      return (
+        <Tooltip key={item.id} delayDuration={100}>
+          <TooltipTrigger asChild>{linked}</TooltipTrigger>
+          <TooltipContent side={isRtl ? "left" : "right"} className="text-xs font-medium">
+            {label(item.id)}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    return linked;
+  };
 
   return (
     <>
@@ -208,18 +356,22 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
         className={cn(
           "fixed inset-y-0 z-50 bg-sidebar border-sidebar-border flex flex-col transition-all duration-300 ease-in-out",
           dir === "rtl" ? "right-0 border-l" : "left-0 border-r",
-          isCollapsed ? "w-14 md:w-14" : "w-64 md:w-64",
-          isOpen
-            ? "translate-x-0"
-            : dir === "rtl"
-              ? "translate-x-full md:translate-x-0"
-              : "-translate-x-full md:translate-x-0",
+          isHidden
+            ? "w-0 overflow-hidden"
+            : cn(
+                isCollapsed ? "w-14 md:w-14" : "w-64 md:w-64",
+                isOpen
+                  ? "translate-x-0"
+                  : dir === "rtl"
+                    ? "translate-x-full md:translate-x-0"
+                    : "-translate-x-full md:translate-x-0",
+              ),
         )}
       >
-        {/* Logo / Header */}
+        {/* ── Header ── */}
         <div className={cn(
           "h-14 flex items-center border-b border-sidebar-border bg-sidebar-accent/20 flex-shrink-0 transition-all",
-          isCollapsed ? "justify-center px-2" : "justify-between px-4",
+          isCollapsed ? "justify-center px-1.5 gap-0" : "justify-between px-4",
         )}>
           {!isCollapsed && (
             <div className="flex items-center gap-2.5 min-w-0">
@@ -235,105 +387,177 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
             </div>
           )}
           {isCollapsed && (
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-sm">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-sm shrink-0">
               <span className="text-white font-black text-sm">S</span>
             </div>
           )}
 
           {/* Mobile close */}
-          <Button variant="ghost" size="icon" className="md:hidden text-sidebar-foreground w-7 h-7" onClick={() => setIsOpen?.(false)}>
+          <Button
+            variant="ghost" size="icon"
+            className="md:hidden text-sidebar-foreground w-7 h-7"
+            onClick={() => setIsOpen?.(false)}
+          >
             <X className="h-4 w-4" />
           </Button>
 
-          {/* Desktop collapse toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "hidden md:flex w-7 h-7 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent shrink-0",
-              isCollapsed && "mx-auto",
-            )}
-            onClick={onToggleCollapse}
-            title={isCollapsed ? (isRtl ? "توسيع" : "Expand") : (isRtl ? "طي" : "Collapse")}
-          >
-            <CollapseIcon className="h-4 w-4" />
-          </Button>
+          {/* Desktop controls: collapse + hide */}
+          <div className={cn(
+            "hidden md:flex items-center",
+            isCollapsed ? "flex-col gap-1 mt-1" : "gap-0.5",
+          )}>
+            <Button
+              variant="ghost" size="icon"
+              className="w-6 h-6 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              onClick={onToggleCollapse}
+              data-testid="button-sidebar-collapse"
+              title={isCollapsed
+                ? (isRtl ? "توسيع القائمة" : "Expand sidebar")
+                : (isRtl ? "طي القائمة" : "Collapse sidebar")}
+            >
+              <CollapseIcon className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost" size="icon"
+              className="w-6 h-6 text-sidebar-foreground/35 hover:text-destructive hover:bg-sidebar-accent"
+              onClick={onHide}
+              data-testid="button-sidebar-hide"
+              title={isRtl ? "إخفاء القائمة" : "Hide sidebar"}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
 
-        {/* Navigation */}
+        {/* ── Navigation ── */}
         <ScrollArea dir={dir} className="flex-1 py-2">
           <div className={cn("space-y-2", isCollapsed ? "px-1.5" : "px-2.5")}>
-            {!isCollapsed && <ActivitySwitcher />}
+            {!isCollapsed && !isCustomizing && <ActivitySwitcher />}
 
-            {visibleCategories.map((category) => (
-              <div key={category.id} className="space-y-px">
+            {isCustomizing ? (
+              /* ── Customize / reorder mode ── */
+              <div className="space-y-0.5">
                 {!isCollapsed && (
-                  <h3 className="px-2 text-[10px] font-semibold text-sidebar-foreground/35 uppercase tracking-widest mb-1">
-                    {isRtl ? category.labelAr : category.labelEn}
-                  </h3>
+                  <p className="px-2 pb-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-1">
+                    <GripVertical className="w-3 h-3" />
+                    {isRtl ? "اسحب لإعادة الترتيب" : "Drag to reorder"}
+                  </p>
                 )}
-                {isCollapsed && <div className="h-px bg-sidebar-border/40 mx-1 mb-1" />}
-
-                {category.items.map((item) => {
-                  const isActive = location === item.path || (item.path !== "/dashboard" && location.startsWith(item.path));
+                {sortedAllItems.map(item => {
                   const Icon = item.icon;
-
-                  const showUsersBadge = item.id === "users" && pendingUsersCount > 0;
-
-                  const navItem = (
-                    <Link key={item.id} href={item.path}>
-                      <div
-                        className={cn(
-                          "flex items-center rounded-lg transition-all duration-150 cursor-pointer group",
-                          isCollapsed
-                            ? "relative justify-center w-9 h-9 mx-auto"
-                            : "gap-2.5 px-2.5 py-1.5",
-                          isActive
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                        )}
-                        onClick={() => setIsOpen?.(false)}
-                      >
-                        <Icon className={cn("shrink-0 transition-colors", isCollapsed ? "w-4.5 h-4.5" : "w-4 h-4",
-                          isActive ? "text-primary-foreground" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"
-                        )} style={{ width: isCollapsed ? 18 : 16, height: isCollapsed ? 18 : 16 }} />
-                        {/* Dot badge in collapsed mode */}
-                        {isCollapsed && showUsersBadge && (
-                          <span className="absolute top-1 end-1 w-2 h-2 rounded-full bg-amber-500 border border-sidebar ring-1 ring-sidebar" />
-                        )}
-                        {!isCollapsed && (
-                          <>
-                            <span className="text-sm font-medium leading-none flex-1">{label(item.id)}</span>
-                            {showUsersBadge && (
-                              <span className="ms-auto text-[10px] font-bold leading-none bg-amber-500 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center tabular-nums">
-                                {pendingUsersCount}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </Link>
-                  );
-
-                  if (isCollapsed) {
-                    return (
-                      <Tooltip key={item.id} delayDuration={100}>
-                        <TooltipTrigger asChild>{navItem}</TooltipTrigger>
-                        <TooltipContent side={isRtl ? "left" : "right"} className="text-xs font-medium">
+                  const isDragging = dragId === item.id;
+                  const isOver = dragOverId === item.id && dragId !== item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      draggable
+                      onDragStart={e => handleDragStart(e, item.id)}
+                      onDragOver={e => handleDragOver(e, item.id)}
+                      onDrop={e => handleDrop(e, item.id)}
+                      onDragEnd={handleDragEnd}
+                      data-testid={`drag-item-${item.id}`}
+                      className={cn(
+                        "flex items-center rounded-lg transition-all select-none",
+                        isCollapsed
+                          ? "justify-center w-9 h-9 mx-auto cursor-grab active:cursor-grabbing"
+                          : "gap-2 px-2 py-1.5 cursor-grab active:cursor-grabbing",
+                        isDragging && "opacity-30 scale-95",
+                        isOver
+                          ? "ring-2 ring-primary/60 bg-primary/10"
+                          : "bg-sidebar-accent/25 hover:bg-sidebar-accent/60",
+                      )}
+                    >
+                      <GripVertical className={cn(
+                        "text-sidebar-foreground/30 shrink-0",
+                        isCollapsed ? "w-3 h-3" : "w-3.5 h-3.5",
+                      )} />
+                      <Icon
+                        className="text-sidebar-foreground/55 shrink-0"
+                        style={{ width: 15, height: 15 }}
+                      />
+                      {!isCollapsed && (
+                        <span className="text-sm font-medium text-sidebar-foreground/65 flex-1 truncate">
                           {label(item.id)}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  }
-                  return navItem;
+                        </span>
+                      )}
+                    </div>
+                  );
                 })}
               </div>
-            ))}
+            ) : (
+              /* ── Normal navigation ── */
+              sortedCategories.map(category => (
+                <div key={category.id} className="space-y-px">
+                  {!isCollapsed && (
+                    <h3 className="px-2 text-[10px] font-semibold text-sidebar-foreground/35 uppercase tracking-widest mb-1">
+                      {isRtl ? category.labelAr : category.labelEn}
+                    </h3>
+                  )}
+                  {isCollapsed && <div className="h-px bg-sidebar-border/40 mx-1 mb-1" />}
+                  {category.items.map(item => renderNavItem(item))}
+                </div>
+              ))
+            )}
           </div>
         </ScrollArea>
 
-        {/* Footer / User */}
-        <div className={cn("border-t border-sidebar-border flex-shrink-0", isCollapsed ? "p-1.5" : "p-3")}>
+        {/* ── Footer ── */}
+        <div className={cn(
+          "border-t border-sidebar-border flex-shrink-0",
+          isCollapsed ? "p-1.5 space-y-1.5" : "p-3",
+        )}>
+          {/* Customize order toggle */}
+          <div className={cn("mb-2", isCollapsed ? "flex justify-center" : "")}>
+            {isCollapsed ? (
+              <Tooltip delayDuration={100}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isCustomizing ? "default" : "ghost"}
+                    size="icon"
+                    className={cn(
+                      "w-9 h-7",
+                      isCustomizing
+                        ? "bg-primary text-primary-foreground"
+                        : "text-sidebar-foreground/35 hover:text-sidebar-foreground",
+                    )}
+                    onClick={() => setIsCustomizing(v => !v)}
+                    data-testid="button-sidebar-customize"
+                  >
+                    {isCustomizing
+                      ? <Check className="w-3.5 h-3.5" />
+                      : <GripVertical className="w-3.5 h-3.5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={isRtl ? "left" : "right"} className="text-xs">
+                  {isCustomizing
+                    ? (isRtl ? "تم" : "Done")
+                    : (isRtl ? "ترتيب القائمة" : "Reorder items")}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                variant={isCustomizing ? "default" : "ghost"}
+                size="sm"
+                className={cn(
+                  "h-7 w-full justify-start gap-1.5 px-2 text-[11px]",
+                  isCustomizing
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground/40 hover:text-sidebar-foreground",
+                )}
+                onClick={() => setIsCustomizing(v => !v)}
+                data-testid="button-sidebar-customize"
+              >
+                {isCustomizing
+                  ? <Check className="w-3 h-3" />
+                  : <GripVertical className="w-3 h-3" />}
+                {isCustomizing
+                  ? (isRtl ? "تم — حفظ الترتيب" : "Done — order saved")
+                  : (isRtl ? "تخصيص الترتيب" : "Customize order")}
+              </Button>
+            )}
+          </div>
+
+          {/* User card */}
           {isCollapsed ? (
             <Tooltip delayDuration={100}>
               <TooltipTrigger asChild>
@@ -368,14 +592,15 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
                       : currentUser
                         ? (isRtl ? ROLE_LABELS[currentUser.role]?.ar : ROLE_LABELS[currentUser.role]?.en)
                         : ""}
-                    {isMultiRole && <span className="opacity-60"> · {isRtl ? "متعدد" : "Multi"}</span>}
+                    {isMultiRole && (
+                      <span className="opacity-60"> · {isRtl ? "متعدد" : "Multi"}</span>
+                    )}
                   </p>
                 </div>
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant="ghost" size="icon"
                   className="h-6 w-6 text-sidebar-foreground/40 hover:text-destructive shrink-0"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleLogout(); }}
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); handleLogout(); }}
                   title={isRtl ? "تسجيل الخروج" : "Logout"}
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -383,6 +608,7 @@ export function Sidebar({ isOpen, setIsOpen, isCollapsed = false, onToggleCollap
               </div>
             </Link>
           )}
+
           {!isCollapsed && (
             <div className="text-center text-[9px] opacity-30 text-sidebar-foreground pt-1">
               © 2026 Scapex {__APP_VERSION__}
