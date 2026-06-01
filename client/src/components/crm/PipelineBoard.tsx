@@ -65,6 +65,7 @@ export interface ProposalPrefill {
   projectName: string;
   contactId?: number | null;
   dealId?: number | null;
+  budget?: number | null;
 }
 
 const formatValue = (v: string | null, currency: string | null) => {
@@ -323,6 +324,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
       projectName: (isRtl ? d.titleAr : d.titleEn) || d.titleEn || d.titleAr || "",
       contactId: d.contactId ?? null,
       dealId: d.id ?? null,
+      budget: parseFloat((d as any).value || "0") || null,
     });
   };
 
@@ -767,6 +769,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
             projectName: (isRtl ? d.titleAr : d.titleEn) || d.titleEn || d.titleAr || "",
             contactId: d.contactId ?? null,
             dealId: d.id ?? null,
+            budget: parseFloat((d as any).value || "0") || null,
           });
         } : undefined}
       />

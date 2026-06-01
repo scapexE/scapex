@@ -2746,6 +2746,194 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Portal: view proposal/contract/invoice as printable HTML ──────────────
+  function portalDocHtml(opts: {
+    title: string; number: string; clientName: string;
+    projectName?: string | null; date?: string | null;
+    rows: { desc: string; qty: string; unit: string; unitPrice: string; total: string }[];
+    subtotal: string; vatRate?: string; vatAmount: string; total: string; currency: string;
+    status?: string; notes?: string | null; terms?: string | null;
+    extra?: string;
+  }): string {
+    const fmt = (v: string | null | undefined) => Number(v || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const itemRows = opts.rows.map(r => `
+      <tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;">${r.desc}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:center;">${r.qty}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:center;">${r.unit || "—"}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:right;font-family:monospace;">${fmt(r.unitPrice)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:right;font-family:monospace;font-weight:600;">${fmt(r.total)}</td>
+      </tr>`).join("");
+    return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
+<title>${opts.title} — ${opts.number}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#f8fafc;color:#1e293b;direction:rtl;font-size:13px}
+  .page{max-width:860px;margin:30px auto;background:#fff;border-radius:12px;box-shadow:0 2px 20px rgba(0,0,0,.10);overflow:hidden}
+  .hdr{background:linear-gradient(135deg,#1e40af 0%,#1d4ed8 100%);color:#fff;padding:28px 32px;display:flex;justify-content:space-between;align-items:flex-start}
+  .hdr h1{font-size:22px;font-weight:700;margin-bottom:4px}
+  .hdr .num{font-size:13px;opacity:.85;font-family:monospace}
+  .meta-box{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:20px 32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .meta-item label{display:block;font-size:10px;text-transform:uppercase;color:#94a3b8;font-weight:600;margin-bottom:3px;letter-spacing:.5px}
+  .meta-item span{font-size:13px;font-weight:600;color:#1e293b}
+  .section{padding:20px 32px}
+  h3{font-size:13px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e2e8f0}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead tr{background:#f1f5f9}
+  thead th{padding:10px;text-align:right;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px}
+  thead th:nth-child(2),thead th:nth-child(3){text-align:center}
+  thead th:nth-child(4),thead th:nth-child(5){text-align:right}
+  .totals{margin-top:8px;display:flex;justify-content:flex-end}
+  .totals-table{min-width:260px;font-size:13px}
+  .totals-table td{padding:5px 10px}
+  .totals-table .grand{background:#1e40af;color:#fff;font-weight:700;font-size:15px;border-radius:6px}
+  .footer{background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between}
+  @media print{body{background:#fff}.page{box-shadow:none;margin:0;border-radius:0}}
+</style>
+</head><body>
+<div class="page">
+  <div class="hdr">
+    <div><div style="font-size:11px;opacity:.7;margin-bottom:6px">${opts.title}</div>
+    <h1>${opts.number}</h1>
+    ${opts.projectName ? `<div class="num">${opts.projectName}</div>` : ""}
+    </div>
+    <div style="text-align:left">
+      ${opts.status ? `<span style="background:rgba(255,255,255,.15);border-radius:20px;padding:4px 12px;font-size:12px">${opts.status}</span>` : ""}
+      ${opts.date ? `<div style="margin-top:8px;font-size:11px;opacity:.8">${new Date(opts.date).toLocaleDateString("ar-SA", { year:"numeric", month:"long", day:"numeric" })}</div>` : ""}
+    </div>
+  </div>
+  <div class="meta-box">
+    <div class="meta-item"><label>العميل</label><span>${opts.clientName}</span></div>
+    ${opts.projectName ? `<div class="meta-item"><label>المشروع</label><span>${opts.projectName}</span></div>` : ""}
+    <div class="meta-item"><label>العملة</label><span>${opts.currency}</span></div>
+  </div>
+  ${opts.extra || ""}
+  ${opts.rows.length > 0 ? `
+  <div class="section">
+    <h3>بنود ${opts.title}</h3>
+    <table>
+      <thead><tr>
+        <th>الوصف</th><th style="text-align:center">الكمية</th><th style="text-align:center">الوحدة</th>
+        <th style="text-align:right">سعر الوحدة</th><th style="text-align:right">الإجمالي</th>
+      </tr></thead>
+      <tbody>${itemRows}</tbody>
+    </table>
+    <div class="totals">
+      <table class="totals-table">
+        <tr><td style="color:#64748b">المجموع قبل الضريبة</td><td style="text-align:left;font-family:monospace">${fmt(opts.subtotal)} ${opts.currency}</td></tr>
+        <tr><td style="color:#64748b">ضريبة القيمة المضافة (${opts.vatRate || 15}%)</td><td style="text-align:left;font-family:monospace">${fmt(opts.vatAmount)} ${opts.currency}</td></tr>
+        <tr class="grand"><td style="padding:8px 10px;border-radius:6px 0 0 6px">الإجمالي الكلي</td><td style="text-align:left;font-family:monospace;padding:8px 10px;border-radius:0 6px 6px 0">${fmt(opts.total)} ${opts.currency}</td></tr>
+      </table>
+    </div>
+  </div>` : `
+  <div class="section">
+    <div class="totals">
+      <table class="totals-table">
+        <tr><td style="color:#64748b">المجموع قبل الضريبة</td><td style="text-align:left;font-family:monospace">${fmt(opts.subtotal)} ${opts.currency}</td></tr>
+        <tr><td style="color:#64748b">ضريبة القيمة المضافة</td><td style="text-align:left;font-family:monospace">${fmt(opts.vatAmount)} ${opts.currency}</td></tr>
+        <tr class="grand"><td style="padding:8px 10px;border-radius:6px 0 0 6px">الإجمالي الكلي</td><td style="text-align:left;font-family:monospace;padding:8px 10px;border-radius:0 6px 6px 0">${fmt(opts.total)} ${opts.currency}</td></tr>
+      </table>
+    </div>
+  </div>`}
+  ${opts.notes ? `<div class="section"><h3>ملاحظات</h3><p style="color:#475569;font-size:12px;line-height:1.7">${opts.notes}</p></div>` : ""}
+  ${opts.terms ? `<div class="section"><h3>الشروط والأحكام</h3><p style="color:#475569;font-size:12px;line-height:1.7;white-space:pre-line">${opts.terms}</p></div>` : ""}
+  <div class="footer">
+    <span>وثيقة إلكترونية — Scapex ERP</span>
+    <span>طُبع بتاريخ ${new Date().toLocaleDateString("ar-SA")}</span>
+  </div>
+</div>
+<script>window.onload=function(){window.print()}</script>
+</body></html>`;
+  }
+
+  app.get("/api/portal/proposals/:id/html", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const id = Number(req.params.id);
+      const [p] = await db.select().from(proposals).where(eq(proposals.id, id));
+      if (!p) return res.status(404).json({ error: "Not found" });
+      const allowed = p.contactId === me.id ||
+        (me.email && p.clientEmail === me.email) ||
+        p.clientName === me.nameAr || (me.nameEn && p.clientName === me.nameEn);
+      if (!allowed) return res.status(404).json({ error: "Not found" });
+      const items = await db.select().from(proposalItems).where(eq(proposalItems.proposalId, id)).orderBy(proposalItems.sortOrder);
+      const STATUS_AR: Record<string, string> = { draft: "مسودة", sent: "مُرسل", approved: "مُوافق عليه", rejected: "مرفوض", converted_contract: "تحوّل لعقد", converted_invoice: "تحوّل لفاتورة" };
+      const html = portalDocHtml({
+        title: "عرض السعر", number: p.proposalNumber,
+        clientName: p.clientName, projectName: p.projectName,
+        date: p.createdAt?.toISOString() ?? null, currency: p.currency || "SAR",
+        status: STATUS_AR[p.status || ""] || p.status || "",
+        rows: items.map(i => ({ desc: i.descAr || i.descEn || "", qty: i.qty || "1", unit: i.unit || "", unitPrice: i.unitPrice || "0", total: i.total || "0" })),
+        subtotal: p.subtotal || "0", vatRate: p.vatRate || "15", vatAmount: p.vatAmount || "0", total: p.total || "0",
+        notes: p.notes, terms: p.terms,
+        extra: p.introduction ? `<div class="section"><p style="color:#475569;font-size:12px;line-height:1.8">${p.introduction}</p></div>` : "",
+      });
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (err: any) { res.status(500).json({ error: "Server error" }); }
+  });
+
+  app.get("/api/portal/contracts/:id/html", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const id = Number(req.params.id);
+      const [c] = await db.select().from(contracts).where(eq(contracts.id, id));
+      if (!c) return res.status(404).json({ error: "Not found" });
+      const allowed = c.contactId === me.id || c.clientName === me.nameAr || (me.nameEn && c.clientName === me.nameEn);
+      if (!allowed) return res.status(404).json({ error: "Not found" });
+      const items = await db.select().from(contractItems).where(eq(contractItems.contractId, id)).orderBy(contractItems.sortOrder);
+      const STATUS_AR: Record<string, string> = { draft: "مسودة", active: "نشط", expired: "منتهي", terminated: "مُنهى" };
+      const extra = (c.startDate || c.endDate) ? `<div class="meta-box" style="padding-top:12px;padding-bottom:12px">
+        ${c.startDate ? `<div class="meta-item"><label>تاريخ البدء</label><span>${new Date(c.startDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
+        ${c.endDate ? `<div class="meta-item"><label>تاريخ الانتهاء</label><span>${new Date(c.endDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
+        ${c.clientSignedAt ? `<div class="meta-item"><label>وُقِّع بتاريخ</label><span>${new Date(c.clientSignedAt).toLocaleDateString("ar-SA")} — ${c.clientSignedBy || ""}</span></div>` : ""}
+      </div>` : "";
+      const html = portalDocHtml({
+        title: "العقد", number: c.contractNumber,
+        clientName: c.clientName, projectName: c.projectName,
+        date: c.createdAt?.toISOString() ?? null, currency: c.currency || "SAR",
+        status: STATUS_AR[c.status || ""] || c.status || "",
+        rows: items.map(i => ({ desc: i.descAr || i.descEn || "", qty: i.qty || "1", unit: i.unit || "", unitPrice: i.unitPrice || "0", total: i.total || "0" })),
+        subtotal: c.subtotal || "0", vatRate: c.vatRate || "15", vatAmount: c.vatAmount || "0", total: c.total || "0",
+        notes: null, terms: c.terms, extra,
+      });
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (err: any) { res.status(500).json({ error: "Server error" }); }
+  });
+
+  app.get("/api/portal/invoices/:id/html", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const id = Number(req.params.id);
+      const [inv] = await db.select().from(invoices).where(eq(invoices.id, id));
+      if (!inv) return res.status(404).json({ error: "Not found" });
+      const allowed = inv.contactId === me.id || inv.clientName === me.nameAr || (me.nameEn && inv.clientName === me.nameEn);
+      if (!allowed) return res.status(404).json({ error: "Not found" });
+      const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+      const STATUS_AR: Record<string, string> = { draft: "مسودة", sent: "مُرسلة", paid: "مدفوعة", overdue: "متأخرة", cancelled: "ملغاة" };
+      const extra = `<div class="meta-box" style="padding-top:12px;padding-bottom:12px">
+        ${inv.issueDate ? `<div class="meta-item"><label>تاريخ الإصدار</label><span>${new Date(inv.issueDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
+        ${inv.dueDate ? `<div class="meta-item"><label>تاريخ الاستحقاق</label><span>${new Date(inv.dueDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
+        ${Number(inv.paidAmount || 0) > 0 ? `<div class="meta-item"><label>المبلغ المدفوع</label><span style="color:#16a34a">${Number(inv.paidAmount).toLocaleString()} ${inv.currency || "SAR"}</span></div>` : ""}
+      </div>`;
+      const html = portalDocHtml({
+        title: "الفاتورة", number: inv.invoiceNumber,
+        clientName: inv.clientName || "", projectName: null,
+        date: inv.createdAt?.toISOString() ?? null, currency: inv.currency || "SAR",
+        status: STATUS_AR[inv.status || ""] || inv.status || "",
+        rows: items.map(i => ({ desc: i.descAr || i.descEn || "", qty: i.qty || "1", unit: i.unit || "", unitPrice: i.unitPrice || "0", total: i.total || "0" })),
+        subtotal: inv.subtotal || "0", vatRate: "15", vatAmount: inv.vatAmount || "0", total: inv.total || "0",
+        notes: inv.notes, terms: null, extra,
+      });
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (err: any) { res.status(500).json({ error: "Server error" }); }
+  });
+
   app.post("/api/portal/requests", async (req, res) => {
     const me = await requirePortalContact(req, res);
     if (!me) return;

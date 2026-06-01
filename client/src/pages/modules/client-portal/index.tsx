@@ -17,6 +17,7 @@ import {
   portalListMyInvoices, portalListMyContracts,
   portalApproveProposal, portalSignContract,
   portalSubmitRequest, portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
+  portalOpenDocHtml,
   getPortalContact, getPortalToken, clearPortalSession, setPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
   type PortalClientDocument, type PortalProposal, type PortalMyInvoice, type PortalMyContract,
@@ -1539,7 +1540,15 @@ export default function ClientPortalModule() {
                                   {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="flex justify-center items-center">
+                                  <div className="flex justify-center items-center gap-1.5">
+                                  <Button
+                                    size="sm" variant="outline"
+                                    className="h-7 text-xs gap-1 inline-flex"
+                                    onClick={() => portalOpenDocHtml("proposals", pr.id).catch(() => {})}
+                                    data-testid={`button-view-proposal-${pr.id}`}
+                                  >
+                                    <ExternalLink className="w-3 h-3" />{t("عرض", "View")}
+                                  </Button>
                                   {pr.clientApprovedAt ? (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
                                       <Check className="w-3.5 h-3.5 shrink-0" />{t("موقّع", "Signed")}
@@ -1553,9 +1562,7 @@ export default function ClientPortalModule() {
                                     >
                                       <Pen className="w-3 h-3" />{t("وافق وقّع", "Approve & Sign")}
                                     </Button>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">—</span>
-                                  )}
+                                  ) : null}
                                   </div>
                                 </td>
                               </tr>
@@ -1589,6 +1596,7 @@ export default function ClientPortalModule() {
                               <th className="px-4 py-3 font-semibold w-[150px]">{t("الإجمالي", "Total")}</th>
                               <th className="px-4 py-3 font-semibold w-[140px]">{t("المدفوع", "Paid")}</th>
                               <th className="px-4 py-3 font-semibold w-[100px]">{t("الحالة", "Status")}</th>
+                              <th className="px-4 py-3 font-semibold w-[90px]">{t("الملف", "File")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1612,6 +1620,13 @@ export default function ClientPortalModule() {
                                      inv.status === "cancelled" ? t("ملغاة", "Cancelled") :
                                      inv.status || "—"}
                                   </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 inline-flex"
+                                    onClick={() => portalOpenDocHtml("invoices", inv.id).catch(() => {})}
+                                    data-testid={`button-view-invoice-${inv.id}`}>
+                                    <ExternalLink className="w-3 h-3" />{t("عرض", "View")}
+                                  </Button>
                                 </td>
                               </tr>
                             ))}
@@ -1643,6 +1658,7 @@ export default function ClientPortalModule() {
                               <th className="px-4 py-3 font-semibold w-[160px]">{t("الإجمالي", "Total")}</th>
                               <th className="px-4 py-3 font-semibold w-[210px]">{t("الفترة", "Period")}</th>
                               <th className="px-4 py-3 font-semibold w-[100px]">{t("الحالة", "Status")}</th>
+                              <th className="px-4 py-3 font-semibold w-[90px]">{t("الملف", "File")}</th>
                               <th className="px-4 py-3 font-semibold w-[130px]">{t("التوقيع", "Signature")}</th>
                             </tr>
                           </thead>
@@ -1669,6 +1685,13 @@ export default function ClientPortalModule() {
                                      c.status === "terminated" ? t("مُنهى", "Terminated") :
                                      c.status || "—"}
                                   </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 inline-flex"
+                                    onClick={() => portalOpenDocHtml("contracts", c.id).catch(() => {})}
+                                    data-testid={`button-view-contract-${c.id}`}>
+                                    <ExternalLink className="w-3 h-3" />{t("عرض", "View")}
+                                  </Button>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <div className="flex justify-center items-center">

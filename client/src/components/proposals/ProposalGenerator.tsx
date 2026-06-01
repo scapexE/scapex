@@ -364,7 +364,7 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
   const [showPrices, setShowPrices] = useState(false);
   const [region, setRegion] = useState<PriceRegion>("riyadh");
   const [projectSize, setProjectSize] = useState<ProjectSize>("medium");
-  const [crmPrefill, setCrmPrefill] = useState<{ clientName: string; projectName?: string } | null>(null);
+  const [crmPrefill, setCrmPrefill] = useState<{ clientName: string; projectName?: string; budget?: number | null } | null>(null);
 
   // ── CRM contact linkage from prefill ────────────────────────────────────────
   const [crmContactId, setCrmContactId] = useState<number | null>(null);
@@ -383,7 +383,11 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
         if (data.contactId)     setCrmContactId(data.contactId);
         if (data.dealId)        setCrmDealId(data.dealId);
         dbRemoveItem("scapex_proposal_prefill");
-        setCrmPrefill({ clientName: data.clientName, projectName: data.projectName });
+        setCrmPrefill({
+          clientName: data.clientName,
+          projectName: data.projectName,
+          budget: data.budget ?? null,
+        });
       }
     } catch {}
 
@@ -530,6 +534,14 @@ function CreateProposal({ isRtl, onCreated, onCancel }: {
                       <strong>{crmPrefill.clientName}</strong>
                       {crmPrefill.projectName && <span className="text-emerald-500"> — {crmPrefill.projectName}</span>}
                     </p>
+                    {crmPrefill.budget != null && crmPrefill.budget > 0 && (
+                      <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 mt-1 flex items-center gap-1">
+                        <CreditCard className="w-3 h-3 shrink-0" />
+                        {isRtl
+                          ? `قيمة الصفقة المرجعية: ${crmPrefill.budget.toLocaleString()} ر.س`
+                          : `Deal reference value: ${crmPrefill.budget.toLocaleString()} SAR`}
+                      </p>
+                    )}
                     <p className="text-[10px] text-emerald-500 mt-1">
                       {isRtl ? "اختر نوع الخدمة وسيفتح النموذج مكتملاً" : "Select service type and the form will open pre-filled"}
                     </p>

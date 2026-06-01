@@ -318,3 +318,17 @@ export async function portalSubmitRequest(payload: { subject: string; message: s
   }
   return r.json();
 }
+
+export async function portalOpenDocHtml(
+  type: "proposals" | "contracts" | "invoices",
+  id: number
+): Promise<void> {
+  const r = await portalFetch(`/api/portal/${type}/${id}/html`);
+  if (!r.ok) throw new Error("Document not found");
+  const html = await r.text();
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, "_blank", "noopener");
+  if (win) setTimeout(() => URL.revokeObjectURL(url), 60000);
+  else URL.revokeObjectURL(url);
+}
