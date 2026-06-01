@@ -1273,7 +1273,7 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className={cn("w-full min-w-[700px] text-sm", isRtl ? "text-right" : "text-left")}>
+                        <table className={cn("w-full min-w-[700px] text-sm [&_th]:align-middle [&_td]:align-middle", isRtl ? "text-right" : "text-left")}>
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[130px]">{t("الرقم", "No.")}</th>
@@ -1288,10 +1288,10 @@ export default function ClientPortalModule() {
                             {myProposals.map((pr) => (
                               <tr key={pr.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-proposal-top-${pr.id}`}>
                                 <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{pr.proposalNumber}</td>
-                                <td className="px-4 py-3"><span className="block truncate max-w-[180px]">{pr.projectName || "—"}</span></td>
+                                <td className="px-4 py-3 max-w-[220px] overflow-hidden"><span className="block truncate">{pr.projectName || "—"}</span></td>
                                 <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{pr.currency} {Number(pr.total || 0).toLocaleString()}</td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                  <span className={cn("text-xs px-2 py-0.5 rounded-full inline-flex items-center",
                                     pr.status === "approved" || pr.clientApprovedAt ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
                                     pr.status === "sent" ? "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300" :
                                     pr.status === "rejected" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
@@ -1349,7 +1349,7 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className={cn("w-full min-w-[680px] text-sm", isRtl ? "text-right" : "text-left")}>
+                        <table className={cn("w-full min-w-[680px] text-sm [&_th]:align-middle [&_td]:align-middle", isRtl ? "text-right" : "text-left")}>
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[140px]">{t("رقم الفاتورة", "Invoice #")}</th>
@@ -1369,7 +1369,7 @@ export default function ClientPortalModule() {
                                 <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{inv.currency} {Number(inv.total || 0).toLocaleString()}</td>
                                 <td className="px-4 py-3 tabular-nums text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{inv.currency} {Number(inv.paidAmount || 0).toLocaleString()}</td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                  <span className={cn("text-xs px-2 py-0.5 rounded-full inline-flex items-center",
                                     inv.status === "paid" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
                                     inv.status === "sent" || inv.status === "overdue" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
                                     inv.status === "cancelled" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
@@ -1404,7 +1404,7 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className={cn("w-full min-w-[740px] text-sm", isRtl ? "text-right" : "text-left")}>
+                        <table className={cn("w-full min-w-[740px] text-sm [&_th]:align-middle [&_td]:align-middle", isRtl ? "text-right" : "text-left")}>
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[140px]">{t("رقم العقد", "Contract #")}</th>
@@ -1419,7 +1419,7 @@ export default function ClientPortalModule() {
                             {myContracts.map((c) => (
                               <tr key={c.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-contract-top-${c.id}`}>
                                 <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{c.contractNumber}</td>
-                                <td className="px-4 py-3"><span className="block truncate max-w-[180px]">{c.projectName || "—"}</span></td>
+                                <td className="px-4 py-3 max-w-[220px] overflow-hidden"><span className="block truncate">{c.projectName || "—"}</span></td>
                                 <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{c.currency} {Number(c.total || 0).toLocaleString()}</td>
                                 <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                                   {c.startDate ? new Date(c.startDate).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
@@ -1427,7 +1427,7 @@ export default function ClientPortalModule() {
                                   {c.endDate ? new Date(c.endDate).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : ""}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className={cn("text-xs px-2 py-0.5 rounded-full",
+                                  <span className={cn("text-xs px-2 py-0.5 rounded-full inline-flex items-center",
                                     c.status === "active" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
                                     c.status === "expired" ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" :
                                     c.status === "terminated" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
