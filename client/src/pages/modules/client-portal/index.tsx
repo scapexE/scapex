@@ -1273,7 +1273,7 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className={cn("w-full min-w-[700px] text-sm [&_th]:align-middle [&_td]:align-middle", isRtl ? "text-right" : "text-left")}>
+                        <table className="w-full min-w-[700px] text-sm text-center [&_th]:align-middle [&_td]:align-middle">
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[130px]">{t("الرقم", "No.")}</th>
@@ -1349,7 +1349,7 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className={cn("w-full min-w-[680px] text-sm [&_th]:align-middle [&_td]:align-middle", isRtl ? "text-right" : "text-left")}>
+                        <table className="w-full min-w-[680px] text-sm text-center [&_th]:align-middle [&_td]:align-middle">
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[140px]">{t("رقم الفاتورة", "Invoice #")}</th>
@@ -1404,7 +1404,7 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className={cn("w-full min-w-[740px] text-sm [&_th]:align-middle [&_td]:align-middle", isRtl ? "text-right" : "text-left")}>
+                        <table className="w-full min-w-[740px] text-sm text-center [&_th]:align-middle [&_td]:align-middle">
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[140px]">{t("رقم العقد", "Contract #")}</th>
