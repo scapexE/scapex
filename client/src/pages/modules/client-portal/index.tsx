@@ -1277,7 +1277,7 @@ export default function ClientPortalModule() {
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[130px]">{t("الرقم", "No.")}</th>
-                              <th className="px-4 py-3 font-semibold">{t("المشروع", "Project")}</th>
+                              <th className="px-4 py-3 font-semibold text-center">{t("المشروع", "Project")}</th>
                               <th className="px-4 py-3 font-semibold w-[160px]">{t("الإجمالي", "Total")}</th>
                               <th className="px-4 py-3 font-semibold w-[110px]">{t("الحالة", "Status")}</th>
                               <th className="px-4 py-3 font-semibold w-[100px]">{t("التاريخ", "Date")}</th>
@@ -1288,7 +1288,7 @@ export default function ClientPortalModule() {
                             {myProposals.map((pr) => (
                               <tr key={pr.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-proposal-top-${pr.id}`}>
                                 <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{pr.proposalNumber}</td>
-                                <td className="px-4 py-3 max-w-[220px] overflow-hidden"><span className="block truncate">{pr.projectName || "—"}</span></td>
+                                <td className={cn("px-4 py-3 max-w-[220px] overflow-hidden", isRtl ? "text-right" : "text-left")}><span className="block truncate">{pr.projectName || "—"}</span></td>
                                 <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{pr.currency} {Number(pr.total || 0).toLocaleString()}</td>
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <span className={cn("text-xs px-2 py-0.5 rounded-full inline-flex items-center",
@@ -1408,7 +1408,7 @@ export default function ClientPortalModule() {
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3 font-semibold w-[140px]">{t("رقم العقد", "Contract #")}</th>
-                              <th className="px-4 py-3 font-semibold">{t("المشروع", "Project")}</th>
+                              <th className="px-4 py-3 font-semibold text-center">{t("المشروع", "Project")}</th>
                               <th className="px-4 py-3 font-semibold w-[160px]">{t("الإجمالي", "Total")}</th>
                               <th className="px-4 py-3 font-semibold w-[210px]">{t("الفترة", "Period")}</th>
                               <th className="px-4 py-3 font-semibold w-[100px]">{t("الحالة", "Status")}</th>
@@ -1419,7 +1419,7 @@ export default function ClientPortalModule() {
                             {myContracts.map((c) => (
                               <tr key={c.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-contract-top-${c.id}`}>
                                 <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{c.contractNumber}</td>
-                                <td className="px-4 py-3 max-w-[220px] overflow-hidden"><span className="block truncate">{c.projectName || "—"}</span></td>
+                                <td className={cn("px-4 py-3 max-w-[220px] overflow-hidden", isRtl ? "text-right" : "text-left")}><span className="block truncate">{c.projectName || "—"}</span></td>
                                 <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{c.currency} {Number(c.total || 0).toLocaleString()}</td>
                                 <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                                   {c.startDate ? new Date(c.startDate).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
