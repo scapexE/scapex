@@ -72,12 +72,12 @@ export function WhatsAppAction({
       });
       return;
     }
-    setSentSet(prev => new Set([...prev, 0]));
+    setSentSet(prev => new Set([...Array.from(prev), 0]));
     validCustomers.slice(1).forEach((c, idx) => {
       const i = idx + 1;
       setTimeout(() => {
         window.open(waUrl(c.name, c.phone), "_blank", "noopener");
-        setSentSet(prev => new Set([...prev, i]));
+        setSentSet(prev => new Set([...Array.from(prev), i]));
       }, i * 700);
     });
     toast({
@@ -90,13 +90,13 @@ export function WhatsAppAction({
 
   const handleOpenOne = (c: CustomerContact, idx: number) => {
     window.open(waUrl(c.name, c.phone), "_blank", "noopener");
-    setSentSet(prev => new Set([...prev, idx]));
+    setSentSet(prev => new Set([...Array.from(prev), idx]));
   };
 
   const copyOne = async (c: CustomerContact, idx: number) => {
     try {
       await navigator.clipboard.writeText(waUrl(c.name, c.phone));
-      setSentSet(prev => new Set([...prev, idx]));
+      setSentSet(prev => new Set([...Array.from(prev), idx]));
       toast({ title: isRtl ? "تم نسخ رابط واتساب" : "WhatsApp link copied" });
     } catch {
       toast({ title: isRtl ? "تعذّر النسخ" : "Copy failed", variant: "destructive" });

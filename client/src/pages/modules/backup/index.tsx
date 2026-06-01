@@ -780,7 +780,7 @@ function SettingsBlock({ title, testId, children }: any) {
   );
 }
 
-function Toggle({ checked, onChange, label, testId }: any) {
+function Toggle({ checked, onChange, label, testId }: { checked: boolean; onChange: (v: boolean) => void; label: string; testId?: string }) {
   return (
     <label className="flex items-center gap-2 cursor-pointer md:col-span-2">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid={testId} className="w-4 h-4" />
@@ -789,7 +789,7 @@ function Toggle({ checked, onChange, label, testId }: any) {
   );
 }
 
-function HourInput({ label, value, onChange, testId }: any) {
+function HourInput({ label, value, onChange, testId }: { label: string; value: number; onChange: (v: number) => void; testId?: string }) {
   return (
     <div>
       <label className="text-xs text-muted-foreground">{label}</label>
@@ -799,7 +799,7 @@ function HourInput({ label, value, onChange, testId }: any) {
   );
 }
 
-function NumInput({ label, value, onChange, min, max, testId }: any) {
+function NumInput({ label, value, onChange, min, max, testId }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number; testId?: string }) {
   return (
     <div>
       <label className="text-xs text-muted-foreground">{label}</label>

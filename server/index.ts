@@ -86,7 +86,7 @@ app.post("/hooks/deploy", (req, res) => {
   exec(
     "cd /var/www/scapex && git reset --hard && git pull origin main && npm install --include=dev && npx drizzle-kit push --force && npm run build && pm2 restart scapex --update-env",
     { env: { ...process.env } },
-    (err, stdout, stderr) => {
+    (err: Error | null, stdout: string, stderr: string) => {
       if (err) {
         console.error("❌ خطأ:", err);
         console.error("stderr:", stderr);
