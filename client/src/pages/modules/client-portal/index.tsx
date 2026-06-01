@@ -1310,6 +1310,7 @@ export default function ClientPortalModule() {
                                   {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="flex justify-center items-center">
                                   {pr.clientApprovedAt ? (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
                                       <Check className="w-3.5 h-3.5 shrink-0" />{t("موقّع", "Signed")}
@@ -1326,6 +1327,7 @@ export default function ClientPortalModule() {
                                   ) : (
                                     <span className="text-xs text-muted-foreground">—</span>
                                   )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -1440,6 +1442,7 @@ export default function ClientPortalModule() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="flex justify-center items-center">
                                   {c.clientSignedAt ? (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
                                       <Check className="w-3.5 h-3.5 shrink-0" />{t("موقّع", "Signed")}
@@ -1454,6 +1457,7 @@ export default function ClientPortalModule() {
                                       <Pen className="w-3 h-3" />{t("وقّع العقد", "Sign Contract")}
                                     </Button>
                                   )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
