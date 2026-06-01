@@ -1273,15 +1273,15 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[700px] text-sm">
+                        <table className={cn("w-full min-w-[700px] text-sm", isRtl ? "text-right" : "text-left")}>
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
-                              <th className={cn("px-4 py-3 font-semibold w-[130px]", isRtl ? "text-right" : "text-left")}>{t("الرقم", "No.")}</th>
-                              <th className={cn("px-4 py-3 font-semibold", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[160px]", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[110px]", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[100px]", isRtl ? "text-right" : "text-left")}>{t("التاريخ", "Date")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("الإجراء", "Action")}</th>
+                              <th className="px-4 py-3 font-semibold w-[130px]">{t("الرقم", "No.")}</th>
+                              <th className="px-4 py-3 font-semibold">{t("المشروع", "Project")}</th>
+                              <th className="px-4 py-3 font-semibold w-[160px]">{t("الإجمالي", "Total")}</th>
+                              <th className="px-4 py-3 font-semibold w-[110px]">{t("الحالة", "Status")}</th>
+                              <th className="px-4 py-3 font-semibold w-[100px]">{t("التاريخ", "Date")}</th>
+                              <th className="px-4 py-3 font-semibold w-[140px]">{t("الإجراء", "Action")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1349,15 +1349,15 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[680px] text-sm">
+                        <table className={cn("w-full min-w-[680px] text-sm", isRtl ? "text-right" : "text-left")}>
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
-                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("رقم الفاتورة", "Invoice #")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[110px]", isRtl ? "text-right" : "text-left")}>{t("تاريخ الإصدار", "Issue date")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[110px]", isRtl ? "text-right" : "text-left")}>{t("تاريخ الاستحقاق", "Due date")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[150px]", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("المدفوع", "Paid")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[100px]", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
+                              <th className="px-4 py-3 font-semibold w-[140px]">{t("رقم الفاتورة", "Invoice #")}</th>
+                              <th className="px-4 py-3 font-semibold w-[110px]">{t("تاريخ الإصدار", "Issue date")}</th>
+                              <th className="px-4 py-3 font-semibold w-[110px]">{t("تاريخ الاستحقاق", "Due date")}</th>
+                              <th className="px-4 py-3 font-semibold w-[150px]">{t("الإجمالي", "Total")}</th>
+                              <th className="px-4 py-3 font-semibold w-[140px]">{t("المدفوع", "Paid")}</th>
+                              <th className="px-4 py-3 font-semibold w-[100px]">{t("الحالة", "Status")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1404,15 +1404,15 @@ export default function ClientPortalModule() {
                   ) : (
                     <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[740px] text-sm">
+                        <table className={cn("w-full min-w-[740px] text-sm", isRtl ? "text-right" : "text-left")}>
                           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
-                              <th className={cn("px-4 py-3 font-semibold w-[140px]", isRtl ? "text-right" : "text-left")}>{t("رقم العقد", "Contract #")}</th>
-                              <th className={cn("px-4 py-3 font-semibold", isRtl ? "text-right" : "text-left")}>{t("المشروع", "Project")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[160px]", isRtl ? "text-right" : "text-left")}>{t("الإجمالي", "Total")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[210px]", isRtl ? "text-right" : "text-left")}>{t("الفترة", "Period")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[100px]", isRtl ? "text-right" : "text-left")}>{t("الحالة", "Status")}</th>
-                              <th className={cn("px-4 py-3 font-semibold w-[130px]", isRtl ? "text-right" : "text-left")}>{t("التوقيع", "Signature")}</th>
+                              <th className="px-4 py-3 font-semibold w-[140px]">{t("رقم العقد", "Contract #")}</th>
+                              <th className="px-4 py-3 font-semibold">{t("المشروع", "Project")}</th>
+                              <th className="px-4 py-3 font-semibold w-[160px]">{t("الإجمالي", "Total")}</th>
+                              <th className="px-4 py-3 font-semibold w-[210px]">{t("الفترة", "Period")}</th>
+                              <th className="px-4 py-3 font-semibold w-[100px]">{t("الحالة", "Status")}</th>
+                              <th className="px-4 py-3 font-semibold w-[130px]">{t("التوقيع", "Signature")}</th>
                             </tr>
                           </thead>
                           <tbody>
