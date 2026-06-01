@@ -45,6 +45,8 @@ export interface DBContract {
   endDate: string | null;
   signedAt: string | null;
   signedBy: string | null;
+  clientSignedAt?: string | null;
+  clientSignedBy?: string | null;
   isConfidential: boolean;
   viewerIds: string[];
   createdAt: string;
@@ -697,6 +699,13 @@ export function ContractsList() {
                         {contract.signedAt && (
                           <p className="text-[10px] text-muted-foreground mt-1">
                             {new Date(contract.signedAt).toLocaleDateString(isRtl ? "ar-SA" : "en-GB")}
+                          </p>
+                        )}
+                        {contract.clientSignedAt && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
+                            <CheckCircle2 className="w-3 h-3 shrink-0" />
+                            {lbl("وقّع العميل", "Client signed")}
+                            {contract.clientSignedBy && ` · ${contract.clientSignedBy}`}
                           </p>
                         )}
                       </TableCell>

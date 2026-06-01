@@ -2708,6 +2708,7 @@ export async function registerRoutes(
         clientSignedAt: new Date(),
         clientSignedBy: signerName,
         clientSignature: signature,
+        status: "active",
         updatedAt: new Date(),
       }).where(eq(contracts.id, id));
       res.json({ ok: true });
@@ -5108,6 +5109,19 @@ export async function registerRoutes(
         );
       }
       res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Sync proposal status from localStorage → DB (by proposalNumber)
+  app.patch("/api/proposals/sync", async (req, res) => {
+    try {
+      const { proposalNumber, status } = req.body || {};
+      if (!proposalNumber) return res.status(400).json({ error: "proposalNumber required" });
+      const updates: any = { updatedAt: new Date() };
+      if (status) updates.status = status;
+      if (status === "approved") updates.clientApprovedAt = new Date();
+      await db.update(proposals).set(updates).where(eq(proposals.proposalNumber, proposalNumber));
+      res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

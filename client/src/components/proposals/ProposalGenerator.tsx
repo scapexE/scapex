@@ -894,10 +894,16 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
     const updated = { ...proposal, ...updates, updatedAt: now };
     setProposal(updated);
     onSave(updated);
+    const userId = (() => { try { const s = localStorage.getItem("session"); if (s) { const p = JSON.parse(s); return p.id || p.userId || ""; } } catch {} return ""; })();
     if (status === "sent") {
-      const userId = (() => { try { const s = localStorage.getItem("session"); if (s) { const p = JSON.parse(s); return p.id || p.userId || ""; } } catch {} return ""; })();
       saveProposalToDB(updated, userId, updated.crmContactId).catch(() => {});
     }
+    // Sync status change to DB so portal sees it immediately
+    fetch("/api/proposals/sync", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposalNumber: updated.proposalNumber, status }),
+    }).catch(() => {});
   };
 
   const handleSave = () => {
