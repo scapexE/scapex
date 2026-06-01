@@ -1215,7 +1215,9 @@ export default function ClientPortalModule() {
   const staffUser = useMemo(() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || "null");
-      return u && u.id && u.name ? { id: String(u.id), name: String(u.name), role: String(u.role || "staff") } : null;
+      return u && u.id && u.name && u.role === "admin"
+        ? { id: String(u.id), name: String(u.name), role: "admin" as const }
+        : null;
     } catch { return null; }
   }, []);
 

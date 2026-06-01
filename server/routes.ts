@@ -2856,6 +2856,9 @@ export async function registerRoutes(
     try {
       const actor = await requirePrivileged(req, res);
       if (!actor) return;
+      if (!actor.roles.has("admin")) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
       const [c] = await db.select().from(contacts).where(eq(contacts.id, id));
