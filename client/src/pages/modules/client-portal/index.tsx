@@ -1252,7 +1252,7 @@ export default function ClientPortalModule() {
         await portalSignContract(signModal.id, { signerName, signature, otp });
         const now = new Date().toISOString();
         setMyContracts(prev => prev.map(c => c.id === signModal.id
-          ? { ...c, clientSignedAt: now, clientSignedBy: signerName } : c));
+          ? { ...c, status: "active", clientSignedAt: now, clientSignedBy: signerName } : c));
       }
       setSignModal(null);
     } finally {
