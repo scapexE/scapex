@@ -6,7 +6,7 @@ import {
   FolderKanban, FileText, Receipt, MessageSquare, Loader2, ShieldCheck,
   Calendar, MapPin, User as UserIcon, ArrowLeft, ArrowRight, Send,
   FolderArchive, Upload, Download, X, FileSignature, ClipboardList, Pen, Check, RotateCcw,
-  Smartphone, KeyRound, RefreshCw,
+  Smartphone, KeyRound, RefreshCw, Search, Mail, ExternalLink, Shield, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -17,7 +17,7 @@ import {
   portalListMyInvoices, portalListMyContracts,
   portalApproveProposal, portalSignContract,
   portalSubmitRequest, portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
-  getPortalContact, getPortalToken, clearPortalSession,
+  getPortalContact, getPortalToken, clearPortalSession, setPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
   type PortalClientDocument, type PortalProposal, type PortalMyInvoice, type PortalMyContract,
 } from "@/lib/portalApi";
@@ -1010,6 +1010,201 @@ function PortalDocuments({ isRtl, t, theme }: { isRtl: boolean; t: (a: string, e
   );
 }
 
+// ── Staff Portal Browser ──────────────────────────────────────────────────
+interface StaffClientRow {
+  id: number;
+  nameAr: string | null;
+  nameEn: string | null;
+  email: string | null;
+  phone: string | null;
+  organization: string | null;
+  city: string | null;
+  isActive: boolean | null;
+}
+
+function StaffPortalBrowser({
+  staffUser,
+  onImpersonate,
+  isRtl,
+  t,
+  theme,
+}: {
+  staffUser: { id: string; name: string; role: string };
+  onImpersonate: (contact: PortalContact) => void;
+  isRtl: boolean;
+  t: (a: string, e: string) => string;
+  theme: typeof PORTAL_THEMES[number];
+}) {
+  const [rows, setRows] = useState<StaffClientRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    fetch("/api/customers", { headers: { "x-user-id": staffUser.id } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setRows(Array.isArray(d) ? d : []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, [staffUser.id]);
+
+  const filtered = search.trim()
+    ? rows.filter((c) => {
+        const q = search.toLowerCase();
+        return (
+          c.nameAr?.toLowerCase().includes(q) ||
+          c.nameEn?.toLowerCase().includes(q) ||
+          c.organization?.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q)
+        );
+      })
+    : rows;
+
+  const impersonate = async (c: StaffClientRow) => {
+    setBusyId(c.id);
+    setErr("");
+    try {
+      const r = await fetch(`/api/customers/${c.id}/portal/impersonate`, {
+        method: "POST",
+        headers: { "x-user-id": staffUser.id, "Content-Type": "application/json" },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || t("فشلت العملية", "Operation failed")); return; }
+      const contact: PortalContact = {
+        id: j.contact.id,
+        nameAr: j.contact.nameAr ?? c.nameAr,
+        nameEn: j.contact.nameEn ?? c.nameEn,
+        email: j.contact.email ?? c.email,
+        phone: j.contact.phone ?? c.phone,
+        mobile: null,
+        organization: c.organization,
+        city: c.city,
+        address: null,
+        activityId: j.contact.activityId ?? null,
+      };
+      setPortalSession(j.token, contact);
+      onImpersonate(contact);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background" dir={isRtl ? "rtl" : "ltr"}>
+      <div className={cn("h-16 bg-gradient-to-r text-white flex items-center gap-3 px-6 shadow-sm", theme.primary)}>
+        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm leading-tight">{t("وضع مراجعة بوابة العملاء", "Customer Portal — Review Mode")}</p>
+          <p className="text-xs text-white/70 leading-tight">{staffUser.name}</p>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto p-5 md:p-8 space-y-5">
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 flex items-start gap-3 text-sm">
+          <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <p className="text-amber-800 dark:text-amber-200">
+            {t(
+              "أنت في وضع المراجعة الإدارية. اختر عميلاً لاستعراض بوابته مباشرةً بدون كلمة مرور.",
+              "You are in admin review mode. Pick any client to preview their portal directly without a password."
+            )}
+          </p>
+        </div>
+
+        <div className="relative">
+          <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none", isRtl ? "right-3" : "left-3")} />
+          <input
+            type="text"
+            className={cn("w-full h-10 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30", isRtl ? "pe-4 ps-10" : "ps-10 pe-4")}
+            placeholder={t("ابحث عن عميل بالاسم أو الشركة أو البريد...", "Search by name, company or email...")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-staff-portal-search"
+          />
+        </div>
+
+        {err && (
+          <div className="bg-destructive/10 text-destructive border border-destructive/20 rounded-lg px-4 py-2.5 text-sm flex items-center justify-between">
+            {err}
+            <button onClick={() => setErr("")}><X className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+            <Users className="w-12 h-12 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">{t("لا يوجد عملاء مطابقون", "No matching clients")}</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              {t(`${filtered.length} عميل`, `${filtered.length} clients`)}
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map((c) => {
+                const name = (isRtl ? c.nameAr : (c.nameEn || c.nameAr)) || `#${c.id}`;
+                const initials = name.trim().split(/\s+/).slice(0, 2).map((s: string) => s[0]).join("").toUpperCase() || "?";
+                return (
+                  <div
+                    key={c.id}
+                    className="bg-card border border-border/60 rounded-xl p-4 flex flex-col gap-3 hover:shadow-md hover:border-primary/30 transition-all"
+                    data-testid={`card-staff-client-${c.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm shrink-0", theme.primary)}>
+                        {initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate" data-testid={`text-staff-client-name-${c.id}`}>{name}</p>
+                        {c.organization && <p className="text-xs text-muted-foreground truncate">{c.organization}</p>}
+                      </div>
+                    </div>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {c.email && (
+                        <p className="flex items-center gap-1.5 truncate" dir="ltr">
+                          <Mail className="w-3 h-3 shrink-0" />{c.email}
+                        </p>
+                      )}
+                      {c.phone && (
+                        <p className="flex items-center gap-1.5 truncate" dir="ltr">
+                          <span className="shrink-0">📞</span>{c.phone}
+                        </p>
+                      )}
+                      {c.city && (
+                        <p className="flex items-center gap-1.5 truncate">
+                          <MapPin className="w-3 h-3 shrink-0" />{c.city}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      className={cn("w-full gap-1.5 text-white border-0 bg-gradient-to-r", theme.primary)}
+                      onClick={() => impersonate(c)}
+                      disabled={busyId === c.id}
+                      data-testid={`button-impersonate-${c.id}`}
+                    >
+                      {busyId === c.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      )}
+                      {t("دخول كعميل", "View as client")}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main portal module ────────────────────────────────────────────────────
 export default function ClientPortalModule() {
   const { dir, language, toggleLanguage } = useLanguage();
@@ -1017,7 +1212,15 @@ export default function ClientPortalModule() {
   const isRtl = dir === "rtl";
   const t = (a: string, e: string) => (isRtl ? a : e);
 
+  const staffUser = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null");
+      return u && u.id && u.name ? { id: String(u.id), name: String(u.name), role: String(u.role || "staff") } : null;
+    } catch { return null; }
+  }, []);
+
   const [contact, setContact] = useState<PortalContact | null>(getPortalContact);
+  const [impersonating, setImpersonating] = useState(false);
   const [portalTheme, setPortalTheme] = useState<PortalTheme>(getPortalTheme);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const theme = useMemo(() => PORTAL_THEMES.find((x) => x.id === portalTheme) || PORTAL_THEMES[0], [portalTheme]);
@@ -1098,6 +1301,17 @@ export default function ClientPortalModule() {
   };
 
   if (!contact) {
+    if (staffUser) {
+      return (
+        <StaffPortalBrowser
+          staffUser={staffUser}
+          onImpersonate={(c) => { setContact(c); setImpersonating(true); setView("projects"); }}
+          isRtl={isRtl}
+          t={t}
+          theme={theme}
+        />
+      );
+    }
     return <PortalLoginScreen onLogin={(c) => setContact(c)} theme={theme} isRtl={isRtl} t={t} toggleLang={toggleLanguage} />;
   }
 
@@ -1150,10 +1364,23 @@ export default function ClientPortalModule() {
             <Button variant="ghost" size="icon" className="relative text-white/80 hover:text-white hover:bg-white/10">
               <Bell className="w-5 h-5" />
             </Button>
-            <Button variant="ghost" size="sm" className="hidden sm:flex items-center gap-2 text-white/70 hover:text-white hover:bg-white/10" onClick={handleLogout} data-testid="button-portal-logout">
-              <LogOut className="w-4 h-4" />
-              {t("خروج", "Logout")}
-            </Button>
+            {impersonating && staffUser ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/20 border border-white/30 rounded-lg"
+                onClick={() => { clearPortalSession(); setContact(null); setImpersonating(false); }}
+                data-testid="button-portal-back-to-list"
+              >
+                {isRtl ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+                {t("قائمة العملاء", "Client list")}
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" className="hidden sm:flex items-center gap-2 text-white/70 hover:text-white hover:bg-white/10" onClick={handleLogout} data-testid="button-portal-logout">
+                <LogOut className="w-4 h-4" />
+                {t("خروج", "Logout")}
+              </Button>
+            )}
           </div>
         </div>
       </header>
