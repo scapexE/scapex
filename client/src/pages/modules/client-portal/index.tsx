@@ -1309,7 +1309,7 @@ export default function ClientPortalModule() {
                                 <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                                   {pr.createdAt ? new Date(pr.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-US") : "—"}
                                 </td>
-                                <td className={cn("px-4 py-3 whitespace-nowrap", isRtl ? "text-right" : "text-left")}>
+                                <td className="px-4 py-3 whitespace-nowrap">
                                   {pr.clientApprovedAt ? (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
                                       <Check className="w-3.5 h-3.5 shrink-0" />{t("موقّع", "Signed")}
@@ -1439,7 +1439,7 @@ export default function ClientPortalModule() {
                                      c.status || "—"}
                                   </span>
                                 </td>
-                                <td className={cn("px-4 py-3 whitespace-nowrap", isRtl ? "text-right" : "text-left")}>
+                                <td className="px-4 py-3 whitespace-nowrap">
                                   {c.clientSignedAt ? (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
                                       <Check className="w-3.5 h-3.5 shrink-0" />{t("موقّع", "Signed")}
