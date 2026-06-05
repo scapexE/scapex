@@ -6,7 +6,7 @@ import {
   FolderKanban, FileText, Receipt, MessageSquare, Loader2, ShieldCheck,
   Calendar, MapPin, User as UserIcon, ArrowLeft, ArrowRight, Send,
   FolderArchive, Upload, Download, X, FileSignature, ClipboardList, Pen, Check, RotateCcw,
-  Smartphone, KeyRound, RefreshCw, Search, Mail, ExternalLink, Shield, Users,
+  Smartphone, KeyRound, RefreshCw, Search, Mail, ExternalLink, Shield, Users, LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -1101,6 +1101,14 @@ function StaffPortalBrowser({
           <p className="font-bold text-sm leading-tight">{t("وضع مراجعة بوابة العملاء", "Customer Portal — Review Mode")}</p>
           <p className="text-xs text-white/70 leading-tight">{staffUser.name}</p>
         </div>
+        <button
+          onClick={() => { window.location.href = "/dashboard"; }}
+          className="flex items-center gap-2 bg-white/15 hover:bg-white/25 transition-colors rounded-lg px-3 py-1.5 text-sm font-medium text-white shrink-0"
+          data-testid="button-back-to-system"
+        >
+          <LayoutDashboard className="w-3.5 h-3.5" />
+          {t("العودة للنظام", "Back to System")}
+        </button>
       </div>
 
       <div className="max-w-6xl mx-auto p-5 md:p-8 space-y-5">
