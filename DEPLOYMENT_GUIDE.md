@@ -1,24 +1,29 @@
-# دليل رفع Scapex على سيرفر VPS مع cPanel
-# Scapex Deployment Guide — VPS with cPanel/Plesk
+# دليل رفع Scapex على سيرفر VPS (Hostinger)
+# Scapex Deployment Guide — VPS with cPanel / SSH
 
 ---
 
-## المتطلبات / Requirements
+## ⚠️ متطلبات أساسية / Requirements
 
 | المتطلب | الحد الأدنى |
 |---------|------------|
 | Node.js | v20 أو أحدث |
-| RAM | 1 GB+ |
-| مساحة القرص | 500 MB+ |
-| نظام التشغيل | Linux (Ubuntu/CentOS/Debian) |
+| PostgreSQL | v14 أو أحدث |
+| RAM | 2 GB+ (موصى به) |
+| مساحة القرص | 1 GB+ |
+| نظام التشغيل | Linux (Ubuntu 20.04+ / Debian) |
 
-> ملاحظة: التطبيق حالياً يستخدم localStorage في المتصفح لتخزين البيانات (لا يحتاج PostgreSQL إلا إذا تم تفعيل API routes لاحقاً)
+> **مهم:** النظام الآن يستخدم PostgreSQL لتخزين جميع البيانات. يجب إعداد قاعدة بيانات قبل تشغيل التطبيق.
 
 ---
 
-## الخطوة 1: تجهيز الملفات للرفع
+## الخطوة 1: بناء ملفات الإنتاج (على Replit)
 
-### الملفات المطلوبة للرفع:
+```bash
+npm run build
+```
+
+الملفات الناتجة في مجلد `dist/`:
 ```
 dist/
   ├── index.cjs          ← ملف السيرفر (الباك إند)
@@ -27,140 +32,144 @@ dist/
       └── assets/
           ├── index-*.css
           └── index-*.js
-package.json
-version.json
-```
-
-### الملفات التي لا تحتاج رفعها:
-```
-node_modules/     ← سيتم تثبيتها على السيرفر
-client/           ← كود المصدر فقط - البناء موجود في dist/
-server/           ← كود المصدر فقط - البناء موجود في dist/
-shared/           ← كود المصدر فقط
-script/           ← أدوات البناء فقط
 ```
 
 ---
 
 ## الخطوة 2: رفع الملفات على السيرفر
 
-### الطريقة 1: عبر cPanel File Manager
-1. ادخل cPanel → **File Manager**
-2. انشئ مجلد جديد مثلاً: `/home/username/scapex`
-3. ارفع الملفات التالية:
-   - مجلد `dist/` كاملاً
-   - ملف `package.json`
-   - ملف `version.json`
+### الملفات المطلوبة للرفع:
+```
+dist/           ← مجلد البناء كاملاً
+package.json
+version.json
+```
 
-### الطريقة 2: عبر SSH (أسرع)
+### عبر SSH (أسرع):
 ```bash
 # على جهازك المحلي بعد تنزيل الملفات من Replit
-scp -r dist/ package.json version.json username@your-server:/home/username/scapex/
+scp -r dist/ package.json version.json username@your-server-ip:/home/username/scapex/
 ```
+
+### عبر cPanel File Manager:
+1. افتح cPanel → **File Manager**
+2. أنشئ مجلداً: `/home/username/scapex`
+3. ارفع `dist/`، `package.json`، `version.json`
 
 ---
 
-## الخطوة 3: إعداد Node.js على cPanel
-
-### عبر cPanel Node.js Selector:
-1. ادخل cPanel → **Setup Node.js App**
-2. اضغط **Create Application**
-3. عبّي الحقول:
-   - **Node.js version**: `20.x` أو أحدث
-   - **Application mode**: `Production`
-   - **Application root**: `scapex`
-   - **Application URL**: اختر الدومين (مثلاً `scapex.yourdomain.com`)
-   - **Application startup file**: `dist/index.cjs`
-4. اضغط **Create**
-
-### إعداد Environment Variables:
-في نفس صفحة Node.js App، أضف:
-```
-NODE_ENV = production
-PORT = 5000
-```
-
-### تثبيت الحزم:
-في نفس الصفحة اضغط **Run NPM Install**
-أو عبر SSH:
-```bash
-cd /home/username/scapex
-npm install --production
-```
-
----
-
-## الخطوة 4: عبر SSH (بديل عن cPanel Node.js Selector)
+## الخطوة 3: إعداد PostgreSQL على السيرفر
 
 ```bash
 # الاتصال بالسيرفر
 ssh username@your-server-ip
 
-# تثبيت Node.js (إذا غير موجود)
+# تثبيت PostgreSQL
+sudo apt update
+sudo apt install -y postgresql postgresql-contrib
+
+# تشغيل PostgreSQL
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# إنشاء قاعدة بيانات ومستخدم
+sudo -u postgres psql << 'EOF'
+CREATE USER scapex_user WITH PASSWORD 'ضع_كلمة_مرور_قوية_هنا';
+CREATE DATABASE scapex_db OWNER scapex_user;
+GRANT ALL PRIVILEGES ON DATABASE scapex_db TO scapex_user;
+EOF
+```
+
+---
+
+## الخطوة 4: إعداد متغيرات البيئة
+
+أنشئ ملف `.env` في مجلد المشروع:
+```bash
+nano /home/username/scapex/.env
+```
+
+أضف المحتوى التالي:
+```env
+NODE_ENV=production
+PORT=5000
+DATABASE_URL=postgresql://scapex_user:كلمة_المرور@localhost:5432/scapex_db
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx
+SESSION_SECRET=اكتب_نص_عشوائي_طويل_هنا_للأمان
+PORTAL_JWT_SECRET=نص_عشوائي_آخر_للبوابة
+```
+
+> **RESEND_API_KEY**: مطلوب لإرسال رسائل التحقق بالبريد. احصل عليه من [resend.com](https://resend.com)
+
+---
+
+## الخطوة 5: تثبيت Node.js وتشغيل المشروع
+
+```bash
+# تثبيت Node.js v20
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
-# التحقق من الإصدار
+# التحقق من الإصدارات
 node --version   # يجب أن يكون v20+
 npm --version
 
 # الدخول لمجلد المشروع
 cd /home/username/scapex
 
-# تثبيت الحزم
-npm install --production
+# تثبيت الحزم (إنتاج فقط)
+npm install --omit=dev
 
-# تشغيل تجريبي
-PORT=5000 NODE_ENV=production node dist/index.cjs
+# إنشاء جداول قاعدة البيانات (أول مرة فقط)
+DATABASE_URL="postgresql://scapex_user:كلمة_المرور@localhost:5432/scapex_db" npx drizzle-kit push
 
-# إذا اشتغل بنجاح — أوقفه (Ctrl+C) ونكمل الخطوة التالية
+# تجربة تشغيل يدوي للتأكد
+source .env && node dist/index.cjs
+# إذا ظهر: "serving on port 5000" → ناجح. اضغط Ctrl+C وكمّل.
 ```
 
 ---
 
-## الخطوة 5: تشغيل دائم باستخدام PM2
+## الخطوة 6: تشغيل دائم باستخدام PM2
 
 ```bash
-# تثبيت PM2 (مدير العمليات)
+# تثبيت PM2
 sudo npm install -g pm2
 
-# تشغيل التطبيق
+# تشغيل التطبيق مع ملف .env
 cd /home/username/scapex
-PORT=5000 NODE_ENV=production pm2 start dist/index.cjs --name "scapex"
-
-# التأكد من التشغيل
-pm2 status
+pm2 start dist/index.cjs --name "scapex" --env-file .env
 
 # تشغيل تلقائي عند إعادة تشغيل السيرفر
 pm2 startup
 pm2 save
 
-# أوامر مفيدة:
-pm2 logs scapex          # عرض السجلات
-pm2 restart scapex       # إعادة تشغيل
-pm2 stop scapex          # إيقاف
-pm2 delete scapex        # حذف
+# أوامر مفيدة
+pm2 status              # حالة التطبيق
+pm2 logs scapex         # عرض السجلات المباشرة
+pm2 restart scapex      # إعادة تشغيل
+pm2 stop scapex         # إيقاف
 ```
 
 ---
 
-## الخطوة 6: ربط الدومين (Reverse Proxy)
+## الخطوة 7: Nginx كـ Reverse Proxy
 
-### إذا تستخدم cPanel مع Apache:
-أضف في `.htaccess` داخل مجلد `public_html` (أو مجلد الدومين الفرعي):
+```bash
+# تثبيت Nginx
+sudo apt install -y nginx
 
-```apache
-RewriteEngine On
-RewriteRule ^(.*)$ http://localhost:5000/$1 [P,L]
+# إنشاء ملف إعدادات
+sudo nano /etc/nginx/sites-available/scapex
 ```
 
-### أو عبر Nginx (إذا متوفر):
-أنشئ ملف `/etc/nginx/sites-available/scapex`:
-
+أضف المحتوى التالي (استبدل `scapex.yourdomain.com` بدومينك):
 ```nginx
 server {
     listen 80;
     server_name scapex.yourdomain.com;
+
+    client_max_body_size 20M;
 
     location / {
         proxy_pass http://localhost:5000;
@@ -170,33 +179,60 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 120s;
     }
 }
 ```
 
 ```bash
+# تفعيل الإعدادات
 sudo ln -s /etc/nginx/sites-available/scapex /etc/nginx/sites-enabled/
-sudo nginx -t
+sudo nginx -t          # التحقق من صحة الإعدادات
 sudo systemctl reload nginx
 ```
 
 ---
 
-## الخطوة 7: شهادة SSL (HTTPS)
+## الخطوة 8: شهادة SSL (HTTPS)
 
 ```bash
 # تثبيت Certbot
-sudo apt install certbot python3-certbot-nginx
+sudo apt install -y certbot python3-certbot-nginx
 
-# إصدار شهادة SSL
+# إصدار شهادة SSL مجانية
 sudo certbot --nginx -d scapex.yourdomain.com
 
-# التجديد التلقائي
+# التجديد التلقائي (يعمل تلقائياً عادةً)
 sudo certbot renew --dry-run
 ```
 
-أو من cPanel → **SSL/TLS** → **Let's Encrypt**
+---
+
+## الخطوة 9: إعداد Webhook للتحديث التلقائي
+
+إذا كنت تريد نشراً تلقائياً عند push على Git:
+
+```bash
+# أنشئ سكريبت التحديث
+nano /home/username/deploy.sh
+```
+
+```bash
+#!/bin/bash
+cd /home/username/scapex
+# انسخ الملفات الجديدة هنا حسب طريقتك (git pull أو scp)
+npm install --omit=dev
+pm2 restart scapex
+echo "✅ Scapex updated at $(date)"
+```
+
+```bash
+chmod +x /home/username/deploy.sh
+```
+
+للاستدعاء عبر webhook HTTP بسيط، أضف endpoint في Express أو استخدم أداة مثل [webhook](https://github.com/adnanh/webhook).
 
 ---
 
@@ -225,11 +261,11 @@ https://scapex.yourdomain.com
 # 1. بناء النسخة الجديدة على Replit
 npm run build
 
-# 2. رفع الملفات الجديدة
-scp -r dist/ username@your-server:/home/username/scapex/
+# 2. رفع الملفات الجديدة على السيرفر
+scp -r dist/ username@your-server-ip:/home/username/scapex/
 
 # 3. إعادة تشغيل التطبيق
-ssh username@your-server "pm2 restart scapex"
+ssh username@your-server-ip "pm2 restart scapex"
 ```
 
 ---
@@ -238,11 +274,23 @@ ssh username@your-server "pm2 restart scapex"
 
 | المشكلة | الحل |
 |---------|------|
-| الصفحة لا تفتح | تأكد أن PM2 يعمل: `pm2 status` |
-| خطأ في المنفذ | تأكد أن PORT=5000 وأن المنفذ غير مستخدم |
-| مشكلة SSL | تأكد من إعداد Certbot بشكل صحيح |
-| بيانات مفقودة بعد التحديث | البيانات محفوظة في localStorage بالمتصفح — لن تتأثر بتحديث السيرفر |
+| الصفحة لا تفتح | `pm2 status` و `pm2 logs scapex` |
+| خطأ في قاعدة البيانات | تأكد من DATABASE_URL وأن PostgreSQL يعمل: `sudo systemctl status postgresql` |
+| خطأ 502 Bad Gateway | التطبيق لم يبدأ — `pm2 logs scapex` لمعرفة السبب |
+| خطأ في المنفذ | تأكد `PORT=5000` وأن المنفذ غير مستخدم: `sudo lsof -i :5000` |
+| مشكلة SSL | تأكد من إعداد Certbot: `sudo certbot certificates` |
+| البريد لا يُرسل | تأكد من RESEND_API_KEY في ملف `.env` |
 
 ---
 
-> تم إنشاء هذا الدليل لمنصة Scapex V1.0
+## الملفات الجاهزة للرفع الآن
+
+```
+dist/index.cjs          ← 1.2 MB (السيرفر كاملاً)
+dist/public/index.html  ← الصفحة الرئيسية
+dist/public/assets/     ← CSS + JS (مضغوط)
+package.json
+version.json
+```
+
+> **آخر بناء:** نجح ✅ — 2582 وحدة، السيرفر 1.2MB، الفرونت إند 2.4MB (666KB مضغوط)
