@@ -558,6 +558,8 @@ export const payments = pgTable("payments", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   activityId: text("activity_id").references(() => businessActivities.id),
+  scheduleId: integer("schedule_id"),
+  contractRef: text("contract_ref"),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1341,6 +1343,7 @@ export const contractPaymentSchedules = pgTable("contract_payment_schedules", {
   paidDate: date("paid_date"),
   notes: text("notes"),
   invoiceRef: text("invoice_ref"),
+  paymentId: integer("payment_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -21,10 +21,15 @@ interface Payment {
   invoiceId: number | null; contactId: number | null;
   amount: string; currency: string; method: string;
   reference: string | null; date: string; notes: string | null;
+  scheduleId: number | null; contractRef: string | null;
   createdAt: string;
 }
 interface Contact { id: number; nameAr: string | null; nameEn: string | null; }
 interface Invoice { id: number; invoiceNumber: string; clientName: string | null; total: string; }
+interface ScheduleInstallment {
+  id: number; contractRef: string; contractName: string; installmentNumber: number;
+  amount: string; paidAmount: string; status: string;
+}
 
 const SAR = (v: string | number) => `${parseFloat(String(v || 0)).toLocaleString("ar-SA")} ر.س`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -91,6 +96,7 @@ export function PaymentsTab() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [installments, setInstallments] = useState<ScheduleInstallment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [voucherType, setVoucherType] = useState<"received" | "paid">("received");
@@ -98,19 +104,20 @@ export function PaymentsTab() {
 
   const [form, setForm] = useState({
     contactId: "", invoiceId: "", amount: "", method: "bank_transfer",
-    reference: "", date: today(), notes: "",
+    reference: "", date: today(), notes: "", scheduleId: "", contractRef: "",
   });
 
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const [pmtRes, ctRes, invRes] = await Promise.all([
-        fetch("/api/payments"), fetch("/api/customers"), fetch("/api/invoices"),
+      const [pmtRes, ctRes, invRes, schRes] = await Promise.all([
+        fetch("/api/payments"), fetch("/api/customers"), fetch("/api/invoices"), fetch("/api/contract-payment-schedules"),
       ]);
-      const [pmtData, ctData, invData] = await Promise.all([pmtRes.json(), ctRes.json(), invRes.json()]);
+      const [pmtData, ctData, invData, schData] = await Promise.all([pmtRes.json(), ctRes.json(), invRes.json(), schRes.json()]);
       setPayments(Array.isArray(pmtData) ? pmtData : []);
       setContacts(Array.isArray(ctData) ? ctData : []);
       setInvoices(Array.isArray(invData) ? invData : []);
+      setInstallments(Array.isArray(schData) ? schData : []);
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
     finally { setLoading(false); }
   }, []);
@@ -119,7 +126,7 @@ export function PaymentsTab() {
 
   const openCreate = (type: "received" | "paid") => {
     setVoucherType(type);
-    setForm({ contactId: "", invoiceId: "", amount: "", method: "bank_transfer", reference: "", date: today(), notes: "" });
+    setForm({ contactId: "", invoiceId: "", amount: "", method: "bank_transfer", reference: "", date: today(), notes: "", scheduleId: "", contractRef: "" });
     setShowCreate(true);
   };
 
@@ -131,7 +138,7 @@ export function PaymentsTab() {
     try {
       await fetch("/api/payments", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: voucherType, contactId: form.contactId || null, invoiceId: form.invoiceId || null, amount: parseFloat(form.amount), method: form.method, reference: form.reference || null, date: form.date, notes: form.notes || null }),
+        body: JSON.stringify({ type: voucherType, contactId: form.contactId || null, invoiceId: form.invoiceId || null, amount: parseFloat(form.amount), method: form.method, reference: form.reference || null, date: form.date, notes: form.notes || null, scheduleId: form.scheduleId || null, contractRef: form.contractRef || null }),
       });
       toast({ title: isRtl ? "تم إنشاء السند" : "Voucher created" });
       setShowCreate(false);
@@ -184,7 +191,10 @@ export function PaymentsTab() {
                 <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">{isRtl ? "لا توجد سندات" : "No vouchers"}</TableCell></TableRow>
               ) : rows.map(pmt => (
                 <TableRow key={pmt.id} className="hover:bg-muted/30">
-                  <TableCell className="font-mono text-xs font-semibold text-primary">{pmt.paymentNumber}</TableCell>
+                  <TableCell className="font-mono text-xs font-semibold text-primary">
+                    {pmt.paymentNumber}
+                    {pmt.contractRef && <span className="block text-[10px] text-muted-foreground font-normal">{isRtl ? "عقد: " : "Contract: "}{pmt.contractRef}</span>}
+                  </TableCell>
                   <TableCell className="font-medium">{contactName(pmt.contactId)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{pmt.date}</TableCell>
                   <TableCell className={cn("font-bold", pmt.type === "received" ? "text-emerald-600" : "text-red-600")}>{SAR(pmt.amount)}</TableCell>
@@ -302,6 +312,25 @@ export function PaymentsTab() {
                   </SelectContent>
                 </Select>
               </div>
+              {voucherType === "received" && (
+                <div className="col-span-2">
+                  <Label className="text-xs">{isRtl ? "ربط بدفعة عقد (اختياري)" : "Link to Contract Installment (opt.)"}</Label>
+                  <Select value={form.scheduleId} onValueChange={v => {
+                    const inst = installments.find(x => String(x.id) === v);
+                    const bal = inst ? Math.max(0, parseFloat(inst.amount || "0") - parseFloat(inst.paidAmount || "0")) : 0;
+                    setForm(p => ({ ...p, scheduleId: v, contractRef: inst?.contractRef || "", amount: inst ? bal.toFixed(2) : p.amount }));
+                  }}>
+                    <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder={isRtl ? "اختر دفعة..." : "Select installment..."} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{isRtl ? "— بدون ربط —" : "— None —"}</SelectItem>
+                      {installments.filter(x => x.status !== "paid" && x.status !== "cancelled").map(x => {
+                        const bal = Math.max(0, parseFloat(x.amount || "0") - parseFloat(x.paidAmount || "0"));
+                        return <SelectItem key={x.id} value={String(x.id)}>{x.contractName} — #{x.installmentNumber} ({SAR(bal)})</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label className="text-xs">{isRtl ? "المبلغ (ر.س)" : "Amount (SAR)"}</Label>
                 <Input type="number" className="mt-1 h-9 text-sm" placeholder="0.00" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} data-testid="input-payment-amount" />

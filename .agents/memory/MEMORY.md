@@ -1,3 +1,4 @@
 - [Proposal scope bug](proposal-scope.md) — crmContactId must be stored in Proposal object itself; ProposalDetail has no closure access to CreateProposal state.
+- [Payment ↔ installment linkage](payment-installment-linkage.md) — POST /api/payments is single source of truth; installment paid state is RECOMPUTED from linked vouchers, never incrementally, to keep create/delete symmetric.
 - [Portal signing OTP channels](portal-sign-otp-channels.md) — email OTP is default/working (Resend); SMS needs a paid provider; keep devCode gated to dev only.
 - [Server deployment setup](server-deployment.md) — Hostinger VPS deployment notes: ecosystem.config.cjs, missing DB columns, jszip bundling, deploy process.

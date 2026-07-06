@@ -4737,6 +4737,26 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  // Recompute a contract installment's paid state from its linked received vouchers
+  // (single source of truth: derive from payments so create/delete stay symmetric)
+  const recomputeInstallmentFromPayments = async (scheduleId: number) => {
+    const [inst] = await db.select().from(contractPaymentSchedules).where(eq(contractPaymentSchedules.id, scheduleId));
+    if (!inst) return;
+    const linked = await db.select().from(payments).where(and(eq(payments.scheduleId, scheduleId), eq(payments.type, "received")));
+    const due = parseFloat(inst.amount || "0");
+    const sum = linked.reduce((s, p) => s + parseFloat(p.amount || "0"), 0);
+    const newPaid = Math.min(sum, due);
+    const status = due > 0 && newPaid >= due ? "paid" : newPaid > 0 ? "partial" : "pending";
+    const latest = linked.reduce<(typeof linked)[number] | null>((a, p) => (!a || p.id > a.id ? p : a), null);
+    await db.update(contractPaymentSchedules).set({
+      paidAmount: String(newPaid),
+      status,
+      paidDate: latest ? latest.date : null,
+      paymentId: latest ? latest.id : null,
+      updatedAt: new Date(),
+    }).where(eq(contractPaymentSchedules.id, scheduleId));
+  };
+
   app.post("/api/payments", async (req, res) => {
     try {
       const b = req.body;
@@ -4745,14 +4765,29 @@ export async function registerRoutes(
       const seq = (existing.length + 1).toString().padStart(4, "0");
       const prefix = b.type === "paid" ? "SPY" : "SRC";
       const paymentNumber = b.paymentNumber || `${prefix}-${today.replace(/-/g, "").slice(2)}-${seq}`;
+      const scheduleId = b.scheduleId ? parseInt(b.scheduleId) : null;
+      // Load linked installment (if any) to resolve contract + contact info
+      let installment: any = null;
+      if (scheduleId) {
+        [installment] = await db.select().from(contractPaymentSchedules).where(eq(contractPaymentSchedules.id, scheduleId));
+        if (!installment) return res.status(400).json({ error: "Linked installment not found" });
+      }
+      const contractRef = b.contractRef || installment?.contractRef || null;
+      // Resolve contactId from the contract when not supplied but linked to a schedule
+      let contactId = b.contactId ? parseInt(b.contactId) : null;
+      if (!contactId && contractRef) {
+        const [ctr] = await db.select().from(contracts).where(eq(contracts.contractNumber, contractRef));
+        if (ctr?.contactId) contactId = ctr.contactId;
+      }
       const [row] = await db.insert(payments).values({
         paymentNumber, type: b.type || "received",
         invoiceId: b.invoiceId ? parseInt(b.invoiceId) : null,
-        contactId: b.contactId ? parseInt(b.contactId) : null,
+        contactId,
         amount: String(b.amount || 0), currency: b.currency || "SAR",
         method: b.method || "bank_transfer", reference: b.reference || null,
         date: b.date || today, notes: b.notes || null,
         activityId: b.activityId || null, createdBy: b.createdBy || null,
+        scheduleId, contractRef,
       }).returning();
       // Update invoice paidAmount if linked
       if (b.invoiceId && b.type === "received") {
@@ -4763,6 +4798,10 @@ export async function registerRoutes(
           const newStatus = newPaid >= total ? "paid" : newPaid > 0 ? "partial" : inv.status;
           await db.update(invoices).set({ paidAmount: String(newPaid), status: newStatus, updatedAt: new Date() }).where(eq(invoices.id, parseInt(b.invoiceId)));
         }
+      }
+      // Auto-update the linked contract installment (سند قبض ↔ جدول الدفعات)
+      if (scheduleId && (b.type || "received") === "received") {
+        await recomputeInstallmentFromPayments(scheduleId);
       }
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -4784,7 +4823,21 @@ export async function registerRoutes(
 
   app.delete("/api/payments/:id", async (req, res) => {
     try {
-      await db.delete(payments).where(eq(payments.id, parseInt(req.params.id)));
+      const id = parseInt(req.params.id);
+      const [pmt] = await db.select().from(payments).where(eq(payments.id, id));
+      // Reverse invoice paidAmount if linked
+      if (pmt?.invoiceId && pmt.type === "received") {
+        const [inv] = await db.select().from(invoices).where(eq(invoices.id, pmt.invoiceId));
+        if (inv) {
+          const newPaid = Math.max(0, parseFloat(inv.paidAmount || "0") - parseFloat(pmt.amount || "0"));
+          const total = parseFloat(inv.total || "0");
+          const newStatus = newPaid >= total && total > 0 ? "paid" : newPaid > 0 ? "partial" : "unpaid";
+          await db.update(invoices).set({ paidAmount: String(newPaid), status: newStatus, updatedAt: new Date() }).where(eq(invoices.id, pmt.invoiceId));
+        }
+      }
+      await db.delete(payments).where(eq(payments.id, id));
+      // Recompute the linked installment from remaining vouchers (symmetric with create)
+      if (pmt?.scheduleId) await recomputeInstallmentFromPayments(pmt.scheduleId);
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });

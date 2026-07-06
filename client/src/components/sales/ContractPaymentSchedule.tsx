@@ -38,6 +38,7 @@ interface Installment {
   paidDate: string | null;
   notes: string | null;
   invoiceRef: string | null;
+  paymentId: number | null;
   createdAt: string;
 }
 
@@ -448,13 +449,14 @@ function AddContractDialog({ open, onClose, onAdd, localContracts, isRtl }: {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONTRACT CARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function ContractCard({ summary, isRtl, onAddInstallment, onEditInstallment, onDeleteInstallment, onRecordPayment, onPrint }:
+function ContractCard({ summary, isRtl, onAddInstallment, onEditInstallment, onDeleteInstallment, onRecordPayment, onPrint, linkedPayments }:
   { summary: ContractSummary; isRtl: boolean;
     onAddInstallment: () => void;
     onEditInstallment: (inst: Installment) => void;
     onDeleteInstallment: (id: number) => void;
     onRecordPayment: (inst: Installment) => void;
     onPrint: () => void;
+    linkedPayments: Record<number, { paymentNumber: string }>;
   }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -592,6 +594,11 @@ function ContractCard({ summary, isRtl, onAddInstallment, onEditInstallment, onD
                           <td className="py-3 px-3">
                             <p className="font-medium text-sm">{isRtl ? (inst.descriptionAr || "—") : (inst.descriptionEn || inst.descriptionAr || "—")}</p>
                             {inst.invoiceRef && <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">{inst.invoiceRef}</p>}
+                            {linkedPayments[inst.id] && (
+                              <p className="text-[10px] text-emerald-600 mt-0.5 font-mono flex items-center gap-1" title={isRtl ? "سند القبض المرتبط" : "Linked receipt voucher"}>
+                                <CheckCircle2 className="w-2.5 h-2.5" />{linkedPayments[inst.id].paymentNumber}
+                              </p>
+                            )}
                             {inst.notes && <p className="text-[10px] text-muted-foreground mt-0.5 italic">{inst.notes}</p>}
                           </td>
                           <td className="py-3 px-3 text-end font-mono text-sm">{parseFloat(inst.percentage).toFixed(1)}%</td>
@@ -658,23 +665,23 @@ function ContractCard({ summary, isRtl, onAddInstallment, onEditInstallment, onD
 // ═══════════════════════════════════════════════════════════════════════════════
 function RecordPaymentDialog({ open, onClose, installment, onSave, isRtl }: {
   open: boolean; onClose: () => void; installment: Installment | null;
-  onSave: (id: number, paidAmount: number, paidDate: string) => Promise<void>; isRtl: boolean;
+  onSave: (id: number, amount: number, date: string, method: string) => Promise<void>; isRtl: boolean;
 }) {
   const balance = installment ? parseFloat(installment.amount) - parseFloat(installment.paidAmount) : 0;
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today());
+  const [method, setMethod] = useState("bank_transfer");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (installment) { setAmount(Math.max(0, balance).toFixed(2)); setDate(today()); }
+    if (installment) { setAmount(Math.max(0, balance).toFixed(2)); setDate(today()); setMethod("bank_transfer"); }
   }, [installment]);
 
   const handleSave = async () => {
     if (!installment) return;
     setSaving(true);
     try {
-      const newTotal = parseFloat(installment.paidAmount) + parseFloat(amount);
-      await onSave(installment.id, Math.min(newTotal, parseFloat(installment.amount)), date);
+      await onSave(installment.id, parseFloat(amount), date, method);
       onClose();
     } finally { setSaving(false); }
   };
@@ -710,7 +717,26 @@ function RecordPaymentDialog({ open, onClose, installment, onSave, isRtl }: {
             <Label className="text-xs">{lbl("تاريخ الاستلام", "Date Received")}</Label>
             <Input className="mt-1 h-8" type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
+          <div>
+            <Label className="text-xs">{lbl("طريقة الدفع", "Payment Method")}</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger className="mt-1 h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bank_transfer">{lbl("حوالة بنكية", "Bank Transfer")}</SelectItem>
+                <SelectItem value="cash">{lbl("نقداً", "Cash")}</SelectItem>
+                <SelectItem value="check">{lbl("شيك", "Check")}</SelectItem>
+                <SelectItem value="sadad">{lbl("سداد", "SADAD")}</SelectItem>
+                <SelectItem value="stc_pay">STC Pay</SelectItem>
+                <SelectItem value="other">{lbl("أخرى", "Other")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <Info className="w-3 h-3" />
+          {lbl("سيتم إنشاء سند قبض تلقائياً وربطه بهذه الدفعة.", "A receipt voucher is created automatically and linked to this installment.")}
+        </p>
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onClose}>{lbl("إلغاء", "Cancel")}</Button>
@@ -775,6 +801,19 @@ export function ContractPaymentSchedule() {
 
   useEffect(() => { fetchSummaries(); }, [fetchSummaries]);
 
+  // Linked receipt vouchers (scheduleId → voucher) for reverse display
+  const [linkedPayments, setLinkedPayments] = useState<Record<number, { paymentNumber: string }>>({});
+  const fetchPayments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/payments?type=received");
+      const data = await res.json();
+      const map: Record<number, { paymentNumber: string }> = {};
+      if (Array.isArray(data)) for (const p of data) if (p.scheduleId) map[p.scheduleId] = { paymentNumber: p.paymentNumber };
+      setLinkedPayments(map);
+    } catch {}
+  }, []);
+  useEffect(() => { fetchPayments(); }, [fetchPayments]);
+
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpi = useMemo(() => {
     const totalContract = summaries.reduce((s, c) => s + c.contractTotal, 0);
@@ -830,16 +869,24 @@ export function ContractPaymentSchedule() {
     fetchSummaries();
   };
 
-  const handleRecordPayment = async (id: number, paidAmount: number, paidDate: string) => {
+  const handleRecordPayment = async (id: number, amount: number, paidDate: string, method: string) => {
     const inst = summaries.flatMap(c => c.installments).find(i => i.id === id);
     if (!inst) return;
-    const newStatus = paidAmount >= parseFloat(inst.amount) ? "paid" : "partial";
-    await fetch(`/api/contract-payment-schedules/${id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...inst, paidAmount, paidDate, status: newStatus }),
+    const res = await fetch("/api/payments", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "received", scheduleId: id, contractRef: inst.contractRef,
+        amount, date: paidDate, method,
+        notes: `${isRtl ? "دفعة عقد" : "Contract installment"} #${inst.installmentNumber} — ${inst.contractName}`,
+      }),
     });
-    toast({ title: isRtl ? "تم تسجيل الاستلام ✓" : "Payment recorded ✓", className: "bg-emerald-600 text-white" });
-    fetchSummaries();
+    if (res.ok) {
+      toast({ title: isRtl ? "تم تسجيل الاستلام وإنشاء سند قبض ✓" : "Payment recorded & receipt voucher created ✓", className: "bg-emerald-600 text-white" });
+      fetchSummaries();
+      fetchPayments();
+    } else {
+      toast({ title: isRtl ? "تعذّر تسجيل الاستلام" : "Failed to record payment", variant: "destructive" });
+    }
   };
 
   const lbl = (ar: string, en: string) => isRtl ? ar : en;
@@ -906,6 +953,7 @@ export function ContractPaymentSchedule() {
               key={summary.contractRef}
               summary={summary}
               isRtl={isRtl}
+              linkedPayments={linkedPayments}
               onPrint={() => printSchedule(summary, isRtl)}
               onAddInstallment={() => {
                 setActiveContract(summary);
