@@ -7,7 +7,7 @@ pm2 flush
 # 2) تأكد أن DATABASE_URL يُحمَّل من .env عند التشغيل
 set -a; source .env; set +a
 echo "DB_URL_TEST: ${DATABASE_URL:0:40}..."
-PGPASSWORD='Scape@ERP2025' psql -h localhost -U postgres -d scapeerp -c "SELECT 1;" || echo "❌ DB غير متاح"
+PGPASSWORD='<REDACTED_PASSWORD>' psql -h localhost -U postgres -d scapeerp -c "SELECT 1;" || echo "❌ DB غير متاح"
 
 # 3) أعد البناء من نسخة نظيفة
 rm -rf dist node_modules/.cache

@@ -4,7 +4,7 @@ module.exports = {
     name: "scapex",
     script: "dist/index.cjs",
     env: {
-      DATABASE_URL: "postgresql://postgres:Scape@ERP2025@localhost:5432/scapeerp",
+      DATABASE_URL: "postgresql://postgres:<REDACTED_PASSWORD>@localhost:5432/scapeerp",
       RESEND_API_KEY: "re_S7L6UCUv_5LFsPp2YM2zQpFmmpCB8LkoJ",
       FROM_EMAIL: "Scapex <noreply@mail.scape.sa>",
       NODE_ENV: "production",

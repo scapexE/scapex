@@ -5,9 +5,18 @@
 
 set -e
 
-SERVER="root@187.124.166.164"
-PASS="Scape@ERP2025"
+SERVER="${DEPLOY_SERVER:-root@187.124.166.164}"
 REMOTE="/var/www/scapex"
+
+# SSH password must be provided via environment, never hardcoded.
+#   export DEPLOY_PASS='...'   (or add it to your shell profile / secret manager)
+#   ./deploy.sh
+if [ -z "${DEPLOY_PASS:-}" ]; then
+  echo "❌ DEPLOY_PASS environment variable is not set."
+  echo "   Run:  DEPLOY_PASS='your-server-password' ./deploy.sh"
+  exit 1
+fi
+PASS="$DEPLOY_PASS"
 
 echo "📦 Building..."
 npm run build
