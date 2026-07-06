@@ -2,8 +2,10 @@ import { db, pool } from "./db";
 import { appData, systemBackups } from "@shared/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import JSZip from "jszip";
+import * as XLSX from "xlsx";
 import { BACKUP_MODULES, dumpTable } from "./backup";
 import { log } from "./index";
+import { sendEmail } from "./email";
 
 export type BackupType = "manual" | "auto_daily" | "auto_weekly" | "auto_monthly" | "pre_restore";
 
@@ -19,6 +21,9 @@ export type BackupSettings = {
   retainWeekly: number;
   retainMonthly: number;
   retainManual: number;
+  emailEnabled: boolean;
+  emailRecipient: string;
+  emailFormat: "xlsx" | "pdf";
 };
 
 const SETTINGS_KEY = "scapex_backup_settings";
@@ -28,13 +33,16 @@ export const DEFAULT_SETTINGS: BackupSettings = {
   dailyHour: 2,
   weeklyEnabled: true,
   weeklyDay: 5,
-  weeklyHour: 3,
+  weeklyHour: 1,
   monthlyEnabled: true,
   monthlyHour: 4,
   retainDaily: 7,
   retainWeekly: 4,
   retainMonthly: 3,
   retainManual: 10,
+  emailEnabled: false,
+  emailRecipient: "",
+  emailFormat: "xlsx",
 };
 
 export async function getBackupSettings(): Promise<BackupSettings> {
@@ -61,6 +69,9 @@ function validateSettings(patch: Partial<BackupSettings>): Partial<BackupSetting
   if (patch.retainWeekly !== undefined)  { const v = intInRange(patch.retainWeekly, 1, 52);  if (v !== undefined) out.retainWeekly = v; }
   if (patch.retainMonthly !== undefined) { const v = intInRange(patch.retainMonthly, 1, 24); if (v !== undefined) out.retainMonthly = v; }
   if (patch.retainManual !== undefined)  { const v = intInRange(patch.retainManual, 1, 100); if (v !== undefined) out.retainManual = v; }
+  if (patch.emailEnabled !== undefined) out.emailEnabled = !!patch.emailEnabled;
+  if (patch.emailRecipient !== undefined) out.emailRecipient = String(patch.emailRecipient || "").trim().slice(0, 200);
+  if (patch.emailFormat !== undefined) out.emailFormat = patch.emailFormat === "pdf" ? "pdf" : "xlsx";
   return out;
 }
 
@@ -417,6 +428,111 @@ function nextMonthlyOccurrence(hour: number, weekday: number): string {
   return "";
 }
 
+// ─── EXCEL EXPORT ─────────────────────────────────────────────────────────
+
+export async function buildExcelBackup(): Promise<Buffer> {
+  const wb = XLSX.utils.book_new();
+  const now = new Date();
+
+  // Summary sheet
+  const summaryData: any[][] = [
+    ["Scapex ERP — نسخة احتياطية تلقائية"],
+    ["تاريخ النسخ", now.toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })],
+    [""],
+    ["الموديول", "اسم الجدول", "عدد السجلات"],
+  ];
+
+  for (const mod of BACKUP_MODULES) {
+    for (const t of mod.tables) {
+      try {
+        const rows = await dumpTable(t);
+        summaryData.push([mod.labelAr, t, rows.length]);
+
+        // Add data sheet for each table (limit 10,000 rows)
+        if (rows.length > 0) {
+          const sheetName = t.slice(0, 31);
+          const ws = XLSX.utils.json_to_sheet(rows.slice(0, 10000));
+          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        }
+      } catch (e: any) {
+        summaryData.push([mod.labelAr, t, `خطأ: ${e?.message || e}`]);
+      }
+    }
+  }
+
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+  summaryWs["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }];
+  XLSX.utils.book_append_sheet(wb, summaryWs, "ملخص");
+
+  // Move summary to first position
+  const sheets = wb.SheetNames;
+  const summaryIdx = sheets.indexOf("ملخص");
+  if (summaryIdx > 0) {
+    sheets.splice(summaryIdx, 1);
+    sheets.unshift("ملخص");
+  }
+
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
+
+// ─── EMAIL BACKUP ──────────────────────────────────────────────────────────
+
+export async function sendBackupEmail(opts: {
+  recipient: string;
+  format: "xlsx" | "pdf";
+  backupType?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const now = new Date();
+    const stamp = now.toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh", year: "numeric", month: "long", day: "numeric" });
+    const filename = `scapex-backup-${now.toISOString().slice(0, 10)}.xlsx`;
+
+    log(`sending backup email to ${opts.recipient}...`, "backup");
+    const excelBuffer = await buildExcelBackup();
+
+    const result = await sendEmail({
+      to: opts.recipient,
+      subject: `نسخة احتياطية Scapex ERP — ${stamp}`,
+      html: `
+        <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background: #f8fafc; border-radius: 12px;">
+          <div style="text-align: center; margin-bottom: 24px; background: #1e40af; padding: 20px; border-radius: 10px;">
+            <h2 style="color: white; margin: 0; font-size: 22px;">🗄 Scapex ERP</h2>
+            <p style="color: #bfdbfe; font-size: 14px; margin: 6px 0 0;">النسخة الاحتياطية التلقائية</p>
+          </div>
+          <div style="background: white; border-radius: 8px; padding: 24px; border: 1px solid #e2e8f0;">
+            <p style="color: #334155; font-size: 15px; margin: 0 0 12px;">مرحباً،</p>
+            <p style="color: #334155; font-size: 15px; margin: 0 0 16px;">
+              تم إنشاء النسخة الاحتياطية التلقائية <strong>${opts.backupType === "auto_weekly" ? "الأسبوعية" : "التلقائية"}</strong> بنجاح بتاريخ <strong>${stamp}</strong>.
+            </p>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+              <p style="color: #166534; margin: 0; font-size: 14px;">✅ النسخة الاحتياطية مرفقة بهذا البريد بصيغة Excel (.xlsx)</p>
+              <p style="color: #166534; margin: 6px 0 0; font-size: 13px;">يمكنك فتح الملف لمراجعة البيانات أو الاحتفاظ به كأرشيف.</p>
+            </div>
+            <p style="color: #64748b; font-size: 13px; margin: 0;">
+              لاستعادة البيانات: قم بتسجيل الدخول إلى النظام → النسخ الاحتياطية → السجل → استعادة.
+            </p>
+          </div>
+          <p style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 20px;">
+            هذا البريد مُرسَل تلقائياً من Scapex ERP — ${now.getFullYear()}
+          </p>
+        </div>
+      `,
+      attachments: [{ filename, content: excelBuffer }],
+    });
+
+    if (result.success) {
+      log(`backup email sent to ${opts.recipient} (id: ${result.id})`, "backup");
+    } else {
+      log(`backup email failed: ${result.error}`, "backup");
+    }
+    return result;
+  } catch (e: any) {
+    const msg = e?.message || String(e);
+    log(`backup email error: ${msg}`, "backup");
+    return { success: false, error: msg };
+  }
+}
+
 let schedulerRunning = false;
 let schedulerInterval: NodeJS.Timeout | null = null;
 let tickInFlight = false;
@@ -461,6 +577,11 @@ async function tick() {
         log(`scheduled weekly backup starting...`, "backup");
         const r = await createBackup({ type: "auto_weekly", createdByName: "Scheduler" });
         log(`weekly backup #${r.id} ${r.status} (${(r.sizeBytes / 1024).toFixed(1)}KB)`, "backup");
+        // Send email if configured
+        if (s.emailEnabled && s.emailRecipient) {
+          sendBackupEmail({ recipient: s.emailRecipient, format: s.emailFormat, backupType: "auto_weekly" })
+            .catch((e) => log(`email send error: ${e?.message || e}`, "backup"));
+        }
       }
     }
 

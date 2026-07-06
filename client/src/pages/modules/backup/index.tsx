@@ -5,7 +5,7 @@ import { dbGetItem } from "@/lib/dbStorage";
 import {
   Download, Database, Loader2, ShieldCheck, History, Settings as SettingsIcon,
   Zap, Clock, HardDrive, CheckCircle2, AlertTriangle, XCircle, Trash2, RefreshCw,
-  RotateCcw, ShieldAlert,
+  RotateCcw, ShieldAlert, Mail, Send,
 } from "lucide-react";
 import { logAction } from "@/lib/auditLog";
 
@@ -22,6 +22,7 @@ type BackupSettings = {
   weeklyEnabled: boolean; weeklyDay: number; weeklyHour: number;
   monthlyEnabled: boolean; monthlyHour: number;
   retainDaily: number; retainWeekly: number; retainMonthly: number; retainManual: number;
+  emailEnabled: boolean; emailRecipient: string; emailFormat: "xlsx" | "pdf";
 };
 
 type BackupStatus = {
@@ -294,6 +295,24 @@ export default function BackupModule() {
   const [settings, setSettings] = useState<BackupSettings | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [testEmailSending, setTestEmailSending] = useState(false);
+
+  const handleTestEmail = async () => {
+    if (!settings?.emailRecipient) return;
+    clearMessages(); setTestEmailSending(true);
+    try {
+      const res = await fetch("/api/backup/test-email", {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: settings.emailRecipient }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || (isRtl ? "فشل الإرسال" : "Send failed"));
+      setSuccess(isRtl ? `✅ تم إرسال بريد تجريبي إلى ${settings.emailRecipient}` : `✅ Test email sent to ${settings.emailRecipient}`);
+    } catch (e: any) {
+      setError(e.message || (isRtl ? "خطأ في الإرسال" : "Send error"));
+    } finally { setTestEmailSending(false); }
+  };
 
   useEffect(() => {
     if (tab !== "settings" || !isAdmin) return;
@@ -706,6 +725,70 @@ export default function BackupModule() {
               <SettingsBlock title={isRtl ? "النسخ اليدوية" : "Manual Backups"} testId="block-manual">
                 <NumInput label={isRtl ? "عدد النسخ اليدوية المحفوظة" : "Keep last N manual snapshots"} value={settings.retainManual} onChange={(v) => setSettings({ ...settings, retainManual: v })} min={1} max={100} testId="input-retain-manual" />
               </SettingsBlock>
+
+              {/* Email Settings Block */}
+              <div className="bg-card border border-border rounded-lg p-4" data-testid="block-email">
+                <div className="flex items-center gap-2 mb-3">
+                  <Mail className="w-5 h-5 text-primary" />
+                  <h3 className="font-bold">{isRtl ? "إرسال النسخة الأسبوعية على البريد" : "Email Weekly Backup"}</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Toggle
+                    checked={settings.emailEnabled}
+                    onChange={(v) => setSettings({ ...settings, emailEnabled: v })}
+                    testId="toggle-email"
+                    label={isRtl ? "تفعيل إرسال البريد تلقائياً مع كل نسخة أسبوعية" : "Send email with each weekly backup"}
+                  />
+                  <div className="md:col-span-2">
+                    <label className="text-xs text-muted-foreground">{isRtl ? "عنوان البريد المستلِم" : "Recipient email"}</label>
+                    <div className="flex gap-2 mt-1">
+                      <input
+                        type="email"
+                        value={settings.emailRecipient}
+                        onChange={(e) => setSettings({ ...settings, emailRecipient: e.target.value })}
+                        placeholder={isRtl ? "example@company.com" : "example@company.com"}
+                        data-testid="input-email-recipient"
+                        className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm"
+                      />
+                      <button
+                        onClick={handleTestEmail}
+                        disabled={testEmailSending || !settings.emailRecipient}
+                        data-testid="button-test-email"
+                        title={isRtl ? "إرسال بريد تجريبي مع نسخة Excel الآن" : "Send test email with Excel backup now"}
+                        className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover-elevate disabled:opacity-40 whitespace-nowrap"
+                      >
+                        {testEmailSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        {isRtl ? "إرسال تجريبي" : "Test Send"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      {isRtl
+                        ? "سيتم إرسال ملف Excel يحتوي على جميع بيانات النظام مع كل نسخة أسبوعية تلقائية."
+                        : "An Excel file containing all system data will be sent with each automatic weekly backup."}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">{isRtl ? "صيغة الملف المرفق" : "Attachment format"}</label>
+                    <select
+                      value={settings.emailFormat}
+                      onChange={(e) => setSettings({ ...settings, emailFormat: e.target.value as "xlsx" | "pdf" })}
+                      data-testid="select-email-format"
+                      className="w-full mt-1 bg-background border border-input rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="xlsx">{isRtl ? "Excel (.xlsx) — موصى به" : "Excel (.xlsx) — Recommended"}</option>
+                      <option value="pdf">{isRtl ? "PDF — قريباً" : "PDF — Coming soon"}</option>
+                    </select>
+                  </div>
+                  {settings.emailEnabled && settings.weeklyEnabled && (
+                    <div className="md:col-span-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300">
+                      <strong>{isRtl ? "موعد الإرسال:" : "Send schedule:"}</strong>{" "}
+                      {isRtl
+                        ? `كل ${DAY_LABELS[settings.weeklyDay]?.ar || "جمعة"} الساعة ${String(settings.weeklyHour).padStart(2, "0")}:00`
+                        : `Every ${DAY_LABELS[settings.weeklyDay]?.en || "Fri"} at ${String(settings.weeklyHour).padStart(2, "0")}:00`}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div className="flex justify-end">
                 <button onClick={handleSaveSettings} disabled={settingsSaving} data-testid="button-save-settings"

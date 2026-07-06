@@ -65,7 +65,7 @@ import { BACKUP_MODULES, buildModuleBackup, buildFullBackup } from "./backup";
 import {
   createBackup, listBackups, getBackupFile, deleteBackup,
   getBackupStatus, getBackupSettings, saveBackupSettings, DEFAULT_SETTINGS,
-  restoreBackup,
+  restoreBackup, sendBackupEmail,
 } from "./backupScheduler";
 import { ACTIVITY_CATALOG, toCatalogId, toActivityId } from "@shared/activityCatalog";
 
@@ -4445,6 +4445,19 @@ export async function registerRoutes(
       }
       const saved = await saveBackupSettings(allowed);
       res.json(saved);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/backup/test-email", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { recipient } = req.body || {};
+      if (!recipient || typeof recipient !== "string" || !recipient.includes("@")) {
+        return res.status(400).json({ error: "Valid email required" });
+      }
+      const result = await sendBackupEmail({ recipient, format: "xlsx", backupType: "manual" });
+      if (result.success) res.json({ ok: true });
+      else res.status(500).json({ error: result.error || "Email sending failed" });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

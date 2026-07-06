@@ -97,6 +97,11 @@ export function consumeEmailVerification(email: string) {
   verifiedEmails.delete(email.toLowerCase());
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content: string | Buffer;
+}
+
 export interface SendEmailParams {
   to: string | string[];
   bcc?: string[];
@@ -105,6 +110,7 @@ export interface SendEmailParams {
   text?: string;
   from?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface SendEmailResult {
@@ -126,6 +132,12 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     if (params.html) payload.html = params.html;
     if (params.text) payload.text = params.text;
     if (params.replyTo) payload.replyTo = params.replyTo;
+    if (params.attachments && params.attachments.length > 0) {
+      payload.attachments = params.attachments.map((a) => ({
+        filename: a.filename,
+        content: Buffer.isBuffer(a.content) ? a.content.toString("base64") : a.content,
+      }));
+    }
     const result = await resend.emails.send(payload);
     if ((result as any).error) {
       return { success: false, error: (result as any).error.message || String((result as any).error) };
