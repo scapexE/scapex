@@ -1,0 +1,28 @@
+name: 🚀 Deploy to erp.scape.sa
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: ✅ Trigger deployment webhook
+        run: |
+          echo "Triggering deploy on erp.scape.sa..."
+          RESPONSE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            -X POST https://erp.scape.sa/deploy \
+            -H "Content-Type: application/json" \
+            -d '{"ref":"refs/heads/main"}' \
+            --max-time 300)
+          echo "HTTP Status: $RESPONSE"
+          echo "Response: $(cat /tmp/response.txt)"
+          if [ "$RESPONSE" != "200" ]; then
+            echo "❌ Deploy webhook returned status $RESPONSE"
+            exit 1
+          fi
+          echo "✅ Deploy triggered successfully"

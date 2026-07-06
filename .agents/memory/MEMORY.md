@@ -1,1 +1,2 @@
 - [Proposal scope bug](proposal-scope.md) — crmContactId must be stored in Proposal object itself; ProposalDetail has no closure access to CreateProposal state.
+- [Server deployment setup](server-deployment.md) — Hostinger VPS deployment notes: ecosystem.config.cjs, missing DB columns, jszip bundling, deploy process.
