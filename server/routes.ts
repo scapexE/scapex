@@ -2217,6 +2217,12 @@ export async function registerRoutes(
     if (!p || p.length < 4) return "****";
     return p.slice(0, -4).replace(/\d/g, "•") + p.slice(-4);
   }
+  function maskEmail(e: string): string {
+    const [user, domain] = String(e || "").split("@");
+    if (!domain || !user) return "****";
+    const shown = user.slice(0, Math.min(2, user.length));
+    return `${shown}${"•".repeat(Math.max(1, user.length - shown.length))}@${domain}`;
+  }
   async function dispatchSms(phone: string, code: string, contactId: number): Promise<string | undefined> {
     const sid   = process.env.TWILIO_ACCOUNT_SID;
     const auth  = process.env.TWILIO_AUTH_TOKEN;
@@ -2567,12 +2573,25 @@ export async function registerRoutes(
     const me = await requirePortalContact(req, res);
     if (!me) return;
     try {
+      const isDev = process.env.NODE_ENV !== "production";
+      const channel = req.body?.channel === "email" ? "email" : "sms";
       const phone = ((me as any).mobile || (me as any).phone || "").trim();
-      if (!phone) return res.json({ ok: true, noPhone: true });
+      const email = ((me as any).email || "").trim();
       const code = genPortalOtp();
+
+      if (channel === "email") {
+        if (!email) return res.json({ ok: false, noEmail: true });
+        signOtpStore.set(me.id, { code, expiry: Date.now() + 10 * 60 * 1000 });
+        const sent = await sendVerificationEmail(email, code);
+        // Never leak the code in production. Only expose in dev when delivery failed.
+        return res.json({ ok: true, channel: "email", hint: maskEmail(email), devCode: (isDev && !sent) ? code : undefined });
+      }
+
+      // channel === "sms" (requires a paid SMS provider e.g. Twilio; otherwise dev code is returned in dev only)
+      if (!phone) return res.json({ ok: true, noPhone: true });
       signOtpStore.set(me.id, { code, expiry: Date.now() + 10 * 60 * 1000 });
       const devCode = await dispatchSms(phone, code, me.id);
-      res.json({ ok: true, hint: maskPhone(phone), devCode });
+      res.json({ ok: true, channel: "sms", hint: maskPhone(phone), devCode: isDev ? devCode : undefined });
     } catch (err: any) {
       console.error("Portal sign-otp error:", err);
       res.status(500).json({ error: "Server error" });

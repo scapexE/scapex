@@ -1,2 +1,3 @@
 - [Proposal scope bug](proposal-scope.md) — crmContactId must be stored in Proposal object itself; ProposalDetail has no closure access to CreateProposal state.
+- [Portal signing OTP channels](portal-sign-otp-channels.md) — email OTP is default/working (Resend); SMS needs a paid provider; keep devCode gated to dev only.
 - [Server deployment setup](server-deployment.md) — Hostinger VPS deployment notes: ecosystem.config.cjs, missing DB columns, jszip bundling, deploy process.

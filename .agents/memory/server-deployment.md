@@ -31,9 +31,10 @@ If missing from allowlist, it becomes external and crashes with MODULE_NOT_FOUND
 - Missing columns found so far: `users.last_activity_id`, `contacts.service_employee_ids`, portal columns
 
 ## Manual deploy process (when GitHub token expired)
+Credentials are NOT stored here. Get the VPS SSH password from the user (or a secret manager) at deploy time. The repo `deploy.sh` script automates the steps below.
 1. `npm run build` in Replit
-2. `sshpass -p 'Scape@ERP2025' scp dist/index.cjs root@187.124.166.164:/var/www/scapex/dist/`
-3. `sshpass -p 'Scape@ERP2025' scp -r dist/public/ root@187.124.166.164:/var/www/scapex/dist/`
+2. SCP `dist/index.cjs` to `root@<VPS_IP>:/var/www/scapex/dist/`
+3. SCP `dist/public/` to `root@<VPS_IP>:/var/www/scapex/dist/`
 4. If schema changed: also SCP shared/schema.ts and run drizzle-kit push --force
 5. SSH: `pm2 delete scapex && pm2 start /var/www/scapex/ecosystem.config.cjs && pm2 save`
 

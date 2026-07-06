@@ -156,8 +156,10 @@ export async function portalVerifyLoginOtp(tempKey: string, code: string): Promi
   return data;
 }
 
-export async function portalSendSignOtp(): Promise<{ ok: boolean; hint?: string; noPhone?: boolean; devCode?: string }> {
-  const r = await portalFetch("/api/portal/sign-otp", { method: "POST", body: "{}" });
+export async function portalSendSignOtp(
+  channel: "sms" | "email" = "sms",
+): Promise<{ ok: boolean; channel?: "sms" | "email"; hint?: string; noPhone?: boolean; noEmail?: boolean; devCode?: string }> {
+  const r = await portalFetch("/api/portal/sign-otp", { method: "POST", body: JSON.stringify({ channel }) });
   if (!r.ok) throw new Error("Failed to send OTP");
   return r.json();
 }

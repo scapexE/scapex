@@ -625,25 +625,23 @@ function SigCanvas({ canvasRef, onDraw }: {
 
 // ── Sign / Approval modal (2-step: OTP → Signature) ──────────────────────
 function SignModal({
-  docTitle, docType, onSign, onClose, isRtl, t, theme, busy, hasPhone,
+  docTitle, docType, onSign, onClose, isRtl, t, theme, busy,
 }: {
   docTitle: string; docType: "proposal" | "contract";
   onSign: (name: string, sig: string, otp?: string) => Promise<void>;
   onClose: () => void; isRtl: boolean;
   t: (a: string, e: string) => string;
   theme: typeof PORTAL_THEMES[number]; busy: boolean;
-  hasPhone: boolean;
 }) {
-  // Clients with a registered phone must verify via SMS OTP first; clients
-  // without a phone skip straight to the signature step (no confusing empty
-  // "phone verification" screen). The server enforces the same rule.
-  const [sigStep, setSigStep] = useState<"otp" | "sign">(hasPhone ? "otp" : "sign");
+  const [sigStep, setSigStep] = useState<"otp" | "sign">("otp");
   const [otpSent, setOtpSent] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpHint, setOtpHint] = useState("");
   const [otpDevCode, setOtpDevCode] = useState("");
   const [noPhone, setNoPhone] = useState(false);
+  const [otpChannel, setOtpChannel] = useState<"sms" | "email">("email");
+  const [sentChannel, setSentChannel] = useState<"sms" | "email">("email");
   const [otpErr, setOtpErr] = useState("");
 
   const [name, setName] = useState("");
@@ -651,11 +649,16 @@ function SignModal({
   const [err, setErr] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const sendOtp = async () => {
+  const sendOtp = async (channel: "sms" | "email" = otpChannel) => {
     setOtpSending(true); setOtpErr("");
     try {
-      const res = await portalSendSignOtp();
+      const res = await portalSendSignOtp(channel);
       if (res.noPhone) { setNoPhone(true); setSigStep("sign"); return; }
+      if (res.noEmail) {
+        setOtpErr(t("لا يوجد بريد إلكتروني مسجل لحسابك", "No email is registered on your account"));
+        return;
+      }
+      setSentChannel((res.channel as "sms" | "email") || channel);
       setOtpSent(true);
       setOtpHint(res.hint || "");
       setOtpDevCode(res.devCode || "");
@@ -717,7 +720,7 @@ function SignModal({
               {sigStep === "otp" ? "1" : <Check className="w-3 h-3" />}
             </span>
             <span className={sigStep === "otp" ? "font-medium text-foreground" : "text-muted-foreground"}>
-              {t("التحقق بالجوال", "Phone Verification")}
+              {t("التحقق من الهوية", "Identity Verification")}
             </span>
             <div className="flex-1 h-px bg-border mx-1" />
             <span className={cn("flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
@@ -732,24 +735,56 @@ function SignModal({
         {sigStep === "otp" && (
           <div className="space-y-3">
             {!otpSent ? (
-              <div className="text-center space-y-3 py-2">
+              <div className="space-y-3 py-2">
                 <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center mx-auto">
-                  <Smartphone className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                  <ShieldCheck className="w-7 h-7 text-blue-600 dark:text-blue-400" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {t("سيتم إرسال رمز تحقق إلى رقم جوالك المسجل للتأكيد قبل التوقيع",
-                     "A verification code will be sent to your registered mobile number before signing")}
+                <p className="text-sm text-muted-foreground text-center">
+                  {t("اختر طريقة استلام رمز التحقق قبل التوقيع",
+                     "Choose how to receive your verification code before signing")}
                 </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOtpChannel("email")}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border text-sm transition",
+                      otpChannel === "email"
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "border-input hover:bg-muted",
+                    )}
+                    data-testid="button-channel-email"
+                  >
+                    <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <span className="font-medium">{t("البريد الإلكتروني", "Email")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOtpChannel("sms")}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border text-sm transition",
+                      otpChannel === "sms"
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "border-input hover:bg-muted",
+                    )}
+                    data-testid="button-channel-sms"
+                  >
+                    <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <span className="font-medium">{t("رسالة جوال", "SMS")}</span>
+                  </button>
+                </div>
+
                 {otpErr && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{otpErr}</p>}
                 <div className="flex gap-2 pt-1">
                   <Button variant="outline" onClick={onClose} className="flex-1" data-testid="button-cancel-sign">{t("إلغاء", "Cancel")}</Button>
                   <Button
-                    onClick={sendOtp}
+                    onClick={() => sendOtp()}
                     disabled={otpSending}
                     className={cn("flex-1 bg-gradient-to-r text-white border-0", theme.primary)}
                     data-testid="button-send-otp"
                   >
-                    {otpSending ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <Smartphone className="w-4 h-4 me-1" />}
+                    {otpSending ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <KeyRound className="w-4 h-4 me-1" />}
                     {t("أرسل رمز التحقق", "Send Verification Code")}
                   </Button>
                 </div>
@@ -757,9 +792,15 @@ function SignModal({
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-                  <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  {sentChannel === "email"
+                    ? <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+                    : <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />}
                   <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">{t("تم الإرسال إلى", "Code sent to")}</p>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                      {sentChannel === "email"
+                        ? t("تم إرسال الرمز إلى بريدك", "Code sent to your email")
+                        : t("تم إرسال الرمز إلى جوالك", "Code sent to your phone")}
+                    </p>
                     <p className="text-xs text-blue-600 dark:text-blue-400 font-mono" dir="ltr">{otpHint}</p>
                   </div>
                 </div>
@@ -793,7 +834,7 @@ function SignModal({
                 <div className="flex gap-2">
                   <button
                     className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-md hover:bg-muted"
-                    onClick={sendOtp} disabled={otpSending}
+                    onClick={() => sendOtp(sentChannel)} disabled={otpSending}
                     data-testid="button-resend-otp"
                   >
                     <RefreshCw className="w-3 h-3" />{t("إعادة الإرسال", "Resend")}
