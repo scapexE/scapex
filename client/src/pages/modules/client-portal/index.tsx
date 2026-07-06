@@ -625,15 +625,19 @@ function SigCanvas({ canvasRef, onDraw }: {
 
 // ── Sign / Approval modal (2-step: OTP → Signature) ──────────────────────
 function SignModal({
-  docTitle, docType, onSign, onClose, isRtl, t, theme, busy,
+  docTitle, docType, onSign, onClose, isRtl, t, theme, busy, hasPhone,
 }: {
   docTitle: string; docType: "proposal" | "contract";
   onSign: (name: string, sig: string, otp?: string) => Promise<void>;
   onClose: () => void; isRtl: boolean;
   t: (a: string, e: string) => string;
   theme: typeof PORTAL_THEMES[number]; busy: boolean;
+  hasPhone: boolean;
 }) {
-  const [sigStep, setSigStep] = useState<"otp" | "sign">("otp");
+  // Clients with a registered phone must verify via SMS OTP first; clients
+  // without a phone skip straight to the signature step (no confusing empty
+  // "phone verification" screen). The server enforces the same rule.
+  const [sigStep, setSigStep] = useState<"otp" | "sign">(hasPhone ? "otp" : "sign");
   const [otpSent, setOtpSent] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otp, setOtp] = useState("");
