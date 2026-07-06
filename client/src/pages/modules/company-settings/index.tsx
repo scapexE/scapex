@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Building2, MapPin, Phone, Mail, Globe, Clock, Save, RotateCcw,
   Plus, Pencil, Trash2, GitBranch, FileText, Shield,
-  Info, Landmark, AlertCircle, Settings2, Printer, Calendar,
+  Info, Landmark, AlertCircle, Settings2, Printer, Calendar, ImageIcon, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -613,6 +613,131 @@ function CompanySettingsContent() {
 
           {/* ═══ System Settings ═══ */}
           <TabsContent value="system" className="mt-4 space-y-6">
+
+            {/* ── Brand Identity ── */}
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-primary" />
+                  {t("هوية النظام (البراندنج)", "System Branding")}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">{t("الشعار والاسم المعروض في صفحة الدخول والقائمة الجانبية", "Logo and name shown on the login page and sidebar")}</p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Logo Upload */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t("شعار النظام", "System Logo")}</Label>
+                  <div className="flex items-start gap-4">
+                    {/* Preview */}
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-border/50 bg-secondary/20 flex items-center justify-center shrink-0 overflow-hidden">
+                      {sysForm.brandLogo ? (
+                        <img src={sysForm.brandLogo} alt="logo" className="w-full h-full object-contain p-1" />
+                      ) : (
+                        <ImageIcon className="w-7 h-7 text-muted-foreground/40" />
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="cursor-pointer">
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-secondary/30 hover:bg-secondary/60 transition-colors text-sm font-medium">
+                          <ImageIcon className="w-4 h-4" />
+                          {t("رفع صورة الشعار", "Upload Logo")}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                          className="hidden"
+                          data-testid="input-brand-logo"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 2 * 1024 * 1024) {
+                              alert(t("الحجم الأقصى 2MB", "Max size is 2MB"));
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = ev => {
+                              setSysForm(prev => ({ ...prev, brandLogo: ev.target?.result as string }));
+                              setHasSysChanges(true);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      {sysForm.brandLogo && (
+                        <button
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-xs"
+                          onClick={() => { setSysForm(prev => ({ ...prev, brandLogo: "" })); setHasSysChanges(true); }}
+                          data-testid="button-remove-logo"
+                        >
+                          <X className="w-3 h-3" />
+                          {t("حذف الشعار", "Remove Logo")}
+                        </button>
+                      )}
+                      <p className="text-[11px] text-muted-foreground">{t("PNG أو SVG أو JPG — بحد أقصى 2MB", "PNG, SVG or JPG — max 2MB")}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Brand Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">{t("اسم النظام / المنصة", "System / Platform Name")}</Label>
+                    <Input
+                      value={sysForm.brandName}
+                      onChange={e => { setSysForm(prev => ({ ...prev, brandName: e.target.value })); setHasSysChanges(true); }}
+                      className="text-sm"
+                      placeholder="Scapex"
+                      data-testid="input-brand-name"
+                    />
+                  </div>
+                </div>
+
+                {/* Subtitle */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">{t("النص التوضيحي (عربي)", "Subtitle (Arabic)")}</Label>
+                    <Input
+                      value={sysForm.brandSubtitleAr}
+                      onChange={e => { setSysForm(prev => ({ ...prev, brandSubtitleAr: e.target.value })); setHasSysChanges(true); }}
+                      className="text-sm"
+                      dir="rtl"
+                      placeholder="منصة إدارة الأعمال الذكية"
+                      data-testid="input-brand-subtitle-ar"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">{t("النص التوضيحي (إنجليزي)", "Subtitle (English)")}</Label>
+                    <Input
+                      value={sysForm.brandSubtitleEn}
+                      onChange={e => { setSysForm(prev => ({ ...prev, brandSubtitleEn: e.target.value })); setHasSysChanges(true); }}
+                      className="text-sm"
+                      dir="ltr"
+                      placeholder="Smart Business Management Platform"
+                      data-testid="input-brand-subtitle-en"
+                    />
+                  </div>
+                </div>
+
+                {/* Live Preview */}
+                <div className="p-4 rounded-xl border border-border/40 bg-secondary/20 space-y-1">
+                  <p className="text-[10px] text-muted-foreground mb-2">{t("معاينة مباشرة", "Live Preview")}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shrink-0 overflow-hidden">
+                      {sysForm.brandLogo ? (
+                        <img src={sysForm.brandLogo} alt="" className="w-full h-full object-contain p-0.5" />
+                      ) : (
+                        <span className="text-white font-black text-sm">{(sysForm.brandName || "S").charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm leading-tight">{sysForm.brandName || "Scapex"}</p>
+                      <p className="text-[10px] text-muted-foreground">{isRtl ? (sysForm.brandSubtitleAr || "منصة إدارة الأعمال الذكية") : (sysForm.brandSubtitleEn || "Smart Business Management Platform")}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-border/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2"><Clock className="w-4 h-4 text-primary" />{t("نظام الوقت", "Time Format")}</CardTitle>

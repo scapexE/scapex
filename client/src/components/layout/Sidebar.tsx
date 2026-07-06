@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import { getSystemSettings, type SystemSettings, DEFAULT_SYSTEM_SETTINGS } from "@/lib/companySettings";
 import {
   LayoutDashboard, Smartphone, CalendarCheck,
   Settings, ShieldAlert, BarChart3, BrainCircuit,
@@ -135,6 +136,29 @@ interface SidebarProps {
   onHide?: () => void;
 }
 
+function BrandIcon({ size }: { size: number }) {
+  const settings = getSystemSettings();
+  if (settings.brandLogo) {
+    return (
+      <img
+        src={settings.brandLogo}
+        alt={settings.brandName || "Logo"}
+        style={{ width: size, height: size, borderRadius: 8, objectFit: "contain", background: "transparent" }}
+        className="shrink-0"
+      />
+    );
+  }
+  const letter = (settings.brandName || "S").charAt(0).toUpperCase();
+  return (
+    <div
+      style={{ width: size, height: size, borderRadius: Math.round(size * 0.3) }}
+      className="bg-primary flex items-center justify-center shrink-0 shadow-sm"
+    >
+      <span className="text-white font-black" style={{ fontSize: Math.round(size * 0.52) }}>{letter}</span>
+    </div>
+  );
+}
+
 export function Sidebar({
   isOpen, setIsOpen,
   isCollapsed = false, onToggleCollapse,
@@ -148,6 +172,7 @@ export function Sidebar({
   const { activeRole, isMultiRole } = useActiveRole();
   const { activeActivity } = useBusinessActivity();
 
+  const [brandSettings, setBrandSettings] = useState<SystemSettings>(getSystemSettings);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const isAdmin =
     currentUser?.role === "admin" ||
@@ -170,6 +195,12 @@ export function Sidebar({
     const timer = setInterval(load, 60_000);
     return () => clearInterval(timer);
   }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const onBrandUpdate = () => setBrandSettings(getSystemSettings());
+    window.addEventListener("scapex_system_settings_update", onBrandUpdate);
+    return () => window.removeEventListener("scapex_system_settings_update", onBrandUpdate);
+  }, []);
 
   const [itemOrder, setItemOrder] = useState<string[]>(readOrder);
   const [isCustomizing, setIsCustomizing] = useState(false);
@@ -375,21 +406,17 @@ export function Sidebar({
         )}>
           {!isCollapsed && (
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-sm">
-                <span className="text-white font-black text-sm">S</span>
-              </div>
+              <BrandIcon size={28} />
               <div className="min-w-0">
-                <p className="text-sidebar-foreground font-bold text-base tracking-tight leading-tight">Scapex</p>
+                <p className="text-sidebar-foreground font-bold text-base tracking-tight leading-tight">{brandSettings.brandName || "Scapex"}</p>
                 <p className="text-sidebar-foreground/40 text-[9px] leading-tight truncate">
-                  {isRtl ? "منصة إدارة الأعمال" : "Business ERP"}
+                  {isRtl ? (brandSettings.brandSubtitleAr || "منصة إدارة الأعمال") : (brandSettings.brandSubtitleEn || "Business ERP")}
                 </p>
               </div>
             </div>
           )}
           {isCollapsed && (
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-sm shrink-0">
-              <span className="text-white font-black text-sm">S</span>
-            </div>
+            <BrandIcon size={28} />
           )}
 
           {/* Mobile close */}

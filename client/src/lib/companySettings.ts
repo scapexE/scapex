@@ -18,6 +18,10 @@ export interface SystemSettings {
   letterHeaderEn: string;
   letterFooterAr: string;
   letterFooterEn: string;
+  brandLogo: string;
+  brandName: string;
+  brandSubtitleAr: string;
+  brandSubtitleEn: string;
 }
 
 export const FONT_OPTIONS: { value: FontFamily; label: string; labelAr: string; family: string }[] = [
@@ -49,6 +53,10 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   letterHeaderEn: "",
   letterFooterAr: "",
   letterFooterEn: "",
+  brandLogo: "",
+  brandName: "Scapex",
+  brandSubtitleAr: "منصة إدارة الأعمال الذكية",
+  brandSubtitleEn: "Smart Business Management Platform",
 };
 
 export const SYSTEM_SETTINGS_KEY = "scapex_system_settings";

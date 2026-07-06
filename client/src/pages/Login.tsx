@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getUsers, validateNationalId } from "@/lib/permissions";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { logAction } from "@/lib/auditLog";
+import { getSystemSettings } from "@/lib/companySettings";
 
 type Tab = "login" | "register";
 type ForgotStep = "idle" | "enter_email" | "enter_code" | "new_password" | "done";
@@ -69,6 +70,7 @@ export default function Login() {
   const [showAbout, setShowAbout] = useState(false);
   const { dir, language, toggleLanguage } = useLanguage();
   const isRtl = dir === "rtl";
+  const brand = getSystemSettings();
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
@@ -510,15 +512,22 @@ export default function Login() {
         flexDirection: "column",
       }}>
         <div style={{ textAlign: "center", marginBottom: "28px" }}>
-          <div style={{
-            width: "52px", height: "52px", borderRadius: "14px",
-            background: "#3b82f6", display: "flex", alignItems: "center",
-            justifyContent: "center", margin: "0 auto 10px",
-            fontSize: "26px", fontWeight: "bold",
-          }}>S</div>
-          <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>Scapex</h1>
+          {brand.brandLogo ? (
+            <img src={brand.brandLogo} alt={brand.brandName || "Logo"} style={{
+              width: "60px", height: "60px", borderRadius: "14px", objectFit: "contain",
+              margin: "0 auto 10px", display: "block", background: "transparent",
+            }} />
+          ) : (
+            <div style={{
+              width: "52px", height: "52px", borderRadius: "14px",
+              background: "#3b82f6", display: "flex", alignItems: "center",
+              justifyContent: "center", margin: "0 auto 10px",
+              fontSize: "26px", fontWeight: "bold",
+            }}>{(brand.brandName || "S").charAt(0).toUpperCase()}</div>
+          )}
+          <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>{brand.brandName || "Scapex"}</h1>
           <p style={{ color: "#6b7280", fontSize: "13px", marginTop: "3px" }}>
-            {isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Management Platform"}
+            {isRtl ? (brand.brandSubtitleAr || "منصة إدارة الأعمال الذكية") : (brand.brandSubtitleEn || "Smart Business Management Platform")}
           </p>
         </div>
 
@@ -927,15 +936,22 @@ export default function Login() {
               onClick={e => e.stopPropagation()}
             >
               <div style={{ textAlign: "center", marginBottom: "20px" }}>
-                <div style={{
-                  width: "48px", height: "48px", borderRadius: "12px",
-                  background: "#3b82f6", display: "flex", alignItems: "center",
-                  justifyContent: "center", margin: "0 auto 10px",
-                  fontSize: "22px", fontWeight: "bold", color: "white",
-                }}>S</div>
-                <h3 style={{ fontSize: "18px", fontWeight: "bold", color: "white", margin: "0 0 4px" }}>Scapex</h3>
+                {brand.brandLogo ? (
+                  <img src={brand.brandLogo} alt={brand.brandName || "Logo"} style={{
+                    width: "52px", height: "52px", borderRadius: "12px", objectFit: "contain",
+                    margin: "0 auto 10px", display: "block", background: "transparent",
+                  }} />
+                ) : (
+                  <div style={{
+                    width: "48px", height: "48px", borderRadius: "12px",
+                    background: "#3b82f6", display: "flex", alignItems: "center",
+                    justifyContent: "center", margin: "0 auto 10px",
+                    fontSize: "22px", fontWeight: "bold", color: "white",
+                  }}>{(brand.brandName || "S").charAt(0).toUpperCase()}</div>
+                )}
+                <h3 style={{ fontSize: "18px", fontWeight: "bold", color: "white", margin: "0 0 4px" }}>{brand.brandName || "Scapex"}</h3>
                 <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
-                  {isRtl ? "منصة إدارة الأعمال الذكية" : "Smart Business Management Platform"}
+                  {isRtl ? (brand.brandSubtitleAr || "منصة إدارة الأعمال الذكية") : (brand.brandSubtitleEn || "Smart Business Management Platform")}
                 </p>
               </div>
 
