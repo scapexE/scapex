@@ -4429,6 +4429,50 @@ export async function registerRoutes(
     }
   });
 
+  // Upload a ZIP file and restore from it
+  app.post("/api/backup/upload-restore", async (req, res) => {
+    if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
+    const confirm = req.header("x-confirm-restore");
+    if (confirm !== "I-UNDERSTAND-THIS-WILL-OVERWRITE-ALL-DATA") {
+      return res.status(400).json({ error: "Missing or invalid confirmation header" });
+    }
+    try {
+      const { fileBase64, filename } = req.body || {};
+      if (!fileBase64 || typeof fileBase64 !== "string") {
+        return res.status(400).json({ error: "fileBase64 is required" });
+      }
+      // Strip data URI prefix if present
+      const base64Data = fileBase64.replace(/^data:[^;]+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+      if (buffer.length < 22) return res.status(400).json({ error: "Invalid ZIP file" });
+      if (buffer.length > 15 * 1024 * 1024) return res.status(400).json({ error: "File too large (max 15MB)" });
+
+      const actorId = staffUserId(req);
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      const actorName = actor?.name || actor?.email || "Admin";
+
+      // Save uploaded ZIP as a backup record in DB so restoreBackup() can use it
+      const [saved] = await db.insert(systemBackups).values({
+        type: "manual",
+        filename: filename || `uploaded-${new Date().toISOString().slice(0,10)}.zip`,
+        status: "success",
+        sizeBytes: buffer.length,
+        tableCount: 0,
+        totalRows: 0,
+        errorCount: 0,
+        fileContent: base64Data,
+        createdBy: actorId,
+        createdByName: `Uploaded by ${actorName}`,
+      }).returning();
+
+      const result = await restoreBackup({ id: saved.id, actorId, actorName });
+      res.json(result);
+    } catch (e: any) {
+      console.error("Upload restore error:", e);
+      res.status(500).json({ error: e.message || "Upload restore failed" });
+    }
+  });
+
   app.get("/api/backup/settings", async (req, res) => {
     if (!(await isAdminOnly(req))) return res.status(403).json({ error: "Forbidden" });
     try { res.json(await getBackupSettings()); }

@@ -5,7 +5,7 @@ import { dbGetItem } from "@/lib/dbStorage";
 import {
   Download, Database, Loader2, ShieldCheck, History, Settings as SettingsIcon,
   Zap, Clock, HardDrive, CheckCircle2, AlertTriangle, XCircle, Trash2, RefreshCw,
-  RotateCcw, ShieldAlert, Mail, Send,
+  RotateCcw, ShieldAlert, Mail, Send, Upload, FileArchive,
 } from "lucide-react";
 import { logAction } from "@/lib/auditLog";
 
@@ -203,6 +203,51 @@ export default function BackupModule() {
   const [restoreStep, setRestoreStep] = useState<1 | 2>(1);
   const [restoreText, setRestoreText] = useState("");
   const [restoring, setRestoring] = useState(false);
+
+  // ─── Upload ZIP restore state ───────────────────────────────────────────
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadStep, setUploadStep] = useState<1 | 2>(1);
+  const [uploadText, setUploadText] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  const openUploadModal = () => { setUploadModalOpen(true); setUploadStep(1); setUploadFile(null); setUploadText(""); };
+  const closeUploadModal = () => { if (uploading) return; setUploadModalOpen(false); setUploadStep(1); setUploadFile(null); setUploadText(""); };
+
+  const handleUploadRestore = async () => {
+    if (!uploadFile) return;
+    clearMessages(); setUploading(true);
+    try {
+      const reader = new FileReader();
+      const base64: string = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadFile);
+      });
+      const res = await fetch("/api/backup/upload-restore", {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json", "x-confirm-restore": "I-UNDERSTAND-THIS-WILL-OVERWRITE-ALL-DATA" },
+        body: JSON.stringify({ fileBase64: base64, filename: uploadFile.name }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || (isRtl ? "فشلت الاستعادة" : "Restore failed"));
+      logAction("update", "backup", `Restored from uploaded ZIP: ${uploadFile.name}`, `استعادة من ملف ZIP: ${uploadFile.name}`);
+      const errCount = Object.keys(d.errors || {}).length;
+      const preMsg = d.preRestoreId ? (isRtl ? ` (نسخة ما قبل الاستعادة #${d.preRestoreId})` : ` (pre-restore snapshot #${d.preRestoreId})`) : "";
+      if (d.status === "success") {
+        setSuccess(isRtl
+          ? `تمت الاستعادة بنجاح من الملف المرفوع: ${d.tablesRestored} جدول، ${d.rowsInserted.toLocaleString()} سجل${preMsg}`
+          : `Restore successful: ${d.tablesRestored} tables, ${d.rowsInserted.toLocaleString()} rows${preMsg}`);
+      } else {
+        const firstErr = Object.entries(d.errors || {}).slice(0, 1).map(([k, v]) => `${k}: ${v}`).join("");
+        setError(isRtl ? `فشلت الاستعادة (${errCount} خطأ)${preMsg}. ${firstErr}` : `Restore failed (${errCount} errors)${preMsg}. ${firstErr}`);
+      }
+      closeUploadModal();
+      loadHistory(); loadStatus();
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setUploading(false); }
+  };
 
   const loadHistory = useCallback(() => {
     setHistoryLoading(true); setHistoryError("");
@@ -518,11 +563,20 @@ export default function BackupModule() {
                 </FilterChip>
               ))}
             </div>
-            <button onClick={loadHistory} disabled={historyLoading} data-testid="button-refresh-history"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-md text-xs font-medium hover-elevate disabled:opacity-50">
-              <RefreshCw className={`w-3.5 h-3.5 ${historyLoading ? "animate-spin" : ""}`} />
-              {isRtl ? "تحديث" : "Refresh"}
-            </button>
+            <div className="flex gap-2">
+              {isAdmin && (
+                <button onClick={openUploadModal} data-testid="button-upload-zip"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-md text-xs font-semibold hover-elevate">
+                  <Upload className="w-3.5 h-3.5" />
+                  {isRtl ? "استعادة من ZIP" : "Restore from ZIP"}
+                </button>
+              )}
+              <button onClick={loadHistory} disabled={historyLoading} data-testid="button-refresh-history"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-md text-xs font-medium hover-elevate disabled:opacity-50">
+                <RefreshCw className={`w-3.5 h-3.5 ${historyLoading ? "animate-spin" : ""}`} />
+                {isRtl ? "تحديث" : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {historyError && <Alert kind="error" testId="alert-history-error">{historyError}</Alert>}
@@ -702,6 +756,128 @@ export default function BackupModule() {
                   >
                     {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                     {restoring ? (isRtl ? "جارٍ الاستعادة..." : "Restoring...") : (isRtl ? "تنفيذ الاستعادة" : "Run Restore")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Upload ZIP Restore Modal ── */}
+      {uploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-testid="modal-upload-restore">
+          <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                <FileArchive className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base">{isRtl ? "استعادة من ملف ZIP" : "Restore from ZIP File"}</h3>
+                <p className="text-xs text-muted-foreground">{isRtl ? "رفع نسخة احتياطية مرسلة على الإيميل" : "Upload a backup received by email"}</p>
+              </div>
+            </div>
+
+            {uploadStep === 1 && (
+              <>
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4 text-xs text-amber-700 dark:text-amber-400">
+                  ⚠️ {isRtl
+                    ? "ستُستبدل جميع البيانات الحالية ببيانات الملف المرفوع. النظام سيحفظ نسخة احتياطية تلقائياً قبل الاستعادة."
+                    : "All current data will be replaced with the uploaded file's data. A pre-restore backup is taken automatically."}
+                </div>
+
+                <label className="block text-sm font-medium mb-2">{isRtl ? "اختر ملف ZIP" : "Select ZIP file"}</label>
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors mb-4"
+                  onClick={() => document.getElementById("zip-upload-input")?.click()}
+                  data-testid="dropzone-zip"
+                >
+                  <input
+                    id="zip-upload-input"
+                    type="file"
+                    accept=".zip"
+                    className="hidden"
+                    data-testid="input-zip-file"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      if (f && !f.name.endsWith(".zip")) { setError(isRtl ? "يجب أن يكون الملف بصيغة ZIP" : "File must be a .zip"); return; }
+                      setUploadFile(f);
+                    }}
+                  />
+                  {uploadFile ? (
+                    <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
+                      <FileArchive className="w-6 h-6" />
+                      <div className="text-start">
+                        <p className="font-semibold text-sm">{uploadFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{(uploadFile.size / 1024).toFixed(0)} KB</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">
+                      <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">{isRtl ? "اضغط لاختيار ملف ZIP" : "Click to select a ZIP file"}</p>
+                      <p className="text-xs mt-1">{isRtl ? "الحد الأقصى 15 ميغابايت" : "Max 15MB"}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button onClick={closeUploadModal} data-testid="button-upload-cancel"
+                    className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover-elevate">
+                    {isRtl ? "إلغاء" : "Cancel"}
+                  </button>
+                  <button
+                    onClick={() => setUploadStep(2)}
+                    disabled={!uploadFile}
+                    data-testid="button-upload-next"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-semibold hover-elevate disabled:opacity-40"
+                  >
+                    {isRtl ? "التالي" : "Next"} →
+                  </button>
+                </div>
+              </>
+            )}
+
+            {uploadStep === 2 && (
+              <>
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 mb-4 text-xs text-destructive">
+                  🚨 {isRtl
+                    ? "هذا الإجراء لا يمكن التراجع عنه. ستُستبدل جميع بيانات النظام بالكامل."
+                    : "This action cannot be undone. All system data will be completely replaced."}
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3 mb-4 text-xs">
+                  <p className="font-semibold mb-1">{isRtl ? "الملف المختار:" : "Selected file:"}</p>
+                  <p className="font-mono text-primary">{uploadFile?.name}</p>
+                  <p className="text-muted-foreground mt-1">{uploadFile ? `${(uploadFile.size / 1024).toFixed(0)} KB` : ""}</p>
+                </div>
+                <p className="text-sm mb-3">
+                  {isRtl
+                    ? <> اكتب <code className="px-1.5 py-0.5 bg-muted rounded font-mono">RESTORE</code> للتأكيد:</>
+                    : <> Type <code className="px-1.5 py-0.5 bg-muted rounded font-mono">RESTORE</code> to confirm:</>}
+                </p>
+                <input
+                  type="text"
+                  value={uploadText}
+                  onChange={(e) => setUploadText(e.target.value)}
+                  disabled={uploading}
+                  data-testid="input-upload-confirm"
+                  className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm mb-4 font-mono"
+                  placeholder="RESTORE"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setUploadStep(1)} disabled={uploading} data-testid="button-upload-back"
+                    className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover-elevate disabled:opacity-50">
+                    {isRtl ? "رجوع" : "Back"}
+                  </button>
+                  <button
+                    onClick={handleUploadRestore}
+                    disabled={uploading || uploadText.trim() !== "RESTORE"}
+                    data-testid="button-upload-confirm"
+                    className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-bold hover-elevate disabled:opacity-40"
+                  >
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {uploading ? (isRtl ? "جارٍ الاستعادة..." : "Restoring...") : (isRtl ? "تنفيذ الاستعادة" : "Run Restore")}
                   </button>
                 </div>
               </>

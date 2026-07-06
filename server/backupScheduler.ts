@@ -485,10 +485,21 @@ export async function sendBackupEmail(opts: {
   try {
     const now = new Date();
     const stamp = now.toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh", year: "numeric", month: "long", day: "numeric" });
-    const filename = `scapex-backup-${now.toISOString().slice(0, 10)}.xlsx`;
+    const dateSlug = now.toISOString().slice(0, 10);
+    const xlsxFilename = `scapex-backup-${dateSlug}.xlsx`;
+    const zipFilename = `scapex-backup-${dateSlug}.zip`;
 
-    log(`sending backup email to ${opts.recipient}...`, "backup");
-    const excelBuffer = await buildExcelBackup();
+    log(`sending backup email to ${opts.recipient} (xlsx + zip)...`, "backup");
+
+    const [excelBuffer, zipResult] = await Promise.all([
+      buildExcelBackup(),
+      buildFullBackup(),
+    ]);
+
+    const typeLabel = opts.backupType === "auto_weekly" ? "الأسبوعية"
+      : opts.backupType === "auto_daily" ? "اليومية"
+      : opts.backupType === "auto_monthly" ? "الشهرية"
+      : "الفورية";
 
     const result = await sendEmail({
       to: opts.recipient,
@@ -502,14 +513,25 @@ export async function sendBackupEmail(opts: {
           <div style="background: white; border-radius: 8px; padding: 24px; border: 1px solid #e2e8f0;">
             <p style="color: #334155; font-size: 15px; margin: 0 0 12px;">مرحباً،</p>
             <p style="color: #334155; font-size: 15px; margin: 0 0 16px;">
-              تم إنشاء النسخة الاحتياطية التلقائية <strong>${opts.backupType === "auto_weekly" ? "الأسبوعية" : "التلقائية"}</strong> بنجاح بتاريخ <strong>${stamp}</strong>.
+              تم إنشاء النسخة الاحتياطية <strong>${typeLabel}</strong> بنجاح بتاريخ <strong>${stamp}</strong>.
             </p>
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-              <p style="color: #166534; margin: 0; font-size: 14px;">✅ النسخة الاحتياطية مرفقة بهذا البريد بصيغة Excel (.xlsx)</p>
-              <p style="color: #166534; margin: 6px 0 0; font-size: 13px;">يمكنك فتح الملف لمراجعة البيانات أو الاحتفاظ به كأرشيف.</p>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+              <p style="color: #166534; margin: 0; font-size: 14px; font-weight: 600;">📎 المرفقات (2 ملف):</p>
+              <p style="color: #166534; margin: 8px 0 0; font-size: 13px;">
+                📊 <strong>${xlsxFilename}</strong> — ملف Excel للمراجعة والأرشفة
+              </p>
+              <p style="color: #166534; margin: 6px 0 0; font-size: 13px;">
+                🗜 <strong>${zipFilename}</strong> — ملف ZIP للاستعادة الكاملة للنظام
+              </p>
             </div>
-            <p style="color: #64748b; font-size: 13px; margin: 0;">
-              لاستعادة البيانات: قم بتسجيل الدخول إلى النظام → النسخ الاحتياطية → السجل → استعادة.
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+              <p style="color: #1e40af; margin: 0; font-size: 13px; font-weight: 600;">🔄 كيفية الاستعادة من ملف ZIP:</p>
+              <p style="color: #1e40af; margin: 6px 0 0; font-size: 12px;">
+                تسجيل الدخول → النسخ الاحتياطية → تبويب "السجل" → زر "استعادة من ZIP" → رفع الملف
+              </p>
+            </div>
+            <p style="color: #64748b; font-size: 12px; margin: 0;">
+              احتفظ بملف ZIP في مكان آمن — يمكن استخدامه لاستعادة النظام بالكامل حتى في حال فقدان السيرفر.
             </p>
           </div>
           <p style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 20px;">
@@ -517,11 +539,14 @@ export async function sendBackupEmail(opts: {
           </p>
         </div>
       `,
-      attachments: [{ filename, content: excelBuffer }],
+      attachments: [
+        { filename: xlsxFilename, content: excelBuffer },
+        { filename: zipFilename, content: zipResult.buffer },
+      ],
     });
 
     if (result.success) {
-      log(`backup email sent to ${opts.recipient} (id: ${result.id})`, "backup");
+      log(`backup email sent to ${opts.recipient} with xlsx+zip (id: ${result.id})`, "backup");
     } else {
       log(`backup email failed: ${result.error}`, "backup");
     }
