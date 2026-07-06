@@ -587,9 +587,9 @@ function CompaniesContent() {
         </Tabs>
 
         <Dialog open={showCompanyDialog} onOpenChange={setShowCompanyDialog}>
-          <DialogContent className="max-w-lg" dir={dir}>
-            <DialogHeader><DialogTitle>{editCompany ? t("تعديل شركة", "Edit Company") : t("إضافة شركة جديدة", "Add New Company")}</DialogTitle></DialogHeader>
-            <div className="space-y-3">
+          <DialogContent className="max-w-lg flex flex-col max-h-[92vh]" dir={dir}>
+            <DialogHeader className="flex-none"><DialogTitle>{editCompany ? t("تعديل شركة", "Edit Company") : t("إضافة شركة جديدة", "Add New Company")}</DialogTitle></DialogHeader>
+            <div className="space-y-3 overflow-y-auto flex-1 px-1 pr-2">
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>{t("الاسم بالعربي", "Name (Arabic)")}</Label><Input value={companyForm.nameAr || ""} onChange={e => setCompanyForm(p => ({ ...p, nameAr: e.target.value }))} data-testid="input-company-name-ar" /></div>
                 <div><Label>{t("الاسم بالإنجليزي", "Name (English)")}</Label><Input value={companyForm.nameEn || ""} onChange={e => setCompanyForm(p => ({ ...p, nameEn: e.target.value }))} data-testid="input-company-name-en" /></div>
@@ -690,7 +690,7 @@ function CompaniesContent() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-none pt-2 border-t">
               <Button variant="outline" onClick={() => setShowCompanyDialog(false)}>{t("إلغاء", "Cancel")}</Button>
               <Button onClick={saveCompany} data-testid="button-save-company">{t("حفظ", "Save")}</Button>
             </DialogFooter>
