@@ -22,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
   ChevronDown, Check, Image, Link as LinkIcon, Ban, Building2, Info, MapPin, Globe,
+  MessageSquare, Mail, Loader2,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -598,7 +599,121 @@ export function ActivityAssignmentCard({
   );
 }
 
-// ─── Inner Content ────────────────────────────────────────────────────────────
+// ─── Client Portal OTP delivery settings ─────────────────────────────────────
+function PortalOtpSettings() {
+  const { dir } = useLanguage();
+  const isRtl = dir === "rtl";
+  const t2 = (ar: string, en: string) => isRtl ? ar : en;
+  const { toast } = useToast();
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/app-data/portal_otp_config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => { if (alive) setSmsEnabled(!!(cfg && cfg.smsEnabled)); })
+      .catch(() => {})
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  const handleToggle = async (next: boolean) => {
+    setSaving(true);
+    const prev = smsEnabled;
+    setSmsEnabled(next);
+    try {
+      const r = await fetch("/api/app-data/portal_otp_config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: { smsEnabled: next } }),
+      });
+      if (!r.ok) throw new Error("save failed");
+      toast({
+        title: t2("تم الحفظ", "Saved"),
+        description: next
+          ? t2("تم تفعيل التحقق عبر الرسائل النصية في بوابة العملاء", "SMS verification enabled for the client portal")
+          : t2("تم إخفاء التحقق عبر الرسائل النصية — سيُستخدم البريد الإلكتروني فقط", "SMS verification hidden — email only"),
+      });
+    } catch {
+      setSmsEnabled(prev);
+      toast({ title: t2("تعذّر الحفظ", "Save failed"), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6" dir={dir}>
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="w-4 h-4 text-primary" />
+            {t2("التحقق عند التوقيع في بوابة العملاء", "Portal Signing Verification")}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            {t2("طريقة إرسال رمز التحقق للعميل قبل الموافقة على عرض السعر أو توقيع العقد.",
+                "How the verification code is delivered to the client before approving a proposal or signing a contract.")}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Email — always on */}
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-secondary/20 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+                <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{t2("البريد الإلكتروني", "Email")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t2("مُفعّل دائماً عبر خدمة Resend", "Always enabled via Resend")}
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-transparent shrink-0">
+              {t2("مُفعّل", "Active")}
+            </Badge>
+          </div>
+
+          {/* SMS — admin toggle */}
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{t2("رسالة نصية (SMS)", "SMS Message")}</p>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  {t2("يتطلب اشتراكاً في مزوّد رسائل نصية. عند الإيقاف يُخفى خيار الرسائل النصية من بوابة العملاء.",
+                      "Requires an SMS provider subscription. When off, the SMS option is hidden from the client portal.")}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {(loading || saving) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+              <Switch
+                checked={smsEnabled}
+                disabled={loading || saving}
+                onCheckedChange={handleToggle}
+                data-testid="switch-portal-sms"
+              />
+            </div>
+          </div>
+
+          {!smsEnabled && !loading && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 px-1">
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              {t2("حالياً يستلم العملاء رمز التحقق عبر البريد الإلكتروني فقط.",
+                  "Clients currently receive the verification code by email only.")}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function AboutSettingsPanel() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
@@ -868,7 +983,7 @@ function SystemAdminContent() {
       </div>
 
       <Tabs defaultValue="activities" dir={dir}>
-        <TabsList className="grid grid-cols-4 w-full max-w-3xl">
+        <TabsList className="grid grid-cols-5 w-full max-w-4xl">
           <TabsTrigger value="activities" className="gap-2 text-xs sm:text-sm">
             <Layers className="w-4 h-4" /> {t("sa.tab.activities")}
           </TabsTrigger>
@@ -877,6 +992,9 @@ function SystemAdminContent() {
           </TabsTrigger>
           <TabsTrigger value="assignments" className="gap-2 text-xs sm:text-sm">
             <UserCheck className="w-4 h-4" /> {t("sa.tab.users")}
+          </TabsTrigger>
+          <TabsTrigger value="portal" className="gap-2 text-xs sm:text-sm">
+            <MessageSquare className="w-4 h-4" /> {dir === "rtl" ? "بوابة العملاء" : "Client Portal"}
           </TabsTrigger>
           <TabsTrigger value="about-settings" className="gap-2 text-xs sm:text-sm">
             <Info className="w-4 h-4" /> {dir === "rtl" ? "حول النظام" : "About"}
@@ -1004,6 +1122,11 @@ function SystemAdminContent() {
               />
             ))}
           </div>
+        </TabsContent>
+
+        {/* ── Client Portal ───────────────────── */}
+        <TabsContent value="portal" className="mt-6">
+          <PortalOtpSettings />
         </TabsContent>
 
         {/* ── About Settings ──────────────────── */}

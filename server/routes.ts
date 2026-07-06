@@ -2213,6 +2213,17 @@ export async function registerRoutes(
   function genPortalOtp(): string {
     return String(Math.floor(100000 + Math.random() * 900000));
   }
+  // Portal OTP delivery config (stored in app_data, editable by admin in System Admin).
+  // SMS is OFF by default until the business subscribes to an SMS provider.
+  async function getPortalOtpConfig(): Promise<{ smsEnabled: boolean }> {
+    try {
+      const rows = await db.select().from(appData).where(eq(appData.key, "portal_otp_config"));
+      const v = rows[0]?.value as any;
+      return { smsEnabled: !!(v && v.smsEnabled) };
+    } catch {
+      return { smsEnabled: false };
+    }
+  }
   function maskPhone(p: string): string {
     if (!p || p.length < 4) return "****";
     return p.slice(0, -4).replace(/\d/g, "•") + p.slice(-4);
@@ -2587,7 +2598,10 @@ export async function registerRoutes(
         return res.json({ ok: true, channel: "email", hint: maskEmail(email), devCode: (isDev && !sent) ? code : undefined });
       }
 
-      // channel === "sms" (requires a paid SMS provider e.g. Twilio; otherwise dev code is returned in dev only)
+      // channel === "sms" — only allowed when the admin has enabled it (source of truth).
+      // Requires a paid SMS provider e.g. Twilio; otherwise dev code is returned in dev only.
+      const otpCfg = await getPortalOtpConfig();
+      if (!otpCfg.smsEnabled) return res.json({ ok: false, smsDisabled: true });
       if (!phone) return res.json({ ok: true, noPhone: true });
       signOtpStore.set(me.id, { code, expiry: Date.now() + 10 * 60 * 1000 });
       const devCode = await dispatchSms(phone, code, me.id);

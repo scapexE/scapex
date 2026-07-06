@@ -642,7 +642,18 @@ function SignModal({
   const [noPhone, setNoPhone] = useState(false);
   const [otpChannel, setOtpChannel] = useState<"sms" | "email">("email");
   const [sentChannel, setSentChannel] = useState<"sms" | "email">("email");
+  const [smsEnabled, setSmsEnabled] = useState(false);
   const [otpErr, setOtpErr] = useState("");
+
+  // SMS OTP is only offered when an admin has enabled it in System Admin.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/app-data/portal_otp_config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => { if (alive && cfg && cfg.smsEnabled) setSmsEnabled(true); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const [name, setName] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -653,6 +664,16 @@ function SignModal({
     setOtpSending(true); setOtpErr("");
     try {
       const res = await portalSendSignOtp(channel);
+      if (res.smsDisabled) {
+        // Admin disabled SMS mid-flow — recover to the email channel picker.
+        setSmsEnabled(false);
+        setOtpChannel("email");
+        setSentChannel("email");
+        setOtpSent(false);
+        setOtpErr(t("خدمة الرسائل النصية غير مفعّلة حالياً. استخدم البريد الإلكتروني.",
+                    "SMS is not enabled right now. Please use email."));
+        return;
+      }
       if (res.noPhone) { setNoPhone(true); setSigStep("sign"); return; }
       if (res.noEmail) {
         setOtpErr(t("لا يوجد بريد إلكتروني مسجل لحسابك", "No email is registered on your account"));
@@ -740,11 +761,14 @@ function SignModal({
                   <ShieldCheck className="w-7 h-7 text-blue-600 dark:text-blue-400" />
                 </div>
                 <p className="text-sm text-muted-foreground text-center">
-                  {t("اختر طريقة استلام رمز التحقق قبل التوقيع",
-                     "Choose how to receive your verification code before signing")}
+                  {smsEnabled
+                    ? t("اختر طريقة استلام رمز التحقق قبل التوقيع",
+                        "Choose how to receive your verification code before signing")
+                    : t("سنرسل رمز التحقق إلى بريدك الإلكتروني قبل التوقيع",
+                        "We'll send your verification code to your email before signing")}
                 </p>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className={cn("grid gap-2", smsEnabled ? "grid-cols-2" : "grid-cols-1")}>
                   <button
                     type="button"
                     onClick={() => setOtpChannel("email")}
@@ -759,20 +783,22 @@ function SignModal({
                     <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     <span className="font-medium">{t("البريد الإلكتروني", "Email")}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setOtpChannel("sms")}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border text-sm transition",
-                      otpChannel === "sms"
-                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                        : "border-input hover:bg-muted",
-                    )}
-                    data-testid="button-channel-sms"
-                  >
-                    <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    <span className="font-medium">{t("رسالة جوال", "SMS")}</span>
-                  </button>
+                  {smsEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => setOtpChannel("sms")}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 rounded-xl border text-sm transition",
+                        otpChannel === "sms"
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                          : "border-input hover:bg-muted",
+                      )}
+                      data-testid="button-channel-sms"
+                    >
+                      <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <span className="font-medium">{t("رسالة جوال", "SMS")}</span>
+                    </button>
+                  )}
                 </div>
 
                 {otpErr && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{otpErr}</p>}

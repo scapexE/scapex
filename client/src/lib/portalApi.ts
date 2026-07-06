@@ -158,7 +158,7 @@ export async function portalVerifyLoginOtp(tempKey: string, code: string): Promi
 
 export async function portalSendSignOtp(
   channel: "sms" | "email" = "sms",
-): Promise<{ ok: boolean; channel?: "sms" | "email"; hint?: string; noPhone?: boolean; noEmail?: boolean; devCode?: string }> {
+): Promise<{ ok: boolean; channel?: "sms" | "email"; hint?: string; noPhone?: boolean; noEmail?: boolean; smsDisabled?: boolean; devCode?: string }> {
   const r = await portalFetch("/api/portal/sign-otp", { method: "POST", body: JSON.stringify({ channel }) });
   if (!r.ok) throw new Error("Failed to send OTP");
   return r.json();
