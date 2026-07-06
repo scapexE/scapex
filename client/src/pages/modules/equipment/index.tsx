@@ -395,7 +395,7 @@ function AssetDetailDrawer({ asset, maintenance, projects, isRtl, onClose, onEdi
           {/* Financial */}
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">{isRtl ? "المعلومات المالية" : "Financial Info"}</h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <div className="bg-secondary/30 rounded-lg p-2.5 text-center">
                 <p className="text-[10px] text-muted-foreground">{isRtl ? "تكلفة الشراء" : "Purchase Cost"}</p>
                 <p className="text-sm font-bold">{formatSAR(asset.purchaseCost)}</p>

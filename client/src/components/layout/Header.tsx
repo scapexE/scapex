@@ -238,7 +238,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
           {showNotif && (
             <div className={cn(
-              "absolute top-full mt-2 w-80 sm:w-96 rounded-xl border bg-card shadow-xl z-50 overflow-hidden",
+              "absolute top-full mt-2 w-[calc(100vw-1rem)] sm:w-96 max-w-sm sm:max-w-none rounded-xl border bg-card shadow-xl z-50 overflow-hidden",
               isRtl ? "left-0" : "right-0"
             )}>
               <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">

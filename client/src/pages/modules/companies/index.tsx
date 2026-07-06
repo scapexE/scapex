@@ -426,6 +426,7 @@ function CompaniesContent() {
             </div>
 
             <Card>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -471,6 +472,7 @@ function CompaniesContent() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </Card>
           </TabsContent>
 

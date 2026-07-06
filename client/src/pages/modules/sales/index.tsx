@@ -50,7 +50,7 @@ function ProposalQuotationsList({ isRtl, onNewProposal, onViewProposal }: {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-4 shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 shrink-0">
         <div className="bg-secondary/40 rounded-xl p-3 flex items-center gap-2.5 border border-border/50">
           <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
             <Clock className="w-4 h-4 text-amber-600" />

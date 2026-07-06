@@ -218,6 +218,7 @@ export default function MobileAppModule() {
 
           <TabsContent value="reports" className="space-y-4">
             <Card>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -250,6 +251,7 @@ export default function MobileAppModule() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </Card>
           </TabsContent>
 
