@@ -548,8 +548,31 @@ export default function BackupModule() {
                     </td></tr>
                   )}
                   {!historyLoading && history.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground" data-testid="text-empty-history">
-                      {isRtl ? "لا توجد نسخ احتياطية بعد" : "No backups yet"}
+                    <tr><td colSpan={7} data-testid="text-empty-history">
+                      <div className="text-center py-10 flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                          <History className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                        <p className="text-muted-foreground font-medium">
+                          {isRtl ? "لا توجد نسخ احتياطية بعد" : "No backups yet"}
+                        </p>
+                        <p className="text-xs text-muted-foreground max-w-xs">
+                          {isRtl
+                            ? "أنشئ نسخة احتياطية الآن، ثم ستظهر هنا مع زر الاستعادة بجانبها."
+                            : "Create a backup first — it will appear here with a Restore button."}
+                        </p>
+                        {isAdmin && (
+                          <button
+                            onClick={handleSnapshotNow}
+                            disabled={creatingSnapshot}
+                            data-testid="button-snapshot-empty"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover-elevate disabled:opacity-50"
+                          >
+                            {creatingSnapshot ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                            {isRtl ? "إنشاء نسخة احتياطية الآن" : "Create Backup Now"}
+                          </button>
+                        )}
+                      </div>
                     </td></tr>
                   )}
                   {history.map((b) => {
