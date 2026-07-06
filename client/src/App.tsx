@@ -4,7 +4,7 @@ import Login from "@/pages/Login";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Users from "@/pages/Users";
 import SystemAdmin from "@/pages/SystemAdmin";
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { getSystemSettings, FONT_OPTIONS, FONT_SIZE_OPTIONS } from "@/lib/companySettings";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -39,11 +39,14 @@ import CompaniesModule from "@/pages/modules/companies/index";
 import MobileAppModule from "@/pages/modules/mobile-app/index";
 import AboutModule from "@/pages/modules/about/index";
 import AuditLogModule from "@/pages/modules/audit-log/index";
-import CompanySettingsModule from "@/pages/modules/company-settings/index";
 import BackupModule from "@/pages/modules/backup/index";
 import Profile from "@/pages/Profile";
 import PublicSurvey from "@/pages/PublicSurvey";
 import SmartProposalModule from "@/pages/modules/smart-proposal/index";
+
+function CompanySettingsRedirect() {
+  return <Redirect to="/companies" />;
+}
 
 function Router() {
   return (
@@ -84,7 +87,7 @@ function Router() {
 
       {/* System & Portals */}
       <ProtectedRoute path="/dms" component={DMSModule} page="dms" />
-      <ProtectedRoute path="/company-settings" component={CompanySettingsModule} page="company_settings" />
+      <Route path="/company-settings" component={CompanySettingsRedirect} />
       <ProtectedRoute path="/audit-log" component={AuditLogModule} page="audit_log" />
       <ProtectedRoute path="/backup" component={BackupModule} page="backup" />
       <ProtectedRoute path="/about" component={AboutModule} page="*" />

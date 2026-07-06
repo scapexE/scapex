@@ -61,16 +61,43 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
 
 export const SYSTEM_SETTINGS_KEY = "scapex_system_settings";
 
-export function getSystemSettings(): SystemSettings {
+// Per-company system settings are stored under a company-scoped key. The plain
+// global key still represents the "active/primary" company that drives the live
+// UI (sidebar brand, fonts, login screen) and existing document generation.
+export function systemSettingsKey(companyId?: number | string | null): string {
+  return companyId != null && companyId !== ""
+    ? `${SYSTEM_SETTINGS_KEY}::${companyId}`
+    : SYSTEM_SETTINGS_KEY;
+}
+
+export function getSystemSettings(companyId?: number | string | null): SystemSettings {
   try {
+    if (companyId != null && companyId !== "") {
+      const perCompany = dbGetItem(systemSettingsKey(companyId));
+      if (perCompany) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(perCompany) };
+      // Migration fallback: inherit the global settings until this company is customised.
+      const global = dbGetItem(SYSTEM_SETTINGS_KEY);
+      if (global) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(global) };
+      return DEFAULT_SYSTEM_SETTINGS;
+    }
     const stored = dbGetItem(SYSTEM_SETTINGS_KEY);
     if (stored) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(stored) };
   } catch {}
   return DEFAULT_SYSTEM_SETTINGS;
 }
 
-export function saveSystemSettings(data: SystemSettings): void {
-  dbSetItem(SYSTEM_SETTINGS_KEY, JSON.stringify(data));
+export function saveSystemSettings(
+  data: SystemSettings,
+  opts?: { companyId?: number | string | null; alsoGlobal?: boolean },
+): void {
+  const companyId = opts?.companyId;
+  if (companyId != null && companyId !== "") {
+    dbSetItem(systemSettingsKey(companyId), JSON.stringify(data));
+    // The primary company also drives the live UI, so mirror to the global key.
+    if (opts?.alsoGlobal) dbSetItem(SYSTEM_SETTINGS_KEY, JSON.stringify(data));
+  } else {
+    dbSetItem(SYSTEM_SETTINGS_KEY, JSON.stringify(data));
+  }
   window.dispatchEvent(new CustomEvent("scapex_system_settings_update"));
 }
 

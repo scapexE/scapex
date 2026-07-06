@@ -114,7 +114,8 @@ service_categories, services
 - `scapex_notifications` — in-app notifications
 - `scapex_notifications_seeded` — demo notification seed flag
 - `scapex_about_settings` — central company settings (name, address, contacts, VAT, CR, branches, social media) — single source of truth for all system company data
-- `scapex_system_settings` — system settings (time format 12h/24h, date format gregorian/hijri/both, font family, font size, print template footers/headers)
+- `scapex_system_settings` — GLOBAL system settings (time format 12h/24h, date format gregorian/hijri/both, font family, font size, print template footers/headers). The global key drives the live UI (font/date/print) for the primary company.
+- `scapex_system_settings::<companyId>` — PER-COMPANY system settings + print templates. Written when saving a specific company's settings in the Company Management → "Company Info & Settings" tab. `getSystemSettings(companyId?)` falls back to the global key when no per-company record exists; saving the main company also mirrors to the global key (`alsoGlobal`).
 - `scapex_signatures` — electronic signature records per document (proposal/contract) per party
 - `scapex_default_signature` — saved default signature image for quick reuse
 
@@ -125,7 +126,7 @@ service_categories, services
 - **BI Analytics** (`/bi`) — Revenue charts, service breakdown, top clients, KPI bars
 - **AI Control Center** (`/ai-control`) — AI insights, automation rules
 - **Company Management** (`/companies`) — Multi-tenant: companies, branches, org structure
-- **Company Settings** (`/company-settings`) — Central company data management (name, description, address, contacts, legal info, branches, social media). Single source of truth for all system data.
+- **Company Info & Settings** — Merged into Company Management (`/companies`) as a dedicated tab ("معلومات وإعدادات الشركة"). Per-company: identity/description/working-hours/social (معلومات الشركة), system settings — branding/time/date/font (إعدادات النظام), and print templates — footers/headers (قوالب الطباعة). The old standalone `/company-settings` route now redirects to `/companies`. Component: `client/src/components/companies/CompanySettingsPanel.tsx`.
 
 ### Business & Finance
 - **CRM** (`/crm`) — Pipeline board + Customers list + Dashboard

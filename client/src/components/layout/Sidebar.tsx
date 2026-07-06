@@ -9,7 +9,7 @@ import {
   Settings, ShieldAlert, BarChart3, BrainCircuit,
   ShoppingBag, Truck, Calculator, Package, Building2,
   Globe2, HardDrive, LogOut, UserCog, Info,
-  FolderOpen, SlidersHorizontal, UserRound, Wallet,
+  FolderOpen, UserRound, Wallet,
   Wrench, ScrollText, FolderKanban, ChevronLeft, ChevronRight, X, Users2,
   GripVertical, Check,
 } from "lucide-react";
@@ -32,7 +32,6 @@ const menuCategories = [
       { id: "ai_control",       icon: BrainCircuit,       path: "/ai-control" },
       { id: "bi",               icon: BarChart3,           path: "/bi" },
       { id: "multi_tenant",     icon: Building2,           path: "/companies" },
-      { id: "company_settings", icon: SlidersHorizontal,  path: "/company-settings" },
     ],
   },
   {
@@ -96,7 +95,6 @@ const NAV_LABELS: Record<string, { ar: string; en: string }> = {
   ai_control:       { ar: "مركز الذكاء الاصطناعي", en: "AI Control" },
   bi:               { ar: "تحليلات الأعمال",         en: "BI Analytics" },
   multi_tenant:     { ar: "إدارة الشركات",           en: "Companies" },
-  company_settings: { ar: "إعدادات الشركة",          en: "Company Settings" },
   crm:              { ar: "إدارة العملاء",            en: "CRM" },
   sales:            { ar: "المبيعات",                en: "Sales" },
   purchases:        { ar: "المشتريات",               en: "Purchases" },

@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ACTIVITY_COLOR_MAP, type ActivityColor } from "@/lib/activities";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { ActivityForm, ActivityFormHandle, ActivityAssignmentCard, emptyActivity } from "@/pages/SystemAdmin";
+import { CompanySettingsPanel } from "@/components/companies/CompanySettingsPanel";
 
 interface Company {
   id: string;
@@ -415,6 +416,7 @@ function CompaniesContent() {
             <TabsTrigger value="companies">{t("الشركات", "Companies")}</TabsTrigger>
             <TabsTrigger value="branches">{t("الفروع", "Branches")}</TabsTrigger>
             <TabsTrigger value="structure">{t("الهيكل التنظيمي", "Org Structure")}</TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-company-settings">{t("معلومات وإعدادات الشركة", "Company Info & Settings")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="companies" className="space-y-4">
@@ -585,6 +587,10 @@ function CompaniesContent() {
                 ))}
               </div>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-4">
+            <CompanySettingsPanel companies={companies} onSaved={fetchData} />
           </TabsContent>
         </Tabs>
 
