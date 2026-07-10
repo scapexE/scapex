@@ -14,7 +14,7 @@ import { Plus, Search, Printer, Trash2, Eye, CheckCircle2, Send, FileText, Loade
 import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { getAboutData, getSystemSettings } from "@/lib/companySettings";
+import { getAboutData, getSystemSettings, getPrintFontCss } from "@/lib/companySettings";
 import { dbGetItem } from "@/lib/dbStorage";
 import { ExportMenu } from "@/components/shared/ExportMenu";
 
@@ -158,8 +158,10 @@ export function InvoicesTab() {
     const headerNote = esc(isRtl ? pd.headerNoteAr : pd.headerNoteEn);
     const customFooter = esc(isRtl ? sysCfg.invoiceFooterAr : sysCfg.invoiceFooterEn);
     const contactBits = [about.address, about.phone1, about.email1, about.website].filter(Boolean).map(v => esc(String(v).split("\n").join(" — "))).join(" · ");
+    const printFont = getPrintFontCss();
     const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${esc(inv.invoiceNumber)}</title>
-    <style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;margin:0;padding:20px;color:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    <style>${printFont.css}
+    body{font-family:${printFont.family};font-size:12px;margin:0;padding:20px;color:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ${pd.accentColor};padding-bottom:15px;margin-bottom:20px;background:${pd.headerBgColor};${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}');background-size:cover;background-position:center;` : ""}${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "padding:14px 16px;border-radius:8px;" : ""}color:${pd.headerTextColor}}
     .inv-title{font-size:16px;font-weight:700;color:${pd.accentColor};text-align:center;margin:10px 0}
     .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;background:#f8fafc;padding:12px;border-radius:8px}

@@ -16,6 +16,7 @@ import { Plus, Printer, Trash2, ArrowDownCircle, ArrowUpCircle, Loader2, Mail } 
 import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getPrintFontCss } from "@/lib/companySettings";
 
 interface Payment {
   id: number; paymentNumber: string; type: string;
@@ -47,9 +48,11 @@ function buildVoucherHtml(pmt: Payment, contacts: Contact[], isRtl: boolean): st
   const methodLabel = isRtl ? (METHODS_AR[pmt.method] || pmt.method) : (METHODS_EN[pmt.method] || pmt.method);
   const contact = contacts.find(c => c.id === pmt.contactId);
   const contactName = contact ? (isRtl ? contact.nameAr : contact.nameEn) : "—";
+  const printFont = getPrintFontCss();
 
   const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${esc(pmt.paymentNumber)}</title>
-  <style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;margin:30px;color:#1a1a1a;max-width:600px}
+  <style>${printFont.css}
+  body{font-family:${printFont.family};font-size:12px;margin:30px;color:#1a1a1a;max-width:600px}
   .header{display:flex;justify-content:space-between;border-bottom:3px solid ${isReceipt ? "#166534" : "#991b1b"};padding-bottom:12px;margin-bottom:20px}
   .logo{font-size:20px;font-weight:900;color:${isReceipt ? "#166534" : "#991b1b"}}
   .type-badge{background:${isReceipt ? "#dcfce7" : "#fee2e2"};color:${isReceipt ? "#166534" : "#991b1b"};padding:4px 14px;border-radius:6px;font-weight:700;font-size:14px}

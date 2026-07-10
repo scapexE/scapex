@@ -155,6 +155,39 @@ export function resolveFontCss(value: string): string {
   return opt ? opt.family : FONT_OPTIONS[0].family;
 }
 
+// Google Fonts import specs for the built-in fonts (used inside print windows,
+// which are separate documents and don't inherit the app's loaded fonts).
+const GOOGLE_FONT_SPECS: Record<string, string> = {
+  cairo: "Cairo:wght@400;600;700",
+  tajawal: "Tajawal:wght@400;500;700",
+  "ibm-plex": "IBM+Plex+Sans+Arabic:wght@400;600;700",
+  "noto-kufi": "Noto+Kufi+Arabic:wght@400;600;700",
+  rubik: "Rubik:wght@400;600;700",
+  inter: "Inter:wght@400;600;700",
+};
+
+/**
+ * Returns the CSS needed to render printed documents with the system-selected font:
+ * - `family`: the font-family value to use on `body`
+ * - `css`: @import (built-in Google font) or @font-face (uploaded custom font) rules
+ */
+export function getPrintFontCss(): { family: string; css: string } {
+  const value = getSystemSettings().fontFamily;
+  const custom = getCustomFonts().find((f) => f.id === value);
+  if (custom) {
+    return {
+      family: `'${custom.family}', 'Cairo', Arial, sans-serif`,
+      css: `@font-face { font-family: '${custom.family}'; src: url(${custom.dataUrl}) format('${custom.format}'); font-display: swap; }`,
+    };
+  }
+  const opt = FONT_OPTIONS.find((f) => f.value === value) || FONT_OPTIONS[0];
+  const spec = GOOGLE_FONT_SPECS[opt.value as string];
+  return {
+    family: `${opt.family.replace(/, sans-serif$/, "")}, Arial, sans-serif`,
+    css: spec ? `@import url('https://fonts.googleapis.com/css2?family=${spec}&display=swap');` : "",
+  };
+}
+
 export const FONT_SIZE_OPTIONS: { value: FontSize; label: string; labelAr: string; css: string }[] = [
   { value: "small", label: "Small", labelAr: "صغير", css: "14px" },
   { value: "medium", label: "Medium", labelAr: "متوسط", css: "16px" },

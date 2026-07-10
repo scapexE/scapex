@@ -7,6 +7,19 @@ function stripAutoPrint(html: string): string {
     .replace(/<button class="no-print"[\s\S]*?<\/button>/g, "");
 }
 
+// Emailed HTML must stay small — many mail providers reject large bodies, and most
+// email clients ignore embedded web fonts anyway. Strip base64 @font-face rules from
+// the email copy (portal copy keeps full font fidelity).
+const MAX_EMAIL_HTML_BYTES = 1_500_000;
+function emailSafeHtml(html: string): string {
+  let out = html.replace(/@font-face\s*\{[^}]*data:[^}]*\}/g, "");
+  if (out.length > MAX_EMAIL_HTML_BYTES) {
+    // Last resort: also drop big inline data images so the email can be delivered.
+    out = out.replace(/(src|url\()\s*=?\s*["']?data:[^"')]{100000,}["')]?/g, "$1");
+  }
+  return out;
+}
+
 /** Unicode-safe base64 encoding for HTML content. */
 function toBase64(str: string): string {
   const bytes = new TextEncoder().encode(str);
@@ -51,7 +64,7 @@ export async function sendDocumentToClient(p: SendDocumentParams): Promise<SendD
       await apiRequest("POST", "/api/email/send", {
         to: p.email,
         subject: p.titleAr + (p.titleEn ? ` | ${p.titleEn}` : ""),
-        html: cleanHtml,
+        html: emailSafeHtml(cleanHtml),
         category: "document",
       });
       result.emailOk = true;

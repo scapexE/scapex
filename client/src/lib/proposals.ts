@@ -1,5 +1,5 @@
 import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
-import { getAboutData, getSystemSettings } from "@/lib/companySettings";
+import { getAboutData, getSystemSettings, getPrintFontCss } from "@/lib/companySettings";
 import { getDocumentSignatures } from "@/lib/signatures";
 import { esc } from "@/lib/htmlEscape";
 
@@ -767,13 +767,15 @@ export function generateContractFromProposal(proposal: Proposal): Contract {
 
 // ─── PDF Print ────────────────────────────────────────────────────────────────
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;700&display=swap');`;
-const BASE_CSS = `
+function printBaseCss(): string {
+  const font = getPrintFontCss();
+  return `${font.css}
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Noto Sans Arabic', Arial, sans-serif; font-size:13px; color:#1a202c; }
+  body { font-family: ${font.family}; font-size:13px; color:#1a202c; }
   .page { max-width:900px; margin:0 auto; padding:36px; }
   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .page { padding:20px; } }
 `;
+}
 
 export type PrintLanguage = "ar" | "en" | "both";
 
@@ -856,7 +858,7 @@ export function buildProposalHtml(proposal: Proposal, isRtl: boolean, options?: 
   const html = `<!DOCTYPE html><html lang="${ar ? "ar" : "en"}" dir="${mainDir}"><head><meta charset="UTF-8"/>
 <title>${esc(proposal.proposalNumber)}</title>
 <style>
-${FONT_IMPORT}${BASE_CSS}
+${printBaseCss()}
 .header { display:flex; flex-direction:row; align-items:flex-start; margin-bottom:10px; gap:16px; background:${pd.headerBgColor}; ${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}'); background-size:cover; background-position:center;` : ""} ${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "padding:12px 16px; border-radius:8px;" : ""} color:${pd.headerTextColor}; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .header-logo { flex-shrink:0; display:flex; align-items:center; justify-content:center; }
 .logo { background:${pd.accentColor}; color:white; width:64px; height:64px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow:0 2px 6px rgba(30,64,175,0.2); }
@@ -1064,7 +1066,7 @@ export function buildContractHtml(contract: Contract, isRtl: boolean, options?: 
   const html = `<!DOCTYPE html><html lang="${ar ? "ar" : "en"}" dir="${mainDir}"><head><meta charset="UTF-8"/>
 <title>${esc(contract.contractNumber)}</title>
 <style>
-${FONT_IMPORT}${BASE_CSS}
+${printBaseCss()}
 .header { text-align:center; margin-bottom:28px; padding-bottom:18px; border-bottom:3px solid ${pd.accentColor}; background:${pd.headerBgColor}; ${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}'); background-size:cover; background-position:center;` : ""} ${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "padding:14px 16px 18px; border-radius:8px;" : ""} color:${pd.headerTextColor}; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .logo-row { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:10px; }
 .parties { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }

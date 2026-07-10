@@ -1,4 +1,4 @@
-import { getAboutData, getSystemSettings } from "@/lib/companySettings";
+import { getAboutData, getSystemSettings, getPrintFontCss } from "@/lib/companySettings";
 import { dbGetItem } from "@/lib/dbStorage";
 
 function escapeHtml(str: string): string {
@@ -35,10 +35,12 @@ export function buildLetterHtml(opts: { subject?: string; body: string; recipien
   const headerNote = escapeHtml(isRtl ? pd.headerNoteAr : pd.headerNoteEn);
   const now = new Date().toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
   const contactBits = [about.address, about.phone1, about.email1, about.website].filter(Boolean).map((v) => escapeHtml(String(v).split("\n").join(" — "))).join(" · ");
+  const printFont = getPrintFontCss();
   return `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}" lang="${isRtl ? "ar" : "en"}"><head><meta charset="UTF-8"><title>${escapeHtml(opts.subject || (isRtl ? "خطاب رسمي" : "Official Letter"))}</title>
   <style>
+    ${printFont.css}
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI', Tahoma, sans-serif; padding:36px; color:#111827; font-size:14px; line-height:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    body { font-family:${printFont.family}; padding:36px; color:#111827; font-size:14px; line-height:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     .lh { display:flex; align-items:center; gap:14px; padding:16px; border-bottom:3px solid ${pd.accentColor}; margin-bottom:22px; background:${pd.headerBgColor}; ${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}');background-size:cover;background-position:center;` : ""} ${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "border-radius:8px;" : ""} color:${pd.headerTextColor}; }
     .lf { margin-top:36px; padding:12px 16px; border-top:2px solid ${pd.accentColor}; background:${pd.footerBgColor}; ${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""} color:${pd.footerTextColor}; font-size:11px; text-align:center; border-radius:0 0 6px 6px; }
     @media print { .no-print { display:none !important; } }
@@ -81,6 +83,7 @@ export function exportTableToPDF(
   const printWindow = window.open("", "_blank");
   if (!printWindow) return;
 
+  const tableFont = getPrintFontCss();
   const headerCells = headers.map((h) => `<th style="border:1px solid #d1d5db;padding:8px 12px;background:#f3f4f6;font-weight:600;text-align:${isRtl ? "right" : "left"};white-space:nowrap;">${escapeHtml(h)}</th>`).join("");
   const bodyRows = rows.map((row) =>
     `<tr>${row.map((cell) => `<td style="border:1px solid #d1d5db;padding:6px 12px;text-align:${isRtl ? "right" : "left"}">${escapeHtml(cell)}</td>`).join("")}</tr>`
@@ -98,7 +101,8 @@ export function exportTableToPDF(
       <title>${title}</title>
       <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding:40px; color:#111827; direction:${isRtl ? "rtl" : "ltr"}; }
+        ${tableFont.css}
+        body { font-family: ${tableFont.family}; padding:40px; color:#111827; direction:${isRtl ? "rtl" : "ltr"}; }
         @media print {
           body { padding:20px; }
           .no-print { display:none !important; }
