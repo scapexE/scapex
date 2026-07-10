@@ -17,6 +17,7 @@ jobs:
           RESPONSE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
             -X POST https://erp.scape.sa/deploy \
             -H "Content-Type: application/json" \
+            -H "x-deploy-secret: ${{ secrets.DEPLOY_HOOK_SECRET }}" \
             -d '{"ref":"refs/heads/main"}' \
             --max-time 300)
           echo "HTTP Status: $RESPONSE"
