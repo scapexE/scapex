@@ -719,8 +719,10 @@ export function CompanySettingsPanel({ companies, onSaved }: {
                             <div className="w-10 h-10 rounded flex items-center justify-center text-white font-bold" style={{ background: pd.accentColor }}>S</div>
                           ) : null}
                           <div>
-                            <div className="font-bold text-sm">{form.companyNameAr || "اسم الشركة"}</div>
-                            <div className="text-[10px]" style={{ opacity: 0.8 }}>{form.companyNameEn || "Company Name"}</div>
+                            <div className="inline-block text-center">
+                              <div className="font-bold text-sm">{form.companyNameAr || "اسم الشركة"}</div>
+                              <div className="text-[10px]" style={{ opacity: 0.8 }}>{form.companyNameEn || "Company Name"}</div>
+                            </div>
                             {pd.headerNoteAr && <div className="text-[10px] whitespace-pre-line" style={{ opacity: 0.85 }}>{pd.headerNoteAr}</div>}
                           </div>
                         </div>

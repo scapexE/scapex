@@ -863,6 +863,7 @@ ${printBaseCss()}
 .header-logo { flex-shrink:0; display:flex; align-items:center; justify-content:center; }
 .logo { background:${pd.accentColor}; color:white; width:64px; height:64px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow:0 2px 6px rgba(30,64,175,0.2); }
 .header-name { flex:1; text-align:right; direction:rtl; }
+.co-name-block { display:inline-block; text-align:center; }
 .co-name-ar { font-size:19px; font-weight:700; color:${pd.headerTextColor}; line-height:1.25; }
 .co-name-en { font-size:13px; font-weight:500; color:${pd.headerTextColor}; opacity:0.8; line-height:1.25; margin-top:2px; }
 .co-vat { font-size:9px; color:${pd.headerTextColor}; opacity:0.65; margin-top:4px; }
@@ -899,8 +900,10 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
     ${logoHtml}
   </div>
   <div class="header-name" dir="rtl">
-    <div class="co-name-ar">${esc(coNameAr)}</div>
-    <div class="co-name-en">${esc(coNameEn)}</div>
+    <div class="co-name-block">
+      <div class="co-name-ar">${esc(coNameAr)}</div>
+      <div class="co-name-en">${esc(coNameEn)}</div>
+    </div>
     <div class="co-vat">${bi(`الرقم الضريبي: ${esc(coVat)}`, `VAT No: ${esc(coVat)}`)}</div>
     ${(() => { const note = lang === "both" ? [pd.headerNoteAr, pd.headerNoteEn].filter(Boolean).join(" / ") : ar ? pd.headerNoteAr : pd.headerNoteEn; return note ? `<div class="header-note">${esc(note)}</div>` : ""; })()}
   </div>

@@ -179,8 +179,10 @@ export function InvoicesTab() {
       <div style="display:flex;align-items:center;gap:12px">
         ${logoHtml}
         <div>
-          <div style="font-size:15px;font-weight:700;color:${pd.headerTextColor}">${esc(isRtl ? coNameAr : coNameEn)}</div>
-          <div style="font-size:10px;color:${pd.headerTextColor};opacity:0.75">${esc(isRtl ? coNameEn : coNameAr)}</div>
+          <div style="display:inline-block;text-align:center">
+            <div style="font-size:15px;font-weight:700;color:${pd.headerTextColor}">${esc(isRtl ? coNameAr : coNameEn)}</div>
+            <div style="font-size:10px;color:${pd.headerTextColor};opacity:0.75">${esc(isRtl ? coNameEn : coNameAr)}</div>
+          </div>
           ${headerNote ? `<div style="font-size:10px;color:${pd.headerTextColor};opacity:0.85;margin-top:2px;white-space:pre-line">${headerNote}</div>` : ""}
         </div>
       </div>

@@ -48,9 +48,11 @@ export function buildLetterHtml(opts: { subject?: string; body: string; recipien
   <button class="no-print" onclick="window.print()" style="background:${pd.accentColor};color:white;border:none;padding:8px 20px;border-radius:6px;font-size:14px;cursor:pointer;margin-bottom:18px;">🖨️ ${isRtl ? "طباعة / حفظ PDF" : "Print / Save as PDF"}</button>
   <div class="lh">
     ${logoHtml}
-    <div style="flex:1">
-      <div style="font-size:17px;font-weight:700">${escapeHtml(isRtl ? coNameAr : coNameEn)}</div>
-      <div style="font-size:11px;opacity:0.8">${escapeHtml(isRtl ? coNameEn : coNameAr)}</div>
+    <div style="flex:1;text-align:${isRtl ? "right" : "left"}">
+      <div style="display:inline-block;text-align:center">
+        <div style="font-size:17px;font-weight:700">${escapeHtml(isRtl ? coNameAr : coNameEn)}</div>
+        <div style="font-size:11px;opacity:0.8">${escapeHtml(isRtl ? coNameEn : coNameAr)}</div>
+      </div>
       ${headerText ? `<div style="font-size:11px;opacity:0.9;margin-top:3px;white-space:pre-line">${headerText}</div>` : ""}
       ${headerNote ? `<div style="font-size:10px;opacity:0.85;margin-top:2px;white-space:pre-line">${headerNote}</div>` : ""}
     </div>
