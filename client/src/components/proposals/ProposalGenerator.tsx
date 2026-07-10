@@ -41,6 +41,8 @@ import {
 import { SignatureDialog } from "@/components/proposals/SignatureDialog";
 import { getDocumentSignatures } from "@/lib/signatures";
 import { PenLine } from "lucide-react";
+import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
+import { buildProposalHtml, buildContractHtml } from "@/lib/proposals";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 
@@ -1020,6 +1022,10 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
           {/* Print — opens pre-print dialog */}
           <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => { setPrintShowValidity(true); setPrintLang(isRtl ? "ar" : "en"); setShowPrintDialog(true); }} data-testid="button-open-print-dialog">
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة PDF" : "Print PDF"}
+          </Button>
+          {/* Send copy to client (email + portal) */}
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-blue-600 border-blue-300" onClick={() => setShowSendDialog(true)} data-testid="button-open-send-proposal">
+            <Send className="w-3.5 h-3.5" />{isRtl ? "إرسال للعميل" : "Send to Client"}
           </Button>
           {/* Price analysis toggle */}
           <Button size="sm" variant="outline"

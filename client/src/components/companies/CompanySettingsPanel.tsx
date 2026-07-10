@@ -634,6 +634,111 @@ export function CompanySettingsPanel({ companies, onSaved }: {
 
           <Card className="border-border/50">
             <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><ImageIcon className="w-4 h-4 text-amber-600" />{t("تصميم الترويسة والتذييل", "Header & Footer Design")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {(() => {
+                const pd = { ...DEFAULT_PRINT_DESIGN, ...(sysForm.printDesign || {}) };
+                const ColorField = ({ label, value, onChange, testId }: { label: string; value: string; onChange: (v: string) => void; testId: string }) => (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{label}</Label>
+                    <div className="flex items-center gap-2">
+                      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="w-9 h-9 rounded border border-border cursor-pointer p-0.5 bg-transparent" data-testid={testId} />
+                      <Input value={value} onChange={(e) => onChange(e.target.value)} className="text-xs font-mono h-9 w-24" dir="ltr" />
+                    </div>
+                  </div>
+                );
+                const ImageField = ({ label, value, field, testId }: { label: string; value: string; field: "headerLogo" | "headerBgImage" | "footerBgImage"; testId: string }) => (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{label}</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-14 h-14 rounded-lg border border-dashed border-border flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
+                        {value ? <img src={value} alt="" className="w-full h-full object-contain" /> : <ImageIcon className="w-5 h-5 text-muted-foreground" />}
+                      </div>
+                      <label className="cursor-pointer">
+                        <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border border-border hover:bg-muted transition-colors"><Upload className="w-3 h-3" />{t("رفع", "Upload")}</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleDesignImage(field)} data-testid={testId} />
+                      </label>
+                      {value && (
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-destructive" onClick={() => updatePrintDesign(field, "")} data-testid={`${testId}-remove`}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+                return (
+                  <>
+                    <div className="text-xs text-muted-foreground">{t(
+                      "هذه الإعدادات تنطبق على طباعة عروض الأسعار والعقود والفواتير والخطابات الرسمية.",
+                      "These settings apply to printed proposals, contracts, invoices, and official letters.",
+                    )}</div>
+                    <div className="space-y-3">
+                      <div className="text-sm font-semibold">{t("الترويسة (أعلى الصفحة)", "Header (top of page)")}</div>
+                      <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
+                        <Label className="text-xs">{t("إظهار الشعار في الترويسة", "Show logo in header")}</Label>
+                        <Switch checked={pd.showLogo} onCheckedChange={(v) => updatePrintDesign("showLogo", v)} data-testid="switch-print-show-logo" />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <ImageField label={t("شعار خاص بالطباعة (اختياري — يستبدل شعار الشركة)", "Print logo (optional — overrides company logo)")} value={pd.headerLogo} field="headerLogo" testId="input-print-header-logo" />
+                        <ImageField label={t("صورة خلفية الترويسة (اختياري)", "Header background image (optional)")} value={pd.headerBgImage} field="headerBgImage" testId="input-print-header-bg-image" />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <ColorField label={t("لون خلفية الترويسة", "Header background")} value={pd.headerBgColor} onChange={(v) => updatePrintDesign("headerBgColor", v)} testId="input-print-header-bg-color" />
+                        <ColorField label={t("لون نص الترويسة", "Header text")} value={pd.headerTextColor} onChange={(v) => updatePrintDesign("headerTextColor", v)} testId="input-print-header-text-color" />
+                        <ColorField label={t("اللون الأساسي (الخطوط والجداول)", "Accent (lines & tables)")} value={pd.accentColor} onChange={(v) => updatePrintDesign("accentColor", v)} testId="input-print-accent-color" />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <SettingsField label={t("نص إضافي في الترويسة (عربي)", "Extra header text (Arabic)")} value={pd.headerNoteAr} onChange={(v) => updatePrintDesign("headerNoteAr", v)} textarea placeholder={t("مثال: سجل تجاري 1010XXXXXX — عضوية الهيئة السعودية للمهندسين", "e.g. CR 1010XXXXXX")} />
+                        <SettingsField label={t("نص إضافي في الترويسة (إنجليزي)", "Extra header text (English)")} value={pd.headerNoteEn} onChange={(v) => updatePrintDesign("headerNoteEn", v)} textarea dir="ltr" placeholder="e.g. CR 1010XXXXXX" />
+                      </div>
+                    </div>
+                    <div className="space-y-3 pt-2 border-t border-border/50">
+                      <div className="text-sm font-semibold">{t("التذييل (أسفل الصفحة)", "Footer (bottom of page)")}</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <ColorField label={t("لون خلفية التذييل", "Footer background")} value={pd.footerBgColor} onChange={(v) => updatePrintDesign("footerBgColor", v)} testId="input-print-footer-bg-color" />
+                        <ColorField label={t("لون نص التذييل", "Footer text")} value={pd.footerTextColor} onChange={(v) => updatePrintDesign("footerTextColor", v)} testId="input-print-footer-text-color" />
+                        <div className="col-span-2 sm:col-span-1">
+                          <ImageField label={t("صورة خلفية التذييل (اختياري)", "Footer background image (optional)")} value={pd.footerBgImage} field="footerBgImage" testId="input-print-footer-bg-image" />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Live preview */}
+                    <div className="space-y-2 pt-2 border-t border-border/50">
+                      <div className="text-sm font-semibold">{t("معاينة مباشرة", "Live Preview")}</div>
+                      <div className="rounded-lg border border-border overflow-hidden bg-white text-black" dir="rtl" data-testid="preview-print-design">
+                        <div style={{ background: pd.headerBgColor, backgroundImage: pd.headerBgImage ? `url(${pd.headerBgImage})` : undefined, backgroundSize: "cover", backgroundPosition: "center", color: pd.headerTextColor, borderBottom: `3px solid ${pd.accentColor}` }} className="flex items-center gap-3 px-4 py-3">
+                          {pd.showLogo && (pd.headerLogo || sysForm.brandLogo) ? (
+                            <img src={pd.headerLogo || sysForm.brandLogo} alt="" className="w-10 h-10 object-contain rounded" />
+                          ) : pd.showLogo ? (
+                            <div className="w-10 h-10 rounded flex items-center justify-center text-white font-bold" style={{ background: pd.accentColor }}>S</div>
+                          ) : null}
+                          <div>
+                            <div className="font-bold text-sm">{form.companyNameAr || "اسم الشركة"}</div>
+                            <div className="text-[10px]" style={{ opacity: 0.8 }}>{form.companyNameEn || "Company Name"}</div>
+                            {pd.headerNoteAr && <div className="text-[10px] whitespace-pre-line" style={{ opacity: 0.85 }}>{pd.headerNoteAr}</div>}
+                          </div>
+                        </div>
+                        <div className="px-4 py-4 text-[11px] text-gray-400 text-center">{t("... محتوى المستند ...", "... document content ...")}</div>
+                        <div style={{ background: pd.footerBgColor, backgroundImage: pd.footerBgImage ? `url(${pd.footerBgImage})` : undefined, backgroundSize: "cover", backgroundPosition: "center", color: pd.footerTextColor, borderTop: `2px solid ${pd.accentColor}` }} className="px-4 py-2.5 text-center text-[10px]">
+                          📍 {form.address ? form.address.split("\n")[0] : t("العنوان", "Address")} · 📞 {form.phone1 || "05XXXXXXXX"} · ✉ {form.email1 || "info@company.com"}
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-preview-letter"
+                          onClick={() => printLetter({ subject: t("خطاب تجريبي", "Sample Letter"), body: t("هذا نص تجريبي لمعاينة تصميم الترويسة والتذييل على الخطابات الرسمية.\n\nمع خالص التحية،", "This is a sample body to preview the header & footer design on official letters.\n\nBest regards,"), isRtl: dir === "rtl" })}>
+                          <Printer className="w-3.5 h-3.5" />{t("معاينة طباعة خطاب", "Preview letter print")}
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />{t("قالب عرض السعر", "Proposal Template")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

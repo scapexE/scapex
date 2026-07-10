@@ -783,6 +783,12 @@ export interface PrintProposalOptions {
 }
 
 export function printProposal(proposal: Proposal, isRtl: boolean, options?: PrintProposalOptions): void {
+  const html = buildProposalHtml(proposal, isRtl, options);
+  const w = window.open("", "_blank");
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+export function buildProposalHtml(proposal: Proposal, isRtl: boolean, options?: PrintProposalOptions): string {
   const showValidity = options?.showValidity !== false;
   const lang = options?.language || (isRtl ? "ar" : "en");
   const ar = lang === "ar" || lang === "both";
@@ -989,11 +995,16 @@ ${(() => {
 </div>
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
+  return html;
+}
+
+export function printContract(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage }): void {
+  const html = buildContractHtml(contract, isRtl, options);
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); }
 }
 
-export function printContract(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage }): void {
+export function buildContractHtml(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage }): string {
   const lang = options?.language || (isRtl ? "ar" : "en");
   const ar = lang === "ar" || lang === "both";
   const en = lang === "en" || lang === "both";
@@ -1149,6 +1160,5 @@ ${(() => {
 </div>
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
-  const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); }
+  return html;
 }
