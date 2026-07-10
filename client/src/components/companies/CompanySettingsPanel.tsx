@@ -23,7 +23,10 @@ import {
   FONT_OPTIONS, FONT_SIZE_OPTIONS,
   type CustomFont, getCustomFonts, addCustomFont, deleteCustomFont,
   fontFormatFromFileName, MAX_FONT_FILE_BYTES, getAllFontOptions,
+  type PrintDesign, DEFAULT_PRINT_DESIGN,
 } from "@/lib/companySettings";
+import { Switch } from "@/components/ui/switch";
+import { printLetter } from "@/lib/pdfExport";
 import { logAction } from "@/lib/auditLog";
 
 function SettingsField({ label, value, onChange, textarea, dir: fieldDir, placeholder, disabled }: {
@@ -189,6 +192,31 @@ export function CompanySettingsPanel({ companies, onSaved }: {
     setSysForm((prev) => ({ ...prev, [key]: val }));
     setHasSysChanges(true);
   }, []);
+
+  const updatePrintDesign = useCallback(<K extends keyof PrintDesign>(key: K, val: PrintDesign[K]) => {
+    setSysForm((prev) => ({
+      ...prev,
+      printDesign: { ...DEFAULT_PRINT_DESIGN, ...(prev.printDesign || {}), [key]: val },
+    }));
+    setHasSysChanges(true);
+  }, []);
+
+  const handleDesignImage = useCallback((key: "headerLogo" | "headerBgImage" | "footerBgImage") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: t("ملف غير مدعوم", "Unsupported file"), description: t("اختر ملف صورة (PNG/JPG/SVG)", "Choose an image file (PNG/JPG/SVG)"), variant: "destructive" });
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      toast({ title: t("الصورة كبيرة", "Image too large"), description: t("الحد الأقصى 1 ميجابايت", "Maximum size is 1MB"), variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => updatePrintDesign(key, ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }, [t, toast, updatePrintDesign]);
 
   const handleSaveInfo = async () => {
     if (!selectedCompany) return;

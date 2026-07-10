@@ -5,11 +5,41 @@ export type DateFormat = "gregorian" | "hijri" | "both";
 export type FontFamily = "cairo" | "tajawal" | "ibm-plex" | "noto-kufi" | "rubik" | "inter" | "system" | (string & {});
 export type FontSize = "small" | "medium" | "large";
 
+// ---- Print header/footer design (applies to proposals, contracts, invoices, letters) ----
+export interface PrintDesign {
+  headerBgColor: string;    // header background color
+  headerTextColor: string;  // header text color
+  headerBgImage: string;    // optional background image (data URL)
+  headerLogo: string;       // optional dedicated print logo (data URL); falls back to company logo
+  showLogo: boolean;
+  headerNoteAr: string;     // extra line shown in the header (Arabic)
+  headerNoteEn: string;     // extra line shown in the header (English)
+  accentColor: string;      // dividers / table headers / lines
+  footerBgColor: string;
+  footerTextColor: string;
+  footerBgImage: string;    // optional background image (data URL)
+}
+
+export const DEFAULT_PRINT_DESIGN: PrintDesign = {
+  headerBgColor: "#ffffff",
+  headerTextColor: "#1a202c",
+  headerBgImage: "",
+  headerLogo: "",
+  showLogo: true,
+  headerNoteAr: "",
+  headerNoteEn: "",
+  accentColor: "#1e40af",
+  footerBgColor: "#f8fafc",
+  footerTextColor: "#374151",
+  footerBgImage: "",
+};
+
 export interface SystemSettings {
   timeFormat: TimeFormat;
   dateFormat: DateFormat;
   fontFamily: FontFamily;
   fontSize: FontSize;
+  printDesign: PrintDesign;
   proposalFooterAr: string;
   proposalFooterEn: string;
   invoiceFooterAr: string;
@@ -136,6 +166,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   dateFormat: "both",
   fontFamily: "cairo",
   fontSize: "medium",
+  printDesign: { ...DEFAULT_PRINT_DESIGN },
   proposalFooterAr: "نشكركم على ثقتكم بنا ونتطلع للعمل معكم",
   proposalFooterEn: "Thank you for your trust. We look forward to working with you.",
   invoiceFooterAr: "يرجى السداد خلال 30 يوماً من تاريخ الفاتورة",
@@ -161,20 +192,33 @@ export function systemSettingsKey(companyId?: number | string | null): string {
     : SYSTEM_SETTINGS_KEY;
 }
 
+function mergeSettings(parsed: any): SystemSettings {
+  return {
+    ...DEFAULT_SYSTEM_SETTINGS,
+    ...parsed,
+    printDesign: { ...DEFAULT_PRINT_DESIGN, ...(parsed?.printDesign || {}) },
+  };
+}
+
 export function getSystemSettings(companyId?: number | string | null): SystemSettings {
   try {
     if (companyId != null && companyId !== "") {
       const perCompany = dbGetItem(systemSettingsKey(companyId));
-      if (perCompany) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(perCompany) };
+      if (perCompany) return mergeSettings(JSON.parse(perCompany));
       // Migration fallback: inherit the global settings until this company is customised.
       const global = dbGetItem(SYSTEM_SETTINGS_KEY);
-      if (global) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(global) };
+      if (global) return mergeSettings(JSON.parse(global));
       return DEFAULT_SYSTEM_SETTINGS;
     }
     const stored = dbGetItem(SYSTEM_SETTINGS_KEY);
-    if (stored) return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(stored) };
+    if (stored) return mergeSettings(JSON.parse(stored));
   } catch {}
   return DEFAULT_SYSTEM_SETTINGS;
+}
+
+/** Resolved print design for the active/primary company. */
+export function getPrintDesign(): PrintDesign {
+  return getSystemSettings().printDesign;
 }
 
 export function saveSystemSettings(

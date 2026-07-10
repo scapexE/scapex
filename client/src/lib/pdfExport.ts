@@ -1,5 +1,70 @@
+import { getAboutData, getSystemSettings } from "@/lib/companySettings";
+import { dbGetItem } from "@/lib/dbStorage";
+
 function escapeHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function activeCompanyLogo(): string {
+  try {
+    const raw = dbGetItem("scapex_companies");
+    if (raw) {
+      const cos = JSON.parse(raw) as Array<{ id: string; logoUrl?: string }>;
+      const aid = dbGetItem("scapex_active_company");
+      const co = aid ? cos.find((c) => c.id === aid) : cos[0];
+      return co?.logoUrl || "";
+    }
+  } catch {}
+  return "";
+}
+
+/** Print an official letter (خطاب رسمي) using the configured print design + letter header/footer texts. */
+export function printLetter(opts: { subject?: string; body: string; recipient?: string; isRtl?: boolean }): void {
+  const isRtl = opts.isRtl !== false;
+  const sysCfg = getSystemSettings();
+  const pd = sysCfg.printDesign;
+  const about = getAboutData();
+  const coNameAr = about.companyNameAr || "";
+  const coNameEn = about.companyNameEn || "";
+  const logoUrl = pd.headerLogo || activeCompanyLogo();
+  const logoHtml = !pd.showLogo ? "" : logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" style="width:60px;height:60px;object-fit:contain;border-radius:8px" />`
+    : "";
+  const headerText = escapeHtml(isRtl ? (sysCfg.letterHeaderAr || "") : (sysCfg.letterHeaderEn || sysCfg.letterHeaderAr || ""));
+  const footerText = escapeHtml(isRtl ? (sysCfg.letterFooterAr || "") : (sysCfg.letterFooterEn || sysCfg.letterFooterAr || ""));
+  const headerNote = escapeHtml(isRtl ? pd.headerNoteAr : pd.headerNoteEn);
+  const now = new Date().toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
+  const contactBits = [about.address, about.phone1, about.email1, about.website].filter(Boolean).map((v) => escapeHtml(String(v).split("\n").join(" — "))).join(" · ");
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}" lang="${isRtl ? "ar" : "en"}"><head><meta charset="UTF-8"><title>${escapeHtml(opts.subject || (isRtl ? "خطاب رسمي" : "Official Letter"))}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI', Tahoma, sans-serif; padding:36px; color:#111827; font-size:14px; line-height:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .lh { display:flex; align-items:center; gap:14px; padding:16px; border-bottom:3px solid ${pd.accentColor}; margin-bottom:22px; background:${pd.headerBgColor}; ${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}');background-size:cover;background-position:center;` : ""} ${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "border-radius:8px;" : ""} color:${pd.headerTextColor}; }
+    .lf { margin-top:36px; padding:12px 16px; border-top:2px solid ${pd.accentColor}; background:${pd.footerBgColor}; ${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""} color:${pd.footerTextColor}; font-size:11px; text-align:center; border-radius:0 0 6px 6px; }
+    @media print { .no-print { display:none !important; } }
+  </style></head><body>
+  <button class="no-print" onclick="window.print()" style="background:${pd.accentColor};color:white;border:none;padding:8px 20px;border-radius:6px;font-size:14px;cursor:pointer;margin-bottom:18px;">🖨️ ${isRtl ? "طباعة / حفظ PDF" : "Print / Save as PDF"}</button>
+  <div class="lh">
+    ${logoHtml}
+    <div style="flex:1">
+      <div style="font-size:17px;font-weight:700">${escapeHtml(isRtl ? coNameAr : coNameEn)}</div>
+      <div style="font-size:11px;opacity:0.8">${escapeHtml(isRtl ? coNameEn : coNameAr)}</div>
+      ${headerText ? `<div style="font-size:11px;opacity:0.9;margin-top:3px;white-space:pre-line">${headerText}</div>` : ""}
+      ${headerNote ? `<div style="font-size:10px;opacity:0.85;margin-top:2px;white-space:pre-line">${headerNote}</div>` : ""}
+    </div>
+  </div>
+  <div style="text-align:${isRtl ? "left" : "right"};font-size:12px;color:#6b7280;margin-bottom:14px">${isRtl ? "التاريخ" : "Date"}: ${now}</div>
+  ${opts.recipient ? `<div style="font-weight:600;margin-bottom:10px">${escapeHtml(opts.recipient)}</div>` : ""}
+  ${opts.subject ? `<div style="font-weight:700;font-size:15px;color:${pd.accentColor};margin-bottom:14px">${isRtl ? "الموضوع" : "Subject"}: ${escapeHtml(opts.subject)}</div>` : ""}
+  <div style="white-space:pre-line;min-height:300px">${escapeHtml(opts.body)}</div>
+  <div class="lf">
+    ${footerText ? `<div style="white-space:pre-line;margin-bottom:4px">${footerText}</div>` : ""}
+    ${contactBits ? `<div>${contactBits}</div>` : ""}
+  </div>
+  </body></html>`);
+  w.document.close();
 }
 
 export function exportTableToPDF(

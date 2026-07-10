@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Search, Printer, Trash2, Eye, CheckCircle2, Send, FileText, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getAboutData, getSystemSettings } from "@/lib/companySettings";
+import { dbGetItem } from "@/lib/dbStorage";
 import { ExportMenu } from "@/components/shared/ExportMenu";
 
 interface InvItem { descAr: string; descEn: string; qty: number; unit: string; unitPrice: number; total: number; }
@@ -128,22 +130,58 @@ export function InvoicesTab() {
   };
 
   const printInvoice = (inv: Invoice) => {
+    const sysCfg = getSystemSettings();
+    const pd = sysCfg.printDesign;
+    const about = getAboutData();
+    const coNameAr = about.companyNameAr || "شركة سكابكس";
+    const coNameEn = about.companyNameEn || "Scapex Company";
+    const coVat = about.vatNumber || "310000000000003";
+    let coLogoUrl = pd.headerLogo || "";
+    if (!coLogoUrl) {
+      try {
+        const raw = dbGetItem("scapex_companies");
+        if (raw) {
+          const cos = JSON.parse(raw) as Array<{ id: string; logoUrl?: string }>;
+          const aid = dbGetItem("scapex_active_company");
+          const co = aid ? cos.find(c => c.id === aid) : cos[0];
+          coLogoUrl = co?.logoUrl || "";
+        }
+      } catch {}
+    }
+    const logoHtml = !pd.showLogo
+      ? ""
+      : coLogoUrl
+      ? `<img src="${esc(coLogoUrl)}" style="width:56px;height:56px;object-fit:contain;border-radius:8px" />`
+      : `<div style="font-size:22px;font-weight:900;color:${pd.accentColor}">${esc(coNameEn.charAt(0).toUpperCase() || "S")}</div>`;
+    const headerNote = esc(isRtl ? pd.headerNoteAr : pd.headerNoteEn);
+    const customFooter = esc(isRtl ? sysCfg.invoiceFooterAr : sysCfg.invoiceFooterEn);
+    const contactBits = [about.address, about.phone1, about.email1, about.website].filter(Boolean).map(v => esc(String(v).split("\n").join(" — "))).join(" · ");
     const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${esc(inv.invoiceNumber)}</title>
-    <style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;margin:0;padding:20px;color:#1a1a1a}
-    .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e40af;padding-bottom:15px;margin-bottom:20px}
-    .logo{font-size:22px;font-weight:900;color:#1e40af}.inv-title{font-size:16px;font-weight:700;color:#1e40af;text-align:center;margin:10px 0}
+    <style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;margin:0;padding:20px;color:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ${pd.accentColor};padding-bottom:15px;margin-bottom:20px;background:${pd.headerBgColor};${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}');background-size:cover;background-position:center;` : ""}${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "padding:14px 16px;border-radius:8px;" : ""}color:${pd.headerTextColor}}
+    .inv-title{font-size:16px;font-weight:700;color:${pd.accentColor};text-align:center;margin:10px 0}
     .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;background:#f8fafc;padding:12px;border-radius:8px}
     .info-label{color:#64748b;font-size:10px}.info-value{font-weight:600;font-size:12px}
     table{width:100%;border-collapse:collapse;margin:15px 0}
-    th{background:#1e40af;color:white;padding:8px;text-align:${isRtl ? "right" : "left"};font-size:11px}
+    th{background:${pd.accentColor};color:white;padding:8px;text-align:${isRtl ? "right" : "left"};font-size:11px}
     td{padding:7px 8px;border-bottom:1px solid #e2e8f0;font-size:11px}tr:nth-child(even){background:#f8fafc}
     .totals{margin-top:15px;display:flex;flex-direction:column;align-items:${isRtl ? "flex-start" : "flex-end"};gap:5px}
-    .total-row{display:flex;gap:20px;font-size:12px}.total-row.grand{font-weight:700;font-size:14px;color:#1e40af;border-top:2px solid #1e40af;padding-top:8px}
+    .total-row{display:flex;gap:20px;font-size:12px}.total-row.grand{font-weight:700;font-size:14px;color:${pd.accentColor};border-top:2px solid ${pd.accentColor};padding-top:8px}
     .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
     .badge-draft{background:#f1f5f9;color:#475569}.badge-paid{background:#dcfce7;color:#166534}.badge-sent{background:#dbeafe;color:#1d4ed8}.badge-partial{background:#fef9c3;color:#854d0e}
-    .footer{margin-top:30px;border-top:1px solid #e2e8f0;padding-top:10px;text-align:center;color:#94a3b8;font-size:10px}</style>
+    .footer{margin-top:30px;border-top:2px solid ${pd.accentColor};padding:10px 14px;text-align:center;color:${pd.footerTextColor};font-size:10px;background:${pd.footerBgColor};${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""}border-radius:0 0 6px 6px}</style>
     </head><body>
-    <div class="header"><div class="logo">Scapex</div><div><span class="badge badge-${inv.status}">${inv.status.toUpperCase()}</span></div></div>
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:12px">
+        ${logoHtml}
+        <div>
+          <div style="font-size:15px;font-weight:700;color:${pd.headerTextColor}">${esc(isRtl ? coNameAr : coNameEn)}</div>
+          <div style="font-size:10px;color:${pd.headerTextColor};opacity:0.75">${esc(isRtl ? coNameEn : coNameAr)}</div>
+          ${headerNote ? `<div style="font-size:10px;color:${pd.headerTextColor};opacity:0.85;margin-top:2px;white-space:pre-line">${headerNote}</div>` : ""}
+        </div>
+      </div>
+      <div><span class="badge badge-${inv.status}">${inv.status.toUpperCase()}</span></div>
+    </div>
     <div class="inv-title">${isRtl ? "فاتورة ضريبية" : "Tax Invoice"}</div>
     <div class="info-grid">
       <div><div class="info-label">${isRtl ? "رقم الفاتورة" : "Invoice No."}</div><div class="info-value">${esc(inv.invoiceNumber)}</div></div>
@@ -167,7 +205,11 @@ export function InvoicesTab() {
       ${parseFloat(inv.paidAmount) > 0 ? `<div class="total-row"><span style="color:#16a34a">${isRtl ? "المدفوع:" : "Paid:"}</span><span style="color:#16a34a">${parseFloat(inv.paidAmount).toLocaleString()} ${inv.currency}</span></div>` : ""}
     </div>
     ${inv.notes ? `<div style="margin-top:15px;padding:10px;background:#f8fafc;border-radius:6px;font-size:11px;color:#475569">${esc(inv.notes)}</div>` : ""}
-    <div class="footer">شركة سكابكس · Scapex Company · VAT No: 310000000000003</div>
+    <div class="footer">
+      <div>${esc(coNameAr)} · ${esc(coNameEn)} · ${isRtl ? "الرقم الضريبي" : "VAT No"}: ${esc(coVat)}</div>
+      ${contactBits ? `<div style="margin-top:4px">${contactBits}</div>` : ""}
+      ${customFooter ? `<div style="margin-top:6px;font-style:italic;opacity:0.9">${customFooter}</div>` : ""}
+    </div>
     </body></html>`;
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }

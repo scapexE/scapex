@@ -804,6 +804,7 @@ export function printProposal(proposal: Proposal, isRtl: boolean, options?: Prin
 
   // ── Company data: getAboutData() is the single source of truth ──
   const aboutData = getAboutData();
+  const pd = getSystemSettings().printDesign;
   const coNameAr   = aboutData.companyNameAr || "شركة سكيب للاستشارات والخدمات الهندسية";
   const coNameEn   = aboutData.companyNameEn || "Scapex Consulting & Engineering Services";
   const coVat      = aboutData.vatNumber || "300123456700003";
@@ -824,8 +825,11 @@ export function printProposal(proposal: Proposal, isRtl: boolean, options?: Prin
     }
   } catch {}
 
-  // ── Build logo HTML ───────────────────────────────────────────────────────
-  const logoHtml = coLogoUrl
+  // ── Build logo HTML (print design logo overrides company logo) ───────────
+  if (pd.headerLogo) coLogoUrl = pd.headerLogo;
+  const logoHtml = !pd.showLogo
+    ? ""
+    : coLogoUrl
     ? `<img src="${esc(coLogoUrl)}" style="width:64px;height:64px;object-fit:contain;border-radius:10px;display:block;" />`
     : `<div style="background:${coLogoColor};color:white;width:64px;height:64px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.15);">${coLogoChar}</div>`;
 
@@ -847,17 +851,18 @@ export function printProposal(proposal: Proposal, isRtl: boolean, options?: Prin
 <title>${esc(proposal.proposalNumber)}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
-.header { display:flex; flex-direction:row; align-items:flex-start; margin-bottom:10px; gap:16px; }
+.header { display:flex; flex-direction:row; align-items:flex-start; margin-bottom:10px; gap:16px; background:${pd.headerBgColor}; ${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}'); background-size:cover; background-position:center;` : ""} ${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "padding:12px 16px; border-radius:8px;" : ""} color:${pd.headerTextColor}; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .header-logo { flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-.logo { background:#1e40af; color:white; width:64px; height:64px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow:0 2px 6px rgba(30,64,175,0.2); }
+.logo { background:${pd.accentColor}; color:white; width:64px; height:64px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow:0 2px 6px rgba(30,64,175,0.2); }
 .header-name { flex:1; text-align:right; direction:rtl; }
-.co-name-ar { font-size:19px; font-weight:700; color:#1a202c; line-height:1.25; }
-.co-name-en { font-size:13px; font-weight:500; color:#4a5568; line-height:1.25; margin-top:2px; }
-.co-vat { font-size:9px; color:#94a3b8; margin-top:4px; }
-.divider { border:none; border-top:2px solid #1e40af; margin:10px 0; }
+.co-name-ar { font-size:19px; font-weight:700; color:${pd.headerTextColor}; line-height:1.25; }
+.co-name-en { font-size:13px; font-weight:500; color:${pd.headerTextColor}; opacity:0.8; line-height:1.25; margin-top:2px; }
+.co-vat { font-size:9px; color:${pd.headerTextColor}; opacity:0.65; margin-top:4px; }
+.header-note { font-size:10px; color:${pd.headerTextColor}; opacity:0.85; margin-top:4px; white-space:pre-line; }
+.divider { border:none; border-top:2px solid ${pd.accentColor}; margin:10px 0; }
 .doc-num-block { direction:ltr; text-align:left; margin-bottom:6px; }
-.doc-num { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; }
-.doc-date { font-size:12px; font-weight:700; color:#1e40af; font-family:monospace; margin-top:2px; }
+.doc-num { font-size:12px; font-weight:700; color:${pd.accentColor}; font-family:monospace; }
+.doc-date { font-size:12px; font-weight:700; color:${pd.accentColor}; font-family:monospace; margin-top:2px; }
 .doc-title { text-align:center; font-size:16px; font-weight:700; color:#1a202c; margin-bottom:8px; }
 .intro-box { background:#f0f7ff; ${mainDir === "rtl" ? "border-right:4px solid #1e40af; border-radius:0 6px 6px 0;" : "border-left:4px solid #1e40af; border-radius:6px 0 0 6px;"} padding:8px 14px; font-size:12px; line-height:1.7; color:#1e3a5f; margin-bottom:8px; }
 .sec-title { font-size:11px; font-weight:700; color:#1e40af; margin-bottom:4px; padding-bottom:2px; border-bottom:1px solid #bfdbfe; letter-spacing:0.4px; }
@@ -866,18 +871,18 @@ ${FONT_IMPORT}${BASE_CSS}
 .info-item span { font-size:12px; font-weight:500; }
 .scope-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:5px; padding:8px; font-size:12px; line-height:1.7; margin-bottom:8px; }
 table { width:100%; border-collapse:collapse; margin-bottom:12px; }
-thead th { background:#1e40af; color:white; padding:8px 5px; font-size:11px; font-weight:600; border:1px solid #1e40af; }
+thead th { background:${pd.accentColor}; color:white; padding:8px 5px; font-size:11px; font-weight:600; border:1px solid ${pd.accentColor}; }
 tbody tr:nth-child(even) { background:#f8fafc; }
 tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
-.total-row td { background:#1e40af !important; color:white !important; font-size:14px; font-weight:700; }
+.total-row td { background:${pd.accentColor} !important; color:white !important; font-size:14px; font-weight:700; }
 .bd { border:1px solid #e2e8f0; padding:6px 5px; }
 .tc { text-align:center; } .tr { text-align:${mainDir === "rtl" ? "left" : "right"}; } .mono { font-family:monospace; } .fw { font-weight:bold; }
 .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
 .valid-box { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:5px; padding:9px; font-size:11px; color:#065f46; }
 .notes-box { background:#fffbeb; border:1px solid #fde68a; border-radius:5px; padding:9px; font-size:11px; color:#92400e; }
-.footer-info { margin-top:20px; padding:12px 16px; border-top:2px solid #1e40af; background:#f8fafc; border-radius:0 0 6px 6px; }
+.footer-info { margin-top:20px; padding:12px 16px; border-top:2px solid ${pd.accentColor}; background:${pd.footerBgColor}; ${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}'); background-size:cover; background-position:center;` : ""} color:${pd.footerTextColor}; border-radius:0 0 6px 6px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .footer-info-grid { display:flex; justify-content:center; gap:28px; flex-wrap:wrap; }
-.footer-info-item { display:flex; align-items:center; gap:5px; font-size:10px; color:#374151; }
+.footer-info-item { display:flex; align-items:center; gap:5px; font-size:10px; color:${pd.footerTextColor}; }
 .footer-info-item strong { font-weight:600; }
 </style></head><body>
 <div class="page">
@@ -889,6 +894,7 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
     <div class="co-name-ar">${esc(coNameAr)}</div>
     <div class="co-name-en">${esc(coNameEn)}</div>
     <div class="co-vat">${bi(`الرقم الضريبي: ${esc(coVat)}`, `VAT No: ${esc(coVat)}`)}</div>
+    ${(() => { const note = lang === "both" ? [pd.headerNoteAr, pd.headerNoteEn].filter(Boolean).join(" / ") : ar ? pd.headerNoteAr : pd.headerNoteEn; return note ? `<div class="header-note">${esc(note)}</div>` : ""; })()}
   </div>
 </div>
 <hr class="divider"/>
@@ -978,7 +984,7 @@ ${(() => {
   ${phone ? `<div class="footer-info-item"><strong>📞</strong> ${phone}</div>` : ""}
   <div class="footer-info-item"><strong>✉</strong> ${email}</div>
   <div class="footer-info-item"><strong>🌐</strong> ${web}</div>
-</div>${customFooter ? `<div style="text-align:center;margin-top:8px;font-size:10px;color:#4a5568;font-style:italic;">${customFooter}</div>` : ""}</div>`;
+</div>${customFooter ? `<div style="text-align:center;margin-top:8px;font-size:10px;color:${pd.footerTextColor};opacity:0.9;font-style:italic;">${customFooter}</div>` : ""}</div>`;
 })()}
 </div>
 <script>window.onload=function(){window.print();}</script>
@@ -1002,6 +1008,7 @@ export function printContract(contract: Contract, isRtl: boolean, options?: { la
   const dateEn = new Date(contract.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const date = bi(dateAr, dateEn);
 
+  const pd = getSystemSettings().printDesign;
   let cNameAr = "شركة سكيب للاستشارات والخدمات الهندسية";
   let cNameEn = "Scapex Consulting & Engineering Services";
   let cVat    = "300123456700003";
@@ -1015,7 +1022,10 @@ export function printContract(contract: Contract, isRtl: boolean, options?: { la
       if (co) { cNameAr = co.nameAr; cNameEn = co.nameEn; cVat = co.vatNumber||cVat; cLogoUrl = co.logoUrl||""; cLogoColor = co.logoColor||"#1e40af"; cLogoChar = co.nameEn?.charAt(0)?.toUpperCase()||"S"; }
     }
   } catch {}
-  const cLogoHtml = cLogoUrl
+  if (pd.headerLogo) cLogoUrl = pd.headerLogo;
+  const cLogoHtml = !pd.showLogo
+    ? ""
+    : cLogoUrl
     ? `<img src="${esc(cLogoUrl)}" style="width:48px;height:48px;object-fit:contain;border-radius:8px;" />`
     : `<div style="background:${cLogoColor};color:white;width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:bold;">${cLogoChar}</div>`;
 
@@ -1044,7 +1054,7 @@ export function printContract(contract: Contract, isRtl: boolean, options?: { la
 <title>${esc(contract.contractNumber)}</title>
 <style>
 ${FONT_IMPORT}${BASE_CSS}
-.header { text-align:center; margin-bottom:28px; padding-bottom:18px; border-bottom:3px solid #1e40af; }
+.header { text-align:center; margin-bottom:28px; padding-bottom:18px; border-bottom:3px solid ${pd.accentColor}; background:${pd.headerBgColor}; ${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}'); background-size:cover; background-position:center;` : ""} ${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "padding:14px 16px 18px; border-radius:8px;" : ""} color:${pd.headerTextColor}; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .logo-row { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:10px; }
 .parties { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
 .party { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; }
@@ -1052,7 +1062,7 @@ ${FONT_IMPORT}${BASE_CSS}
 .party-name { font-size:14px; font-weight:700; }
 .sec-title { font-size:13px; font-weight:700; color:#1e40af; margin-bottom:12px; padding:7px 12px; background:#eff6ff; border-radius:6px; border-${mainDir === "rtl" ? "right" : "left"}:4px solid #1e40af; }
 table { width:100%; border-collapse:collapse; margin-bottom:16px; }
-thead th { background:#1e40af; color:white; padding:9px 6px; font-size:11px; font-weight:600; }
+thead th { background:${pd.accentColor}; color:white; padding:9px 6px; font-size:11px; font-weight:600; }
 tbody tr:nth-child(even) { background:#f8fafc; }
 .sig-grid { display:grid; grid-template-columns:1fr 1fr; gap:60px; margin-top:44px; }
 .sig-box { text-align:center; }
@@ -1063,12 +1073,13 @@ tbody tr:nth-child(even) { background:#f8fafc; }
   <div class="logo-row">
     ${cLogoHtml}
     <div style="text-align:${mainDir === "rtl" ? "right" : "left"}">
-      <div style="font-size:16px;font-weight:700;color:#1a202c;">${esc(ar ? cNameAr : cNameEn)}</div>
-      <div style="font-size:11px;color:#4a5568;">${esc(ar ? cNameEn : cNameAr)}</div>
-      <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${bi(`الرقم الضريبي: ${esc(cVat)}`, `VAT No: ${esc(cVat)}`)}</div>
+      <div style="font-size:16px;font-weight:700;color:${pd.headerTextColor};">${esc(ar ? cNameAr : cNameEn)}</div>
+      <div style="font-size:11px;color:${pd.headerTextColor};opacity:0.8;">${esc(ar ? cNameEn : cNameAr)}</div>
+      <div style="font-size:9px;color:${pd.headerTextColor};opacity:0.65;margin-top:2px;">${bi(`الرقم الضريبي: ${esc(cVat)}`, `VAT No: ${esc(cVat)}`)}</div>
+      ${(() => { const note = lang === "both" ? [pd.headerNoteAr, pd.headerNoteEn].filter(Boolean).join(" / ") : ar ? pd.headerNoteAr : pd.headerNoteEn; return note ? `<div style="font-size:10px;color:${pd.headerTextColor};opacity:0.85;margin-top:3px;white-space:pre-line;">${esc(note)}</div>` : ""; })()}
     </div>
   </div>
-  <div style="font-size:20px;font-weight:700;color:#1e40af;margin-bottom:4px;">${bi("عقد تقديم خدمات", "SERVICE CONTRACT")}</div>
+  <div style="font-size:20px;font-weight:700;color:${pd.accentColor};margin-bottom:4px;">${bi("عقد تقديم خدمات", "SERVICE CONTRACT")}</div>
   <div style="font-size:13px;color:#374151;">${bi(svc.labelAr, svc.labelEn)}</div>
   <div style="font-size:14px;font-weight:600;color:#374151;margin-top:6px;">${bi("رقم العقد:", "Contract No:")} ${esc(contract.contractNumber)}</div>
   <div style="font-size:12px;font-weight:700;color:#1e40af;font-family:monospace;margin-top:3px;">${bi("التاريخ:", "Date:")} ${date}</div>
@@ -1118,6 +1129,22 @@ ${(() => {
   <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.first)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الأول — Scapex", "First Party — Scapex")}</div>${sigMeta(sigs.first)}</div>
   <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.second)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الثاني —", "Second Party —")} ${esc(contract.clientName)}</div>${sigMeta(sigs.second)}</div>
 </div>`;
+})()}
+${(() => {
+  const about = getAboutData();
+  const addrAr = esc((about.address || "").split("\n").join(" — "));
+  const addrEn = esc((about.addressEn || "").split("\n").join(" — "));
+  const addr = lang === "both" && addrAr && addrEn ? `${addrAr} / ${addrEn}` : ar ? addrAr : addrEn;
+  const email = esc(about.email1 || "");
+  const web = esc(about.website || "");
+  const phone = esc(about.phone1 || "");
+  return `<div style="margin-top:24px;padding:12px 16px;border-top:2px solid ${pd.accentColor};background:${pd.footerBgColor};${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""}color:${pd.footerTextColor};border-radius:0 0 6px 6px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+  <div style="display:flex;justify-content:center;gap:28px;flex-wrap:wrap;font-size:10px;">
+  ${addr ? `<span>📍 ${addr}</span>` : ""}
+  ${phone ? `<span>📞 ${phone}</span>` : ""}
+  ${email ? `<span>✉ ${email}</span>` : ""}
+  ${web ? `<span>🌐 ${web}</span>` : ""}
+  </div></div>`;
 })()}
 </div>
 <script>window.onload=function(){window.print();}</script>
