@@ -4,3 +4,4 @@
 - [Portal signing OTP channels](portal-sign-otp-channels.md) — email OTP is default/working (Resend); SMS needs a paid provider; keep devCode gated to dev only.
 - [Server deployment setup](server-deployment.md) — Hostinger VPS deployment notes: ecosystem.config.cjs, missing DB columns, jszip bundling, deploy process.
 - [Send-to-client docs](send-to-client.md) — contact picker must hit /api/customers (no /api/contacts route); document HTML builders must be pure string fns so print & send share one source.
+- [Org structure tab](org-structure-tab.md) — companies.type/parentId live in settings JSON (not DB columns); structure tab must scope by permissions not active-activity or it blanks.

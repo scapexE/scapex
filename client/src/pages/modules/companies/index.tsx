@@ -540,32 +540,57 @@ function CompaniesContent() {
 
           <TabsContent value="structure" className="space-y-4">
             <Card className="p-6">
-              <h3 className="text-lg font-bold mb-6">{t("الهيكل التنظيمي لمجموعة سكابكس", "Scapex Group Organization Structure")}</h3>
-              <div className="space-y-4">
-                {activityFiltered.filter(c => c.type === "main").map(main => (
+              <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+                <h3 className="text-lg font-bold">{t("الهيكل التنظيمي لمجموعة سكابكس", "Scapex Group Organization Structure")}</h3>
+                <Button size="sm" onClick={() => { const main = userScopedCompanies.find(c => c.type === "main"); setEditCompany(null); setCompanyForm({ type: "subsidiary", parentId: main?.id || "", isActive: true }); setShowCompanyDialog(true); }} data-testid="button-add-subsidiary-structure">
+                  <Plus className={cn("h-4 w-4", isRtl ? "ml-1" : "mr-1")} />{t("إضافة شركة تابعة", "Add Subsidiary")}
+                </Button>
+              </div>
+              {userScopedCompanies.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground" data-testid="empty-structure">
+                  <Building2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                  <p className="mb-4">{t("لا توجد شركات بعد. ابدأ بإضافة الشركة الأم أو شركة تابعة.", "No companies yet. Start by adding the parent or a subsidiary company.")}</p>
+                  <Button size="sm" onClick={openNewCompany} data-testid="button-add-company-empty"><Plus className={cn("h-4 w-4", isRtl ? "ml-1" : "mr-1")} />{t("إضافة شركة", "Add Company")}</Button>
+                </div>
+              ) : (() => {
+                const orgBranches = branches.filter(b => allowedBranchIds === null || allowedBranchIds.includes(b.id));
+                const roots = userScopedCompanies.filter(c => c.type === "main" || !userScopedCompanies.some(p => p.id === c.parentId));
+                return (
+                <div className="space-y-4">
+                  {roots.map(main => (
                   <div key={main.id} className="space-y-3">
-                    <div className="p-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-                      <div className="flex items-center gap-3">
-                        <Building2 className="h-8 w-8" />
-                        <div>
-                          <h4 className="text-lg font-bold">{isRtl ? main.nameAr : main.nameEn}</h4>
-                          <p className="text-blue-100 text-sm">{t("الشركة الأم", "Parent Company")} • {main.city} • {main.employeeCount} {t("موظف", "employees")}</p>
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white cursor-pointer" onClick={() => openEditCompany(main)} data-testid={`card-structure-company-${main.id}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <Building2 className="h-8 w-8" />
+                          <div>
+                            <h4 className="text-lg font-bold">{isRtl ? main.nameAr : main.nameEn}</h4>
+                            <p className="text-blue-100 text-sm">{main.type === "main" ? t("الشركة الأم", "Parent Company") : t("شركة", "Company")} • {main.city} • {main.employeeCount} {t("موظف", "employees")}</p>
+                          </div>
                         </div>
+                        <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); setEditBranch(null); setBranchForm({ companyId: main.id, isActive: true }); setShowBranchDialog(true); }} data-testid={`button-add-branch-${main.id}`}>
+                          <Plus className={cn("h-3 w-3", isRtl ? "ml-1" : "mr-1")} />{t("فرع", "Branch")}
+                        </Button>
                       </div>
                     </div>
                     <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3", isRtl ? "mr-8" : "ml-8")}>
-                      {companies.filter(c => c.parentId === main.id).map(sub => (
+                      {userScopedCompanies.filter(c => c.parentId === main.id).map(sub => (
                         <div key={sub.id} className="space-y-2">
-                          <div className="p-3 rounded-lg border-2 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Building2 className="h-5 w-5 text-purple-600" />
-                              <h5 className="font-semibold text-sm">{isRtl ? sub.nameAr : sub.nameEn}</h5>
+                          <div className="p-3 rounded-lg border-2 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 cursor-pointer" onClick={() => openEditCompany(sub)} data-testid={`card-structure-sub-${sub.id}`}>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-5 w-5 text-purple-600" />
+                                <h5 className="font-semibold text-sm">{isRtl ? sub.nameAr : sub.nameEn}</h5>
+                              </div>
+                              <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={(e) => { e.stopPropagation(); setEditBranch(null); setBranchForm({ companyId: sub.id, isActive: true }); setShowBranchDialog(true); }} data-testid={`button-add-branch-${sub.id}`}>
+                                <Plus className="h-3 w-3" />
+                              </Button>
                             </div>
                             <p className="text-xs text-muted-foreground">{t("رئيسية", "HQ")} • {sub.city} • {sub.employeeCount} {t("موظف", "emp")}</p>
                           </div>
                           <div className={cn("space-y-1", isRtl ? "mr-4" : "ml-4")}>
-                            {branches.filter(b => b.companyId === sub.id).map(br => (
-                              <div key={br.id} className="p-2 rounded border bg-card text-xs flex justify-between items-center">
+                            {orgBranches.filter(b => b.companyId === sub.id).map(br => (
+                              <div key={br.id} className="p-2 rounded border bg-card text-xs flex justify-between items-center cursor-pointer" onClick={() => openEditBranch(br)} data-testid={`row-structure-branch-${br.id}`}>
                                 <span>{isRtl ? br.nameAr : br.nameEn}</span>
                                 <Badge variant="outline" className="text-[10px]">{br.employeeCount}</Badge>
                               </div>
@@ -576,16 +601,18 @@ function CompaniesContent() {
                     </div>
                     <div className={cn("space-y-1", isRtl ? "mr-8" : "ml-8")}>
                       <p className="text-xs font-medium text-muted-foreground mb-1">{t("فروع الشركة الأم المباشرة:", "Main company direct branches:")}</p>
-                      {branches.filter(b => b.companyId === main.id).map(br => (
-                        <div key={br.id} className="p-2 rounded border bg-blue-50 dark:bg-blue-900/10 text-sm flex justify-between items-center">
+                      {orgBranches.filter(b => b.companyId === main.id).map(br => (
+                        <div key={br.id} className="p-2 rounded border bg-blue-50 dark:bg-blue-900/10 text-sm flex justify-between items-center cursor-pointer" onClick={() => openEditBranch(br)} data-testid={`row-structure-mainbranch-${br.id}`}>
                           <div className="flex items-center gap-2"><GitBranch className="h-3 w-3" /><span>{isRtl ? br.nameAr : br.nameEn}</span></div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-3 w-3" />{br.city}<Badge variant="outline" className="text-[10px]">{br.employeeCount}</Badge></div>
                         </div>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                );
+              })()}
             </Card>
           </TabsContent>
 
