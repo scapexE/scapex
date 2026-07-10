@@ -5,7 +5,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Users from "@/pages/Users";
 import SystemAdmin from "@/pages/SystemAdmin";
 import { Switch, Route, Redirect } from "wouter";
-import { getSystemSettings, FONT_OPTIONS, FONT_SIZE_OPTIONS } from "@/lib/companySettings";
+import { getSystemSettings, FONT_SIZE_OPTIONS, injectCustomFontFaces, resolveFontCss } from "@/lib/companySettings";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -105,9 +105,9 @@ function Router() {
 
 function applyFontSettings() {
   const settings = getSystemSettings();
-  const fontOpt = FONT_OPTIONS.find(f => f.value === settings.fontFamily) || FONT_OPTIONS[0];
+  injectCustomFontFaces();
   const sizeOpt = FONT_SIZE_OPTIONS.find(s => s.value === settings.fontSize) || FONT_SIZE_OPTIONS[1];
-  document.documentElement.style.fontFamily = fontOpt.family;
+  document.documentElement.style.fontFamily = resolveFontCss(settings.fontFamily);
   document.documentElement.style.fontSize = sizeOpt.css;
 }
 

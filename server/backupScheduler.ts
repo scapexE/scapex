@@ -3,7 +3,7 @@ import { appData, systemBackups } from "@shared/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
-import { BACKUP_MODULES, dumpTable } from "./backup";
+import { BACKUP_MODULES, dumpTable, buildFullBackup } from "./backup";
 import { log } from "./index";
 import { sendEmail } from "./email";
 

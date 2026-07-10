@@ -2,7 +2,7 @@ import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 export type TimeFormat = "24h" | "12h";
 export type DateFormat = "gregorian" | "hijri" | "both";
 
-export type FontFamily = "cairo" | "tajawal" | "ibm-plex" | "noto-kufi" | "rubik" | "inter" | "system";
+export type FontFamily = "cairo" | "tajawal" | "ibm-plex" | "noto-kufi" | "rubik" | "inter" | "system" | (string & {});
 export type FontSize = "small" | "medium" | "large";
 
 export interface SystemSettings {
@@ -33,6 +33,97 @@ export const FONT_OPTIONS: { value: FontFamily; label: string; labelAr: string; 
   { value: "inter", label: "Inter", labelAr: "Inter — إنتر", family: "'Inter', sans-serif" },
   { value: "system", label: "System Default", labelAr: "خط النظام الافتراضي", family: "system-ui, -apple-system, sans-serif" },
 ];
+
+// ---- Custom uploaded fonts -------------------------------------------------
+export interface CustomFont {
+  id: string;          // e.g. "custom:1710000000000"
+  name: string;        // display name (file name without extension)
+  family: string;      // CSS font-family name, e.g. "ScapexCustom-1710000000000"
+  format: string;      // woff2 | woff | truetype | opentype
+  dataUrl: string;     // base64 data URL of the font file
+}
+
+export const CUSTOM_FONTS_KEY = "scapex_custom_fonts";
+// Kept quota-safe: fonts are stored as base64 in localStorage (+33% overhead)
+// alongside other scapex_* data, and origins typically cap localStorage at ~5MB.
+export const MAX_FONT_FILE_BYTES = 2 * 1024 * 1024; // 2MB raw (~2.7MB base64)
+
+export function getCustomFonts(): CustomFont[] {
+  try {
+    const stored = dbGetItem(CUSTOM_FONTS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+/** Throws Error("quota") when browser storage is full. */
+export function addCustomFont(font: CustomFont): void {
+  const fonts = getCustomFonts().filter((f) => f.id !== font.id);
+  fonts.push(font);
+  try {
+    dbSetItem(CUSTOM_FONTS_KEY, JSON.stringify(fonts));
+  } catch (e: any) {
+    if (e?.name === "QuotaExceededError" || e?.code === 22) throw new Error("quota");
+    throw e;
+  }
+  injectCustomFontFaces();
+  window.dispatchEvent(new CustomEvent("scapex_system_settings_update"));
+}
+
+export function deleteCustomFont(id: string): void {
+  const fonts = getCustomFonts().filter((f) => f.id !== id);
+  dbSetItem(CUSTOM_FONTS_KEY, JSON.stringify(fonts));
+  injectCustomFontFaces();
+  window.dispatchEvent(new CustomEvent("scapex_system_settings_update"));
+}
+
+export function fontFormatFromFileName(fileName: string): string | null {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "woff2": return "woff2";
+    case "woff": return "woff";
+    case "ttf": return "truetype";
+    case "otf": return "opentype";
+    default: return null;
+  }
+}
+
+/** Injects @font-face rules for all uploaded fonts into a dedicated <style> tag. */
+export function injectCustomFontFaces(): void {
+  const STYLE_ID = "scapex-custom-fonts";
+  let styleEl = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = getCustomFonts()
+    .map((f) => `@font-face { font-family: '${f.family}'; src: url(${f.dataUrl}) format('${f.format}'); font-display: swap; }`)
+    .join("\n");
+}
+
+/** Built-in + uploaded fonts, for pickers. */
+export function getAllFontOptions(): { value: string; label: string; labelAr: string; family: string; custom?: boolean }[] {
+  return [
+    ...FONT_OPTIONS,
+    ...getCustomFonts().map((f) => ({
+      value: f.id,
+      label: f.name,
+      labelAr: f.name,
+      family: `'${f.family}', 'Cairo', sans-serif`,
+      custom: true,
+    })),
+  ];
+}
+
+/** Resolves a fontFamily setting value (built-in or custom) to a CSS family string. */
+export function resolveFontCss(value: string): string {
+  const opt = getAllFontOptions().find((f) => f.value === value);
+  return opt ? opt.family : FONT_OPTIONS[0].family;
+}
 
 export const FONT_SIZE_OPTIONS: { value: FontSize; label: string; labelAr: string; css: string }[] = [
   { value: "small", label: "Small", labelAr: "صغير", css: "14px" },

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Building2, MapPin, Clock, Globe, Save, RotateCcw, FileText,
   Info, Settings2, Calendar, ImageIcon, X, AlertCircle, Printer,
+  Upload, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,8 @@ import {
   type SystemSettings, type FontFamily, type FontSize,
   DEFAULT_SYSTEM_SETTINGS, getSystemSettings, saveSystemSettings,
   FONT_OPTIONS, FONT_SIZE_OPTIONS,
+  type CustomFont, getCustomFonts, addCustomFont, deleteCustomFont,
+  fontFormatFromFileName, MAX_FONT_FILE_BYTES, getAllFontOptions,
 } from "@/lib/companySettings";
 import { logAction } from "@/lib/auditLog";
 
@@ -72,6 +75,72 @@ export function CompanySettingsPanel({ companies, onSaved }: {
   const [sysForm, setSysForm] = useState<SystemSettings>({ ...DEFAULT_SYSTEM_SETTINGS });
   const [hasChanges, setHasChanges] = useState(false);
   const [hasSysChanges, setHasSysChanges] = useState(false);
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>(() => getCustomFonts());
+  const [uploadingFont, setUploadingFont] = useState(false);
+
+  const allFontOptions = useMemo(() => getAllFontOptions(), [customFonts]);
+  const fontSelectValue = useMemo(
+    () => (allFontOptions.some((f) => f.value === sysForm.fontFamily) ? sysForm.fontFamily : "cairo"),
+    [allFontOptions, sysForm.fontFamily],
+  );
+
+  const handleFontUpload = (file: File | null) => {
+    if (!file) return;
+    const format = fontFormatFromFileName(file.name);
+    if (!format) {
+      toast({ title: t("صيغة غير مدعومة", "Unsupported format"), description: t("الصيغ المدعومة: TTF, OTF, WOFF, WOFF2", "Supported formats: TTF, OTF, WOFF, WOFF2"), variant: "destructive" });
+      return;
+    }
+    if (file.size > MAX_FONT_FILE_BYTES) {
+      toast({ title: t("الملف كبير جداً", "File too large"), description: t("الحد الأقصى لحجم ملف الخط 2 ميجابايت", "Maximum font file size is 2MB"), variant: "destructive" });
+      return;
+    }
+    setUploadingFont(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const ts = Date.now();
+        const name = file.name.replace(/\.[^.]+$/, "");
+        const font: CustomFont = {
+          id: `custom:${ts}`,
+          name,
+          family: `ScapexCustom-${ts}`,
+          format,
+          dataUrl: String(reader.result),
+        };
+        addCustomFont(font);
+        setCustomFonts(getCustomFonts());
+        setSysForm((prev) => ({ ...prev, fontFamily: font.id }));
+        setHasSysChanges(true);
+        logAction("create", "companies", `Uploaded custom font: ${name}`, `رفع خط مخصص: ${name}`);
+        toast({ title: t("تم رفع الخط", "Font uploaded"), description: t("تم اختيار الخط الجديد — احفظ الإعدادات لتطبيقه", "New font selected — save settings to apply it") });
+      } catch (err: any) {
+        if (err?.message === "quota") {
+          toast({ title: t("مساحة التخزين ممتلئة", "Storage is full"), description: t("لا توجد مساحة كافية لحفظ الخط — احذف خطوطاً مخصصة قديمة أو استخدم ملفاً أصغر", "Not enough space to save the font — delete old custom fonts or use a smaller file"), variant: "destructive" });
+        } else {
+          toast({ title: t("فشل حفظ الخط", "Failed to save font"), variant: "destructive" });
+        }
+      } finally {
+        setUploadingFont(false);
+      }
+    };
+    reader.onerror = () => {
+      setUploadingFont(false);
+      toast({ title: t("فشل قراءة الملف", "Failed to read file"), variant: "destructive" });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFontDelete = (id: string, name: string) => {
+    deleteCustomFont(id);
+    setCustomFonts(getCustomFonts());
+    if (sysForm.fontFamily === id) {
+      setSysForm((prev) => ({ ...prev, fontFamily: "cairo" }));
+      setHasSysChanges(true);
+    }
+    logAction("delete", "companies", `Deleted custom font: ${name}`, `حذف خط مخصص: ${name}`);
+    toast({ title: t("تم حذف الخط", "Font deleted") });
+  };
 
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === selectedCompanyId) || null,
@@ -434,17 +503,58 @@ export function CompanySettingsPanel({ companies, onSaved }: {
             <CardContent>
               <div className="space-y-3">
                 <Label className="text-xs font-medium">{t("اختر الخط المستخدم في النظام", "Choose the system font")}</Label>
-                <Select value={sysForm.fontFamily} onValueChange={(v) => { setSysForm((prev) => ({ ...prev, fontFamily: v as FontFamily })); setHasSysChanges(true); }}>
+                <Select value={fontSelectValue} onValueChange={(v) => { setSysForm((prev) => ({ ...prev, fontFamily: v as FontFamily })); setHasSysChanges(true); }}>
                   <SelectTrigger data-testid="select-font-family" className="w-full sm:w-[320px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {FONT_OPTIONS.map((f) => (
-                      <SelectItem key={f.value} value={f.value}><span style={{ fontFamily: f.family }}>{isRtl ? f.labelAr : f.label}</span></SelectItem>
+                    {allFontOptions.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        <span style={{ fontFamily: f.family }}>{isRtl ? f.labelAr : f.label}</span>
+                        {f.custom && <span className="text-[10px] text-muted-foreground ms-2">({t("مخصص", "custom")})</span>}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="p-4 rounded-lg bg-secondary/30 border border-border/30" style={{ fontFamily: FONT_OPTIONS.find((f) => f.value === sysForm.fontFamily)?.family }}>
+                <div className="p-4 rounded-lg bg-secondary/30 border border-border/30" style={{ fontFamily: allFontOptions.find((f) => f.value === fontSelectValue)?.family }}>
                   <p className="text-sm mb-1 font-semibold">{t("معاينة الخط", "Font Preview")}</p>
                   <p className="text-xs text-muted-foreground">{t("هذا نص تجريبي لمعاينة شكل الخط المختار في النظام — 0123456789", "This is a sample text to preview the selected font — 0123456789")}</p>
+                </div>
+
+                <div className="pt-3 border-t border-border/30 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <Label className="text-xs font-medium">{t("خطوط مخصصة", "Custom Fonts")}</Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{t("ارفع ملف خط (TTF, OTF, WOFF, WOFF2) بحد أقصى 2MB — سيظهر لجميع المستخدمين", "Upload a font file (TTF, OTF, WOFF, WOFF2), max 2MB — visible to all users")}</p>
+                    </div>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".ttf,.otf,.woff,.woff2"
+                        className="hidden"
+                        disabled={uploadingFont}
+                        onChange={(e) => { handleFontUpload(e.target.files?.[0] || null); e.target.value = ""; }}
+                        data-testid="input-upload-font"
+                      />
+                      <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-secondary/30 hover:bg-secondary/60 transition-colors text-sm font-medium">
+                        <Upload className="w-4 h-4" />
+                        {uploadingFont ? t("جارٍ الرفع...", "Uploading...") : t("رفع خط جديد", "Upload New Font")}
+                      </span>
+                    </label>
+                  </div>
+                  {customFonts.length > 0 && (
+                    <div className="space-y-2">
+                      {customFonts.map((f) => (
+                        <div key={f.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-border/40 bg-secondary/20" data-testid={`row-custom-font-${f.id}`}>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ fontFamily: `'${f.family}', sans-serif` }}>{f.name}</p>
+                            <p className="text-[11px] text-muted-foreground" style={{ fontFamily: `'${f.family}', sans-serif` }}>{t("نموذج: أبجد هوز ABC abc 123", "Sample: ABC abc 123 أبجد")}</p>
+                          </div>
+                          <Button variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => handleFontDelete(f.id, f.name)} data-testid={`button-delete-font-${f.id}`}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
