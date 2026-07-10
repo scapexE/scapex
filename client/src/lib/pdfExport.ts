@@ -26,9 +26,9 @@ export function buildLetterHtml(opts: { subject?: string; body: string; recipien
   const about = getAboutData();
   const coNameAr = about.companyNameAr || "";
   const coNameEn = about.companyNameEn || "";
-  const logoUrl = pd.headerLogo || activeCompanyLogo();
+  const logoUrl = pd.headerLogo || sysCfg.brandLogo || activeCompanyLogo();
   const logoHtml = !pd.showLogo ? "" : logoUrl
-    ? `<img src="${escapeHtml(logoUrl)}" style="width:60px;height:60px;object-fit:contain;border-radius:8px" />`
+    ? `<img src="${escapeHtml(logoUrl)}" style="width:60px;height:60px;object-fit:contain;border-radius:8px;flex-shrink:0" />`
     : "";
   const headerText = escapeHtml(isRtl ? (sysCfg.letterHeaderAr || "") : (sysCfg.letterHeaderEn || sysCfg.letterHeaderAr || ""));
   const footerText = escapeHtml(isRtl ? (sysCfg.letterFooterAr || "") : (sysCfg.letterFooterEn || sysCfg.letterFooterAr || ""));
@@ -49,7 +49,7 @@ export function buildLetterHtml(opts: { subject?: string; body: string; recipien
   <div class="lh">
     ${logoHtml}
     <div style="flex:1;text-align:${isRtl ? "right" : "left"}">
-      <div style="display:inline-block;text-align:center">
+      <div style="display:inline-flex;flex-direction:column;align-items:center">
         <div style="font-size:17px;font-weight:700">${escapeHtml(isRtl ? coNameAr : coNameEn)}</div>
         <div style="font-size:11px;opacity:0.8">${escapeHtml(isRtl ? coNameEn : coNameAr)}</div>
       </div>
