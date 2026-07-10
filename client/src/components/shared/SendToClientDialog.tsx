@@ -51,7 +51,7 @@ export function SendToClientDialog(props: SendToClientDialogProps) {
     setEmail(defaultEmail || "");
     setPickedContact(contactId ? String(contactId) : "");
     if (needPicker) {
-      scopedFetch("/api/contacts").then(r => r.json()).then((rows: any[]) => {
+      scopedFetch("/api/customers").then(r => r.json()).then((rows: any[]) => {
         setContacts(Array.isArray(rows) ? rows.map(c => ({ id: c.id, nameAr: c.nameAr, nameEn: c.nameEn, email: c.email })) : []);
       }).catch(() => {});
     }

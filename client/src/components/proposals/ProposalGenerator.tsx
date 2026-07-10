@@ -861,6 +861,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
   const [showSignature, setShowSignature] = useState(false);
   const [sigRefresh, setSigRefresh] = useState(0);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showSendDialog, setShowSendDialog] = useState(false);
   const [printShowValidity, setPrintShowValidity] = useState(true);
   const [printLang, setPrintLang] = useState<"ar" | "en" | "both">("ar");
   const svc = SERVICE_META[proposal.serviceType];
@@ -1025,7 +1026,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
           </Button>
           {/* Send copy to client (email + portal) */}
           <Button size="sm" variant="outline" className="gap-1.5 h-8 text-blue-600 border-blue-300" onClick={() => setShowSendDialog(true)} data-testid="button-open-send-proposal">
-            <Send className="w-3.5 h-3.5" />{isRtl ? "إرسال للعميل" : "Send to Client"}
+            <Send className="w-3.5 h-3.5" />{isRtl ? "إرسال نسخة" : "Send Copy"}
           </Button>
           {/* Price analysis toggle */}
           <Button size="sm" variant="outline"
@@ -1412,6 +1413,17 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SendToClientDialog
+        open={showSendDialog}
+        onOpenChange={setShowSendDialog}
+        titleAr={`عرض سعر ${proposal.proposalNumber}`}
+        titleEn={`Proposal ${proposal.proposalNumber}`}
+        category="proposal"
+        buildHtml={() => buildProposalHtml(proposal, isRtl, { showValidity: printShowValidity, language: printLang })}
+        defaultEmail={proposal.clientEmail || ""}
+        contactId={proposal.crmContactId || null}
+      />
     </div>
   );
 }
@@ -1425,6 +1437,7 @@ function ContractView({ contract: init, isRtl, onBack }: {
   const [showSignature, setShowSignature] = useState(false);
   const [sigRefresh, setSigRefresh] = useState(0);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showSendDialog, setShowSendDialog] = useState(false);
   const [printLang, setPrintLang] = useState<"ar" | "en" | "both">("ar");
   const { toast } = useToast();
 
@@ -1467,6 +1480,9 @@ function ContractView({ contract: init, isRtl, onBack }: {
           </Button>
           <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => { setPrintLang(isRtl ? "ar" : "en"); setShowPrintDialog(true); }} data-testid="button-open-contract-print">
             <Printer className="w-3.5 h-3.5" />{isRtl ? "طباعة العقد PDF" : "Print Contract PDF"}
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-blue-600 border-blue-300" onClick={() => setShowSendDialog(true)} data-testid="button-open-send-contract">
+            <Send className="w-3.5 h-3.5" />{isRtl ? "إرسال نسخة" : "Send Copy"}
           </Button>
           <Button size="sm" className="gap-1.5 h-8" onClick={handleSave}>
             <Save className="w-3.5 h-3.5" />{isRtl ? "حفظ" : "Save"}
@@ -1678,6 +1694,17 @@ function ContractView({ contract: init, isRtl, onBack }: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SendToClientDialog
+        open={showSendDialog}
+        onOpenChange={setShowSendDialog}
+        titleAr={`عقد ${contract.contractNumber}`}
+        titleEn={`Contract ${contract.contractNumber}`}
+        category="contract"
+        buildHtml={() => buildContractHtml(contract, isRtl, { language: printLang })}
+        defaultEmail={contract.clientEmail || ""}
+        allowPickContact
+      />
     </div>
   );
 }

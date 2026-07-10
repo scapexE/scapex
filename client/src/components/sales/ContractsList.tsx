@@ -25,7 +25,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ContractSignature } from "./ContractSignature";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { printContract, type Contract as LSContract } from "@/lib/proposals";
+import { printContract, buildContractHtml, type Contract as LSContract } from "@/lib/proposals";
+import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
+import { Mail } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export interface DBContract {
@@ -428,6 +430,7 @@ export function ContractsList() {
   const [loading, setLoading] = useState(true);
   const [migrating, setMigrating] = useState(false);
   const [search, setSearch] = useState("");
+  const [sendContract, setSendContract] = useState<DBContract | null>(null);
   const [migratedCount, setMigratedCount] = useState<number | null>(null);
   const [linkedMap, setLinkedMap] = useState<Record<number, number>>({});
 
@@ -528,7 +531,7 @@ export function ContractsList() {
     } catch { toast({ variant: "destructive", title: lbl("خطأ", "Error") }); }
   };
 
-  const handlePrint = (contract: DBContract) => {
+  const toLsContract = (contract: DBContract): LSContract => {
     const lsContract: LSContract = {
       id: contract.localId || String(contract.id),
       contractNumber: contract.contractNumber,
@@ -555,7 +558,11 @@ export function ContractsList() {
       updatedAt: contract.createdAt,
       createdBy: "",
     };
-    printContract(lsContract, isRtl);
+    return lsContract;
+  };
+
+  const handlePrint = (contract: DBContract) => {
+    printContract(toLsContract(contract), isRtl);
   };
 
   const filtered = contracts.filter(c => {
@@ -791,6 +798,11 @@ export function ContractsList() {
                             onClick={() => handlePrint(contract)} title={lbl("طباعة العقد", "Print contract")}>
                             <Download className="h-4 w-4" />
                           </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-cyan-600"
+                            onClick={() => setSendContract(contract)} title={lbl("إرسال نسخة للعميل", "Send copy to client")}
+                            data-testid={`button-send-contract-${contract.id}`}>
+                            <Mail className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600"
                             onClick={() => handleDelete(contract)} title={lbl("حذف", "Delete")}>
                             <Trash2 className="h-4 w-4" />
@@ -805,6 +817,19 @@ export function ContractsList() {
           )}
         </div>
       </Card>
+
+      {sendContract && (
+        <SendToClientDialog
+          open={!!sendContract}
+          onOpenChange={(o) => { if (!o) setSendContract(null); }}
+          titleAr={`عقد ${sendContract.contractNumber}`}
+          titleEn={`Contract ${sendContract.contractNumber}`}
+          category="contract"
+          buildHtml={() => buildContractHtml(toLsContract(sendContract), isRtl)}
+          defaultEmail={sendContract.clientEmail || ""}
+          allowPickContact
+        />
+      )}
 
       {/* Dialogs */}
       <ManageViewersDialog

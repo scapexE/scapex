@@ -26,7 +26,8 @@ import {
   type PrintDesign, DEFAULT_PRINT_DESIGN,
 } from "@/lib/companySettings";
 import { Switch } from "@/components/ui/switch";
-import { printLetter } from "@/lib/pdfExport";
+import { printLetter, buildLetterHtml } from "@/lib/pdfExport";
+import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { logAction } from "@/lib/auditLog";
 
 function SettingsField({ label, value, onChange, textarea, dir: fieldDir, placeholder, disabled }: {
@@ -77,6 +78,10 @@ export function CompanySettingsPanel({ companies, onSaved }: {
   const [form, setForm] = useState<AboutSettings>({ ...DEFAULT_ABOUT });
   const [sysForm, setSysForm] = useState<SystemSettings>({ ...DEFAULT_SYSTEM_SETTINGS });
   const [hasChanges, setHasChanges] = useState(false);
+  const [letterSubject, setLetterSubject] = useState("");
+  const [letterRecipient, setLetterRecipient] = useState("");
+  const [letterBody, setLetterBody] = useState("");
+  const [showSendLetter, setShowSendLetter] = useState(false);
   const [hasSysChanges, setHasSysChanges] = useState(false);
   const [customFonts, setCustomFonts] = useState<CustomFont[]>(() => getCustomFonts());
   const [uploadingFont, setUploadingFont] = useState(false);
@@ -730,6 +735,26 @@ export function CompanySettingsPanel({ companies, onSaved }: {
                           <Printer className="w-3.5 h-3.5" />{t("معاينة طباعة خطاب", "Preview letter print")}
                         </Button>
                       </div>
+
+                      {/* Compose official letter */}
+                      <div className="border border-border/50 rounded-lg p-4 space-y-3">
+                        <div className="font-medium text-sm">{t("إنشاء خطاب رسمي", "Compose Official Letter")}</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <SettingsField label={t("الموضوع", "Subject")} value={letterSubject} onChange={setLetterSubject} />
+                          <SettingsField label={t("الجهة / المستلم", "Recipient")} value={letterRecipient} onChange={setLetterRecipient} />
+                        </div>
+                        <SettingsField label={t("نص الخطاب", "Letter Body")} value={letterBody} onChange={setLetterBody} textarea />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" className="gap-1.5" disabled={!letterBody.trim()} data-testid="button-print-letter"
+                            onClick={() => printLetter({ subject: letterSubject, recipient: letterRecipient, body: letterBody, isRtl: dir === "rtl" })}>
+                            <Printer className="w-3.5 h-3.5" />{t("طباعة الخطاب", "Print letter")}
+                          </Button>
+                          <Button size="sm" className="gap-1.5" disabled={!letterBody.trim()} data-testid="button-send-letter"
+                            onClick={() => setShowSendLetter(true)}>
+                            {t("إرسال نسخة للعميل", "Send copy to client")}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </>
                 );
@@ -783,6 +808,18 @@ export function CompanySettingsPanel({ companies, onSaved }: {
           </div>
         </TabsContent>
       </Tabs>
+
+      {showSendLetter && (
+        <SendToClientDialog
+          open={showSendLetter}
+          onOpenChange={setShowSendLetter}
+          titleAr={letterSubject ? `خطاب: ${letterSubject}` : "خطاب رسمي"}
+          titleEn={letterSubject ? `Letter: ${letterSubject}` : "Official Letter"}
+          category="letter"
+          buildHtml={() => buildLetterHtml({ subject: letterSubject, recipient: letterRecipient, body: letterBody, isRtl: dir === "rtl" })}
+          allowPickContact
+        />
+      )}
     </div>
   );
 }

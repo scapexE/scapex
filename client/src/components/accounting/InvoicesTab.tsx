@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Printer, Trash2, Eye, CheckCircle2, Send, FileText, Loader2, X } from "lucide-react";
+import { Plus, Search, Printer, Trash2, Eye, CheckCircle2, Send, FileText, Loader2, X, Mail } from "lucide-react";
+import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getAboutData, getSystemSettings } from "@/lib/companySettings";
@@ -52,6 +53,7 @@ export function InvoicesTab() {
   const [typeFilter, setTypeFilter] = useState("all");
 
   const [showCreate, setShowCreate] = useState(false);
+  const [sendInvoice, setSendInvoice] = useState<Invoice | null>(null);
   const [showDetail, setShowDetail] = useState<Invoice | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -129,7 +131,7 @@ export function InvoicesTab() {
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
   };
 
-  const printInvoice = (inv: Invoice) => {
+  const buildInvoiceHtml = (inv: Invoice) => {
     const sysCfg = getSystemSettings();
     const pd = sysCfg.printDesign;
     const about = getAboutData();
@@ -211,6 +213,11 @@ export function InvoicesTab() {
       ${customFooter ? `<div style="margin-top:6px;font-style:italic;opacity:0.9">${customFooter}</div>` : ""}
     </div>
     </body></html>`;
+    return html;
+  };
+
+  const printInvoice = (inv: Invoice) => {
+    const html = buildInvoiceHtml(inv);
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
   };
@@ -340,6 +347,9 @@ export function InvoicesTab() {
                         </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" onClick={() => printInvoice(inv)} title={isRtl ? "طباعة" : "Print"}>
                           <Printer className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-cyan-600" onClick={() => setSendInvoice(inv)} title={isRtl ? "إرسال نسخة للعميل" : "Send copy to client"} data-testid={`button-send-invoice-${inv.id}`}>
+                          <Mail className="w-3.5 h-3.5" />
                         </Button>
                         {inv.status === "draft" && (
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => updateStatus(inv, "sent")} title={isRtl ? "إرسال" : "Send"}>
@@ -506,6 +516,19 @@ export function InvoicesTab() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {sendInvoice && (
+        <SendToClientDialog
+          open={!!sendInvoice}
+          onOpenChange={(o) => { if (!o) setSendInvoice(null); }}
+          titleAr={`فاتورة ${sendInvoice.invoiceNumber}`}
+          titleEn={`Invoice ${sendInvoice.invoiceNumber}`}
+          category="invoice"
+          buildHtml={() => buildInvoiceHtml(sendInvoice)}
+          contactId={sendInvoice.contactId}
+          allowPickContact={!sendInvoice.contactId}
+        />
       )}
     </div>
   );

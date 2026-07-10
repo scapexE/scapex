@@ -18,8 +18,8 @@ function activeCompanyLogo(): string {
   return "";
 }
 
-/** Print an official letter (خطاب رسمي) using the configured print design + letter header/footer texts. */
-export function printLetter(opts: { subject?: string; body: string; recipient?: string; isRtl?: boolean }): void {
+/** Build the HTML of an official letter (خطاب رسمي) using the configured print design + letter header/footer texts. */
+export function buildLetterHtml(opts: { subject?: string; body: string; recipient?: string; isRtl?: boolean }): string {
   const isRtl = opts.isRtl !== false;
   const sysCfg = getSystemSettings();
   const pd = sysCfg.printDesign;
@@ -35,9 +35,7 @@ export function printLetter(opts: { subject?: string; body: string; recipient?: 
   const headerNote = escapeHtml(isRtl ? pd.headerNoteAr : pd.headerNoteEn);
   const now = new Date().toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" });
   const contactBits = [about.address, about.phone1, about.email1, about.website].filter(Boolean).map((v) => escapeHtml(String(v).split("\n").join(" — "))).join(" · ");
-  const w = window.open("", "_blank");
-  if (!w) return;
-  w.document.write(`<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}" lang="${isRtl ? "ar" : "en"}"><head><meta charset="UTF-8"><title>${escapeHtml(opts.subject || (isRtl ? "خطاب رسمي" : "Official Letter"))}</title>
+  return `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}" lang="${isRtl ? "ar" : "en"}"><head><meta charset="UTF-8"><title>${escapeHtml(opts.subject || (isRtl ? "خطاب رسمي" : "Official Letter"))}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI', Tahoma, sans-serif; padding:36px; color:#111827; font-size:14px; line-height:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -63,7 +61,14 @@ export function printLetter(opts: { subject?: string; body: string; recipient?: 
     ${footerText ? `<div style="white-space:pre-line;margin-bottom:4px">${footerText}</div>` : ""}
     ${contactBits ? `<div>${contactBits}</div>` : ""}
   </div>
-  </body></html>`);
+  </body></html>`;
+}
+
+/** Print an official letter (خطاب رسمي) using the configured print design + letter header/footer texts. */
+export function printLetter(opts: { subject?: string; body: string; recipient?: string; isRtl?: boolean }): void {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(buildLetterHtml(opts));
   w.document.close();
 }
 

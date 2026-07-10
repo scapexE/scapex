@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Printer, Trash2, ArrowDownCircle, ArrowUpCircle, Loader2 } from "lucide-react";
+import { Plus, Printer, Trash2, ArrowDownCircle, ArrowUpCircle, Loader2, Mail } from "lucide-react";
+import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,7 +42,7 @@ const METHODS_EN: Record<string,string> = {
   bank_transfer: "Bank Transfer", cash: "Cash", check: "Check", sadad: "SADAD", stc_pay: "STC Pay", other: "Other",
 };
 
-function printVoucher(pmt: Payment, contacts: Contact[], isRtl: boolean) {
+function buildVoucherHtml(pmt: Payment, contacts: Contact[], isRtl: boolean): string {
   const isReceipt = pmt.type === "received";
   const methodLabel = isRtl ? (METHODS_AR[pmt.method] || pmt.method) : (METHODS_EN[pmt.method] || pmt.method);
   const contact = contacts.find(c => c.id === pmt.contactId);
@@ -84,6 +85,11 @@ function printVoucher(pmt: Payment, contacts: Contact[], isRtl: boolean) {
   </div>
   <div class="footer">شركة سكابكس · Scapex Company</div>
   </body></html>`;
+  return html;
+}
+
+function printVoucher(pmt: Payment, contacts: Contact[], isRtl: boolean) {
+  const html = buildVoucherHtml(pmt, contacts, isRtl);
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); }
 }
@@ -99,6 +105,7 @@ export function PaymentsTab() {
   const [installments, setInstallments] = useState<ScheduleInstallment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [sendPayment, setSendPayment] = useState<Payment | null>(null);
   const [voucherType, setVoucherType] = useState<"received" | "paid">("received");
   const [saving, setSaving] = useState(false);
 
@@ -203,6 +210,7 @@ export function PaymentsTab() {
                   <TableCell>
                     <div className={cn("flex items-center gap-1", isRtl ? "justify-start" : "justify-end")}>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" onClick={() => printVoucher(pmt, contacts, isRtl)}><Printer className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-cyan-600" onClick={() => setSendPayment(pmt)} title={isRtl ? "إرسال نسخة للعميل" : "Send copy to client"} data-testid={`button-send-voucher-${pmt.id}`}><Mail className="w-3.5 h-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => handleDelete(pmt.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </TableCell>
@@ -368,6 +376,19 @@ export function PaymentsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {sendPayment && (
+        <SendToClientDialog
+          open={!!sendPayment}
+          onOpenChange={(o) => { if (!o) setSendPayment(null); }}
+          titleAr={`${sendPayment.type === "received" ? "سند قبض" : "سند صرف"} ${sendPayment.paymentNumber}`}
+          titleEn={`${sendPayment.type === "received" ? "Receipt Voucher" : "Payment Voucher"} ${sendPayment.paymentNumber}`}
+          category="voucher"
+          buildHtml={() => buildVoucherHtml(sendPayment, contacts, isRtl)}
+          contactId={sendPayment.contactId}
+          allowPickContact={!sendPayment.contactId}
+        />
+      )}
     </div>
   );
 }
