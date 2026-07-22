@@ -22,7 +22,7 @@ import {
   consumeEmailVerification,
 } from "./email";
 import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, type SurveyQuestionDef } from "@shared/schema";
-import { sendEmail } from "./email";
+import { sendEmail, generateTempPassword, sendPortalWelcomeEmail } from "./email";
 import crypto from "crypto";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
@@ -1008,7 +1008,32 @@ export async function registerRoutes(
         nationalId: d.nationalId?.trim() || null,
       } as any).returning();
 
-      res.json(result[0]);
+      // Auto portal enrollment: when the new customer has both a national ID
+      // and an email, enable portal access with a temporary password emailed
+      // to the client (they must change it on first login).
+      let portalInvited = false;
+      const newCustomer = result[0];
+      const custNid = ((newCustomer as any).nationalId || "").trim();
+      const custEmail = (newCustomer.email || "").trim();
+      if (custNid && custEmail) {
+        try {
+          const tempPassword = generateTempPassword();
+          const hash = await hashPassword(tempPassword);
+          const sent = await sendPortalWelcomeEmail(custEmail, newCustomer.nameAr || newCustomer.nameEn || "", custNid, tempPassword);
+          if (sent) {
+            await db.update(contacts).set({
+              portalEnabled: true,
+              portalPasswordHash: hash,
+              portalMustChange: true,
+              updatedAt: new Date(),
+            } as any).where(eq(contacts.id, newCustomer.id));
+            portalInvited = true;
+          }
+        } catch (e) {
+          console.error("Auto portal enrollment failed:", e);
+        }
+      }
+      res.json({ ...newCustomer, _portalInvited: portalInvited });
     } catch (err: any) {
       console.error("Create customer error:", err);
       res.status(500).json({ error: "Server error" });
@@ -2388,6 +2413,35 @@ export async function registerRoutes(
     res.json({ contact: sanitizeContact(me) });
   });
 
+  app.post("/api/portal/change-password", async (req, res) => {
+    try {
+      const me = await requirePortalContact(req, res);
+      if (!me) return;
+      const { currentPassword, newPassword } = req.body || {};
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "currentPassword and newPassword are required" });
+      }
+      if (String(newPassword).length < 8) {
+        return res.status(400).json({ error: "كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل" });
+      }
+      if (String(newPassword) === String(currentPassword)) {
+        return res.status(400).json({ error: "كلمة المرور الجديدة يجب أن تختلف عن الحالية" });
+      }
+      const ok = me.portalPasswordHash && await verifyPwd(String(currentPassword), me.portalPasswordHash as string);
+      if (!ok) return res.status(401).json({ error: "كلمة المرور الحالية غير صحيحة" });
+      const hash = await hashPassword(String(newPassword));
+      await db.update(contacts).set({
+        portalPasswordHash: hash,
+        portalMustChange: false,
+        updatedAt: new Date(),
+      } as any).where(eq(contacts.id, me.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Portal change password error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.post("/api/portal/logout", async (_req, res) => {
     // Stateless tokens: client just discards it.
     res.json({ success: true });
@@ -3168,7 +3222,7 @@ export async function registerRoutes(
       const [c] = await db.select().from(contacts).where(eq(contacts.id, id));
       if (!c) return res.status(404).json({ error: "Not found" });
       const hash = await hashPassword(String(password));
-      await db.update(contacts).set({ portalPasswordHash: hash, updatedAt: new Date() }).where(eq(contacts.id, id));
+      await db.update(contacts).set({ portalPasswordHash: hash, portalMustChange: true, updatedAt: new Date() } as any).where(eq(contacts.id, id));
       res.json({ success: true });
     } catch (err: any) {
       console.error("Portal reset error:", err);

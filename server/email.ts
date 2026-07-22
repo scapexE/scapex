@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import crypto from "crypto";
 
 function getResendClient(): Resend {
   const apiKey = process.env.RESEND_API_KEY;
@@ -146,6 +147,56 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   } catch (err: any) {
     return { success: false, error: err?.message || String(err) };
   }
+}
+
+export function generateTempPassword(): string {
+  // 10 chars: upper, lower, digits + one symbol — CSPRNG-based
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghjkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const all = upper + lower + digits;
+  let pwd = upper[crypto.randomInt(upper.length)]
+    + lower[crypto.randomInt(lower.length)]
+    + digits[crypto.randomInt(digits.length)];
+  for (let i = 0; i < 6; i++) pwd += all[crypto.randomInt(all.length)];
+  return pwd + "@";
+}
+
+export async function sendPortalWelcomeEmail(
+  toEmail: string,
+  clientName: string,
+  nationalId: string,
+  tempPassword: string,
+  portalUrl = "https://erp.scape.sa/client-portal",
+): Promise<boolean> {
+  const result = await sendEmail({
+    to: toEmail,
+    subject: "بيانات الدخول لبوابة العملاء — Scapex Client Portal",
+    html: `
+      <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 520px; margin: 0 auto; padding: 30px; background: #f8fafc; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #1e40af; margin: 0;">Scapex</h2>
+          <p style="color: #64748b; font-size: 14px; margin: 4px 0 0;">بوابة العملاء</p>
+        </div>
+        <div style="background: white; border-radius: 8px; padding: 24px; border: 1px solid #e2e8f0;">
+          <p style="color: #334155; font-size: 15px;">مرحباً ${clientName}،</p>
+          <p style="color: #334155; font-size: 14px;">تم تفعيل حسابك في بوابة العملاء. بيانات الدخول:</p>
+          <table style="width:100%; margin: 16px 0; font-size: 14px; color: #334155;">
+            <tr><td style="padding:6px 0; color:#64748b;">رقم الهوية:</td><td style="direction:ltr; text-align:left; font-family:monospace; font-weight:bold;">${nationalId}</td></tr>
+            <tr><td style="padding:6px 0; color:#64748b;">كلمة المرور المؤقتة:</td><td style="direction:ltr; text-align:left; font-family:monospace; font-weight:bold;">${tempPassword}</td></tr>
+          </table>
+          <div style="text-align:center; margin: 20px 0;">
+            <a href="${portalUrl}" style="display:inline-block; background:#1e40af; color:white; padding:12px 28px; border-radius:8px; text-decoration:none; font-size:15px;">الدخول إلى بوابة العملاء</a>
+          </div>
+          <p style="color: #b45309; font-size: 13px; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px;">
+            لأمان حسابك، سيُطلب منك تغيير كلمة المرور المؤقتة عند أول تسجيل دخول.
+          </p>
+        </div>
+      </div>
+    `,
+  });
+  if (!result.success) console.error("❌ Failed to send portal welcome email:", result.error);
+  return result.success;
 }
 
 export async function sendVerificationEmail(

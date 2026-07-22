@@ -252,6 +252,13 @@ export function CustomersList({
             ? "السجل التجاري موجود في النظام، تم ربطك بالملف الموجود لتجنب التكرار."
             : "CR number already in the system. You were linked to the existing profile.",
         });
+      } else if (data._portalInvited) {
+        toast({
+          title: isRtl ? "✅ تم إضافة العميل وتفعيل بوابة العملاء" : "✅ Customer added & portal activated",
+          description: isRtl
+            ? "تم إرسال بيانات الدخول المؤقتة إلى بريد العميل الإلكتروني."
+            : "Temporary login credentials were emailed to the client.",
+        });
       } else {
         toast({ title: isRtl ? "تم إضافة العميل وإسناده لك" : "Customer added and assigned to you" });
       }

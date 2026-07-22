@@ -17,7 +17,7 @@ import {
   portalListMyInvoices, portalListMyContracts,
   portalApproveProposal, portalSignContract,
   portalSubmitRequest, portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
-  portalOpenDocHtml,
+  portalOpenDocHtml, portalChangePassword,
   getPortalContact, getPortalToken, clearPortalSession, setPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
   type PortalClientDocument, type PortalProposal, type PortalMyInvoice, type PortalMyContract,
@@ -42,6 +42,82 @@ const STAGE_STATUS_COLOR: Record<string, string> = { pending: "bg-slate-100 text
 
 function getPortalTheme(): PortalTheme {
   try { return (localStorage.getItem(STORAGE_THEME) as PortalTheme) || "default"; } catch { return "default"; }
+}
+
+// ── Forced password change (first login with a temporary password) ───────
+function ForcePasswordChangeScreen({ onDone, theme, isRtl, t }: { onDone: () => void; theme: typeof PORTAL_THEMES[number]; isRtl: boolean; t: (a: string, e: string) => string }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setError("");
+    if (!current || !next || !confirm) {
+      setError(t("يرجى تعبئة جميع الحقول", "Please fill in all fields"));
+      return;
+    }
+    if (next.length < 8) {
+      setError(t("كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل", "New password must be at least 8 characters"));
+      return;
+    }
+    if (next !== confirm) {
+      setError(t("كلمتا المرور غير متطابقتين", "Passwords do not match"));
+      return;
+    }
+    if (next === current) {
+      setError(t("كلمة المرور الجديدة يجب أن تختلف عن المؤقتة", "New password must differ from the temporary one"));
+      return;
+    }
+    setBusy(true);
+    try {
+      await portalChangePassword(current, next);
+      onDone();
+    } catch (e: any) {
+      setError(e?.message || t("تعذر تغيير كلمة المرور", "Failed to change password"));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className={cn("min-h-screen flex items-center justify-center p-4", theme.bg)} dir={isRtl ? "rtl" : "ltr"}>
+      <div className="w-full max-w-md">
+        <div className={cn("rounded-t-2xl p-8 bg-gradient-to-r text-white", theme.primary)}>
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg mx-auto mb-4">
+              <KeyRound className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold">{t("تغيير كلمة المرور", "Change Password")}</h2>
+            <p className="text-white/80 text-sm mt-2">
+              {t("لأمان حسابك، يجب تغيير كلمة المرور المؤقتة قبل المتابعة", "For your security, change the temporary password before continuing")}
+            </p>
+          </div>
+        </div>
+        <div className="bg-card border border-t-0 border-border/50 shadow-xl rounded-b-2xl p-8 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium block">{t("كلمة المرور المؤقتة (الحالية)", "Temporary (current) password")}</label>
+            <input type="password" dir="ltr" value={current} onChange={(e) => setCurrent(e.target.value)}
+              className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm" data-testid="input-current-password" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium block">{t("كلمة المرور الجديدة", "New password")}</label>
+            <input type="password" dir="ltr" value={next} onChange={(e) => setNext(e.target.value)}
+              className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm" data-testid="input-new-password" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium block">{t("تأكيد كلمة المرور الجديدة", "Confirm new password")}</label>
+            <input type="password" dir="ltr" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm" data-testid="input-confirm-password" />
+          </div>
+          {error && <p className="text-sm text-rose-600" data-testid="text-change-password-error">{error}</p>}
+          <Button className="w-full h-11" onClick={submit} disabled={busy} data-testid="button-change-password">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : t("حفظ ومتابعة", "Save & Continue")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Login screen ──────────────────────────────────────────────────────────
@@ -1395,6 +1471,18 @@ export default function ClientPortalModule() {
       );
     }
     return <PortalLoginScreen onLogin={(c) => setContact(c)} theme={theme} isRtl={isRtl} t={t} toggleLang={toggleLanguage} />;
+  }
+
+  // First login with a temporary password: force a password change before any content
+  if (contact.mustChangePassword && !impersonating) {
+    return (
+      <ForcePasswordChangeScreen
+        theme={theme}
+        isRtl={isRtl}
+        t={t}
+        onDone={() => setContact({ ...contact, mustChangePassword: false })}
+      />
+    );
   }
 
   const contactName = (isRtl ? contact.nameAr : (contact.nameEn || contact.nameAr)) || contact.email || "—";

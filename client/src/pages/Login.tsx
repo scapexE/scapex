@@ -678,20 +678,41 @@ export default function Login() {
               display: "flex", background: "#1f2937", borderRadius: "10px",
               padding: "3px", marginBottom: "24px", gap: "3px",
             }}>
-              {(["login", "register"] as Tab[]).map((t) => (
-                <button key={t} onClick={() => { setTab(t); setLoginError(""); setRegError(""); if (regStep === "submitted") { resetRegForm(); setRegStep("form"); } }}
-                  style={{
-                    flex: 1, padding: "8px", border: "none", borderRadius: "8px", cursor: "pointer",
-                    fontSize: "14px", fontWeight: "600", transition: "all 0.2s",
-                    background: tab === t ? "#3b82f6" : "transparent",
-                    color: tab === t ? "white" : "#6b7280",
-                  }}
-                >
-                  {t === "login"
-                    ? (isRtl ? "تسجيل الدخول" : "Sign In")
-                    : (isRtl ? "حساب عميل جديد" : "New Client Account")}
-                </button>
-              ))}
+              <button
+                data-testid="button-entry-staff"
+                onClick={() => { setTab("login"); setLoginError(""); setRegError(""); if (regStep === "submitted") { resetRegForm(); setRegStep("form"); } }}
+                style={{
+                  flex: 1, padding: "8px 4px", border: "none", borderRadius: "8px", cursor: "pointer",
+                  fontSize: "13px", fontWeight: "600", transition: "all 0.2s",
+                  background: tab === "login" ? "#3b82f6" : "transparent",
+                  color: tab === "login" ? "white" : "#6b7280",
+                }}
+              >
+                {isRtl ? "دخول الموظفين" : "Staff Sign In"}
+              </button>
+              <button
+                data-testid="button-entry-portal"
+                onClick={() => { window.location.href = "/client-portal"; }}
+                style={{
+                  flex: 1, padding: "8px 4px", border: "none", borderRadius: "8px", cursor: "pointer",
+                  fontSize: "13px", fontWeight: "600", transition: "all 0.2s",
+                  background: "transparent", color: "#34d399",
+                }}
+              >
+                {isRtl ? "بوابة العملاء" : "Client Portal"}
+              </button>
+              <button
+                data-testid="button-entry-register"
+                onClick={() => { setTab("register"); setLoginError(""); setRegError(""); if (regStep === "submitted") { resetRegForm(); setRegStep("form"); } }}
+                style={{
+                  flex: 1, padding: "8px 4px", border: "none", borderRadius: "8px", cursor: "pointer",
+                  fontSize: "13px", fontWeight: "600", transition: "all 0.2s",
+                  background: tab === "register" ? "#3b82f6" : "transparent",
+                  color: tab === "register" ? "white" : "#6b7280",
+                }}
+              >
+                {isRtl ? "تسجيل جديد" : "Register"}
+              </button>
             </div>
 
             {tab === "login" && (

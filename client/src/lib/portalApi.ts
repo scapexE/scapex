@@ -13,6 +13,7 @@ export interface PortalContact {
   city: string | null;
   address: string | null;
   activityId: string | null;
+  mustChangePassword?: boolean;
 }
 
 export interface PortalProject {
@@ -162,6 +163,21 @@ export async function portalSendSignOtp(
   const r = await portalFetch("/api/portal/sign-otp", { method: "POST", body: JSON.stringify({ channel }) });
   if (!r.ok) throw new Error("Failed to send OTP");
   return r.json();
+}
+
+export async function portalChangePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const r = await portalFetch("/api/portal/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error || "Failed to change password");
+  }
+  // Keep cached contact in sync — the flag is now cleared
+  const contact = getPortalContact();
+  const token = getPortalToken();
+  if (contact && token) setPortalSession(token, { ...contact, mustChangePassword: false });
 }
 
 export async function portalGetMe(): Promise<PortalContact> {
