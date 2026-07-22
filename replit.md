@@ -1,6 +1,7 @@
 # Scapex — Smart Business Management Platform (ERP)
 
 ## User Preferences
+- **Communication**: Always respond in Arabic. After finishing ANY task, always give the user a clear summary of all actions taken (what changed, where, and whether it was deployed).
 - **Design Philosophy**: Build every feature as an advanced version of Odoo + SAP — professional, data-rich, contextual. Centralized data, multiple access points, no duplication.
 - **Document Storage**: All file content stored in PostgreSQL as base64 (TEXT column `file_content`). Max 15MB per file. Documents shared by `contact_id` (company-level) or `deal_id` (deal-specific).
 - **CRM Documents**: Use the unified `documents` table with `contact_id`/`deal_id` columns — accessible from both CRM Drawer and DMS module. No separate document store.
