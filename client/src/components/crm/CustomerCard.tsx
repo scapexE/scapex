@@ -21,6 +21,7 @@ import { CreateProjectDialog } from "@/components/projects/ProjectsList";
 import { useActivityScope } from "@/hooks/useActivityScope";
 import { scopedFetch } from "@/lib/queryClient";
 import { fetchSurveys } from "@/lib/surveys";
+import { CustomerDocuments } from "./CustomerDocuments";
 import { SurveyResults } from "./SurveyResults";
 import { useLocation } from "wouter";
 
@@ -58,6 +59,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
   const [usersList, setUsersList] = useState<Array<{ id: string; name?: string | null; firstName?: string | null; lastName?: string | null; }>>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [surveyCount, setSurveyCount] = useState(0);
+  const [docCount, setDocCount] = useState(0);
   const { activeActivity, isPrivileged } = useActivityScope();
 
   useEffect(() => {
@@ -72,6 +74,14 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
     const allProjects = getProjects();
     setProjects(allProjects.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
     fetchSurveys(customer.id).then(list => setSurveyCount(list.length)).catch(() => {});
+    if (Number.isFinite(Number(customer.id))) {
+      scopedFetch(`/api/documents?contactId=${Number(customer.id)}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(rows => setDocCount(Array.isArray(rows) ? rows.length : 0))
+        .catch(() => setDocCount(0));
+    } else {
+      setDocCount(0);
+    }
 
     // DB-backed projects scoped to this contact id (when the customer comes from /api/customers)
     const contactId = Number(customer.id);
@@ -224,6 +234,10 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
             <TabsTrigger value="projects" className="text-xs data-[state=active]:bg-background">
               {isRtl ? "المشاريع" : "Projects"}
               {projects.length > 0 && <Badge variant="secondary" className="ms-1.5 text-[10px] h-4 px-1">{projects.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="text-xs data-[state=active]:bg-background" data-testid="tab-documents">
+              {isRtl ? "المستندات" : "Documents"}
+              {docCount > 0 && <Badge variant="secondary" className="ms-1.5 text-[10px] h-4 px-1">{docCount}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="surveys" className="text-xs data-[state=active]:bg-background">
               {isRtl ? "الاستطلاعات" : "Surveys"}
@@ -536,6 +550,26 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                     </div>
                   ))}
                 </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+
+          {/* ── Documents ── */}
+          <TabsContent value="documents" className="flex-1 min-h-0 m-0 mt-3">
+            <ScrollArea className="h-full px-6 pb-4">
+              {Number.isFinite(Number(customer.id)) ? (
+                <CustomerDocuments
+                  contactId={Number(customer.id)}
+                  customerName={customer.name}
+                  projects={apiProjects}
+                  isRtl={isRtl}
+                  onCountChange={setDocCount}
+                />
+              ) : (
+                <EmptyState
+                  icon={<FileText className="w-10 h-10 text-muted-foreground/40" />}
+                  label={isRtl ? "المستندات متاحة للعملاء المسجلين في قاعدة البيانات" : "Documents are available for database-backed customers"}
+                />
               )}
             </ScrollArea>
           </TabsContent>

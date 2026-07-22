@@ -26,7 +26,7 @@ import { sendEmail, generateTempPassword, sendPortalWelcomeEmail } from "./email
 import crypto from "crypto";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
-import { and, desc, inArray, or } from "drizzle-orm";
+import { and, desc, inArray, or, sql, getTableColumns } from "drizzle-orm";
 import { db } from "./db";
 
 // ── Signed staff session tokens ─────────────────────────────────────────────
@@ -4047,18 +4047,32 @@ export async function registerRoutes(
       const companyId = req.query.companyId ? Number(req.query.companyId) : undefined;
       const category = req.query.category as string | undefined;
       const folder = req.query.folder as string | undefined;
-      let query = db.select().from(documents).orderBy(desc(documents.createdAt));
-      const rows = await query;
-      let filtered = rows;
-      if (companyId) filtered = filtered.filter((d) => d.companyId === companyId);
-      if (category && category !== "all") filtered = filtered.filter((d) => d.category === category);
-      if (folder && folder !== "all") filtered = filtered.filter((d) => d.folder === folder);
-      // Strip heavy file payloads from the list response — use /api/documents/:id/file to fetch content.
-      const safe = filtered.map((d: any) => {
-        const { fileContent, fileUrl, ...rest } = d;
-        return { ...rest, hasFile: Boolean(fileContent || fileUrl) };
-      });
-      res.json(safe);
+      const contactId = req.query.contactId ? Number(req.query.contactId) : undefined;
+      const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
+      // Select metadata only at the SQL level — never pull 15MB payloads for a list view.
+      const { fileContent: _fc, fileUrl: _fu, ...metaCols } = getTableColumns(documents) as any;
+      const conditions: any[] = [];
+      if (companyId) conditions.push(eq(documents.companyId, companyId));
+      if (category && category !== "all") conditions.push(eq(documents.category, category));
+      if (folder && folder !== "all") conditions.push(eq(documents.folder, folder));
+      if (projectId) conditions.push(eq((documents as any).projectId, projectId));
+      if (contactId) {
+        // Everything belonging to this customer: company-level docs (contact_id)
+        // plus docs of any of the customer's projects.
+        const contactProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.contactId, contactId));
+        const pids = contactProjects.map((p) => p.id);
+        conditions.push(
+          pids.length > 0
+            ? or(eq((documents as any).contactId, contactId), inArray((documents as any).projectId, pids))
+            : eq((documents as any).contactId, contactId)
+        );
+      }
+      const rows = await db
+        .select({ ...metaCols, hasFile: sql<boolean>`(${documents.fileContent} IS NOT NULL OR ${documents.fileUrl} IS NOT NULL)` })
+        .from(documents)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(documents.createdAt));
+      res.json(rows);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
@@ -4131,11 +4145,16 @@ export async function registerRoutes(
         uploadedByName: actor ? ((actor as any).name || (actor as any).username || null) : null,
         companyId: body.companyId ? Number(body.companyId) : null,
         projectId: body.projectId ? Number(body.projectId) : null,
+        contactId: body.contactId ? Number(body.contactId) : null,
+        dealId: body.dealId ? Number(body.dealId) : null,
         activityId: body.activityId || null,
         fileSize: body.fileSize ? Number(body.fileSize) : null,
         fileUrl: body.fileUrl || null,
-      }).returning();
-      res.json(doc);
+        originalName: body.originalName || null,
+        mimeType: body.mimeType || null,
+      } as any).returning();
+      const { fileContent: _fc, fileUrl: _fu, ...docSafe } = doc as any;
+      res.json({ ...docSafe, hasFile: Boolean((doc as any).fileContent || (doc as any).fileUrl) });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
