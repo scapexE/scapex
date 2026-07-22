@@ -319,10 +319,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
     e.dataTransfer.setData("dealId", String(d.id));
   };
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
-  const handleDrop = async (e: React.DragEvent, stageId: string) => {
-    e.preventDefault();
-    const dealId = parseInt(e.dataTransfer.getData("dealId"));
-    if (!dealId) return;
+  const moveDeal = async (dealId: number, stageId: string) => {
     setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: stageId } : d));
     try {
       const res = await apiRequest("PATCH", `/api/deals/${dealId}`, { stage: stageId });
@@ -331,6 +328,12 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
       toast({ title: isRtl ? "تعذر نقل البطاقة" : "Failed to move card", variant: "destructive" });
       fetchData();
     }
+  };
+  const handleDrop = async (e: React.DragEvent, stageId: string) => {
+    e.preventDefault();
+    const dealId = parseInt(e.dataTransfer.getData("dealId"));
+    if (!dealId) return;
+    moveDeal(dealId, stageId);
   };
 
   const handleProposal = (d: DbDeal) => {
@@ -576,13 +579,28 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon"
-                                      className="h-6 w-6 shrink-0 -me-1 -mt-1 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                      className="h-6 w-6 shrink-0 -me-1 -mt-1 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                                       data-testid={`button-deal-menu-${d.id}`}
                                       onClick={e => e.stopPropagation()}>
                                       <MoreHorizontal className="h-3.5 w-3.5" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent align="end" className="w-44 p-1">
+                                  <PopoverContent align="end" className="w-48 p-1">
+                                    {editable && (
+                                      <>
+                                        <p className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-muted-foreground">{isRtl ? "نقل إلى مرحلة" : "Move to stage"}</p>
+                                        {STAGES.filter(s => s.id !== (d.stage || "new")).map(s => (
+                                          <button key={s.id}
+                                            className="flex items-center gap-2 w-full px-2 py-1.5 text-sm hover:bg-muted rounded"
+                                            onClick={(e) => { e.stopPropagation(); moveDeal(d.id, s.id); }}
+                                            data-testid={`button-move-deal-${d.id}-${s.id}`}>
+                                            <span className="text-sm">{s.icon}</span>
+                                            <span className={s.color}>{s.title}</span>
+                                          </button>
+                                        ))}
+                                        <div className="my-1 border-t" />
+                                      </>
+                                    )}
                                     {editable && (
                                       <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded"
                                         onClick={() => { setAssignTarget(d); setAssignTo(d.assignedTo || ""); }}
