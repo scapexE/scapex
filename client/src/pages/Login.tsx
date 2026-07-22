@@ -159,6 +159,10 @@ export default function Login() {
           setLoginError(isRtl
             ? "طلبك قيد المراجعة. سيتم تفعيل حسابك بعد موافقة المشرف."
             : "Your request is under review. Your account will be activated after admin approval.");
+        } else if (res.status === 401 && data.usePortal) {
+          setLoginError(isRtl
+            ? "هذا البريد مسجّل كعميل في بوابة العملاء — الرجاء الدخول من بوابة العملاء باستخدام رقم الهوية وكلمة المرور."
+            : "This email belongs to a client portal account — please sign in from the Client Portal using your National ID and password.");
         } else if (res.status === 401) {
           setLoginError(isRtl ? "البريد الإلكتروني أو كلمة المرور غير صحيحة" : "Incorrect email or password");
         } else if (res.status === 403) {

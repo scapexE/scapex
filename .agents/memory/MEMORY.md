@@ -3,6 +3,7 @@
 - [Payment ↔ installment linkage](payment-installment-linkage.md) — POST /api/payments is single source of truth; installment paid state is RECOMPUTED from linked vouchers, never incrementally, to keep create/delete symmetric.
 - [Portal signing OTP channels](portal-sign-otp-channels.md) — email OTP is default/working (Resend); SMS needs a paid provider; keep devCode gated to dev only.
 - [Server deployment setup](server-deployment.md) — Hostinger VPS deployment notes: ecosystem.config.cjs, missing DB columns, jszip bundling, deploy process.
+- [Client identity bridge](client-identity-bridge.md) — register bridges users→contacts by verified email only, never by nationalId; prod admins are real accounts, dev creds don't exist there.
 - [Send-to-client docs](send-to-client.md) — contact picker must hit /api/customers (no /api/contacts route); document HTML builders must be pure string fns so print & send share one source.
 - [Header-auth file links](header-auth-file-links.md) — x-session-token rides only the fetch wrapper; window.open/<a href> to API file endpoints 401s — use fetch → blob URL.
 - [Org structure tab](org-structure-tab.md) — companies.type/parentId live in settings JSON (not DB columns); structure tab must scope by permissions not active-activity or it blanks.

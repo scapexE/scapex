@@ -1005,6 +1005,7 @@ export async function registerRoutes(
         assignedTo: d.assignedTo || d.createdBy || scope.actor.id,
         createdBy: d.createdBy || scope.actor.id,
         crNumber,
+        nationalId: d.nationalId?.trim() || null,
       } as any).returning();
       res.json(result[0]);
     } catch (err: any) {
@@ -1082,6 +1083,7 @@ export async function registerRoutes(
         assignedTo: d.assignedTo ?? existing.assignedTo,
         serviceEmployeeIds: nextServiceIds,
         crNumber: d.crNumber !== undefined ? (d.crNumber?.trim() || null) : (existing as any).crNumber,
+        nationalId: d.nationalId !== undefined ? (d.nationalId?.trim() || null) : existing.nationalId,
         updatedAt: new Date(),
       } as any).where(eq(contacts.id, id)).returning();
       res.json(result[0]);
@@ -1939,6 +1941,14 @@ export async function registerRoutes(
       const user = await findUserByEmail(email);
       if (!user) {
         recordLoginFailure(key);
+        // If this email belongs to a portal-enabled customer, guide them to the client portal
+        try {
+          const [portalContact] = await db.select({ id: contacts.id }).from(contacts)
+            .where(and(eq(contacts.email, email.toLowerCase().trim()), eq(contacts.portalEnabled, true))).limit(1);
+          if (portalContact) {
+            return res.status(401).json({ error: "Invalid email or password", usePortal: true });
+          }
+        } catch {}
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
@@ -1971,7 +1981,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Name, email, and password are required" });
       }
 
-      if (!isEmailVerified(email)) {
+      // Dev-only bypass: local environment without an email provider configured
+      const devNoEmail = process.env.NODE_ENV === "development" && !process.env.RESEND_API_KEY;
+      if (!devNoEmail && !isEmailVerified(email)) {
         return res.status(403).json({ error: "Email not verified" });
       }
 
@@ -1980,9 +1992,17 @@ export async function registerRoutes(
         return res.status(409).json({ error: "Email already registered" });
       }
 
-      if (nationalId) {
-        const existingNid = await findUserByNationalId(nationalId);
+      const emailNorm = email.toLowerCase().trim();
+      const nid = (nationalId || "").toString().trim();
+      if (nid) {
+        const existingNid = await findUserByNationalId(nid);
         if (existingNid) {
+          return res.status(409).json({ error: "National ID already registered" });
+        }
+        // Guard: reject if this national ID belongs to an existing customer
+        // record with a different email — prevents portal account takeover.
+        const [nidContact] = await db.select().from(contacts).where(eq(contacts.nationalId, nid)).limit(1);
+        if (nidContact && (nidContact.email || "").toLowerCase().trim() !== emailNorm) {
           return res.status(409).json({ error: "National ID already registered" });
         }
       }
@@ -1995,10 +2015,50 @@ export async function registerRoutes(
         name,
         email,
         phone: phone || undefined,
+        nationalId: nationalId || undefined,
         role: "client",
         permissions: ["dashboard", "client_portal"],
         isActive: false,
       });
+
+      // Bridge: also create/link a customer (contacts) record so the client
+      // appears in CRM customer management and can use the client portal
+      // with their National ID + the same password.
+      try {
+        // Match strictly by the verified email — never by national ID alone,
+        // so registration can never hijack another customer's portal account.
+        const [existingContact] = await db.select().from(contacts)
+          .where(eq(contacts.email, emailNorm)).limit(1);
+        const portalHash = await hashPassword(String(password));
+        if (existingContact) {
+          // Only attach the national ID if the contact has none, and never
+          // overwrite an existing portal password unless portal was disabled.
+          const nidToSet = existingContact.nationalId || nid || null;
+          await db.update(contacts).set({
+            nationalId: nidToSet,
+            phone: existingContact.phone || phone || null,
+            portalEnabled: existingContact.portalEnabled || !!nidToSet,
+            ...(existingContact.portalPasswordHash ? {} : { portalPasswordHash: portalHash }),
+            updatedAt: new Date(),
+          }).where(eq(contacts.id, existingContact.id));
+        } else {
+          await db.insert(contacts).values({
+            nameAr: name,
+            nameEn: name,
+            email: emailNorm,
+            phone: phone || null,
+            mobile: phone || null,
+            type: "customer",
+            source: "registration",
+            isActive: true,
+            nationalId: nid || null,
+            portalEnabled: !!nid,
+            portalPasswordHash: portalHash,
+          } as any);
+        }
+      } catch (bridgeErr) {
+        console.error("Register contact-bridge error:", bridgeErr);
+      }
 
       const { password: _, ...safeUser } = user;
 

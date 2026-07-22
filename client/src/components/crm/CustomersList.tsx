@@ -108,7 +108,7 @@ export function CustomersList({
   const [assignServiceIds, setAssignServiceIds] = useState<string[]>([]);
   const [form, setForm] = useState({
     nameAr: "", nameEn: "", organization: "", position: "",
-    email: "", phone: "", city: "", address: "", source: "active", notes: "", crNumber: "",
+    email: "", phone: "", city: "", address: "", source: "active", notes: "", crNumber: "", nationalId: "",
   });
 
 
@@ -226,7 +226,7 @@ export function CustomersList({
 
   const resetForm = () => setForm({
     nameAr: "", nameEn: "", organization: "", position: "",
-    email: "", phone: "", city: "", address: "", source: "active", notes: "", crNumber: "",
+    email: "", phone: "", city: "", address: "", source: "active", notes: "", crNumber: "", nationalId: "",
   });
 
   const handleSave = async () => {
@@ -544,6 +544,11 @@ export function CustomersList({
                                 CR {(dbRow as any).crNumber}
                               </span>
                             )}
+                            {(dbRow as any)?.nationalId && (
+                              <span className="text-[10px] font-mono font-normal bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded px-1.5 py-0.5" data-testid={`text-national-id-${customer.id}`}>
+                                {isRtl ? "هوية" : "ID"} {(dbRow as any).nationalId}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <MapPin className="w-3 h-3" />
@@ -711,6 +716,17 @@ export function CustomersList({
                 placeholder={isRtl ? "مثال: 1010XXXXXX" : "e.g. 1010XXXXXX"}
                 dir="ltr"
                 data-testid="input-customer-cr-number"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cust-national-id">{isRtl ? "رقم الهوية (لبوابة العميل)" : "National ID (for client portal)"}</Label>
+              <Input
+                id="cust-national-id"
+                value={form.nationalId}
+                onChange={e => setForm({ ...form, nationalId: e.target.value })}
+                placeholder={isRtl ? "10 أرقام" : "10 digits"}
+                dir="ltr"
+                data-testid="input-customer-national-id"
               />
             </div>
             <div className="space-y-1.5">
