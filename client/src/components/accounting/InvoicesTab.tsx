@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getAboutData, getSystemSettings, getPrintFontCss } from "@/lib/companySettings";
 import { dbGetItem } from "@/lib/dbStorage";
+import { watermarkHtml, preparedByHtml, zatcaQrBlockHtml } from "@/lib/printShared";
+import { getRequestScope } from "@/lib/queryClient";
 import { ExportMenu } from "@/components/shared/ExportMenu";
 
 interface InvItem { descAr: string; descEn: string; qty: number; unit: string; unitPrice: number; total: number; }
@@ -25,6 +27,7 @@ interface Invoice {
   issueDate: string; dueDate: string | null;
   subtotal: string; vatAmount: string; total: string; paidAmount: string;
   currency: string; status: string; notes: string | null;
+  createdBy?: string | null;
   items?: InvItem[];
 }
 interface Contact { id: number; nameAr: string | null; nameEn: string | null; }
@@ -105,6 +108,7 @@ export function InvoicesTab() {
         issueDate: form.issueDate, dueDate: form.dueDate || null,
         subtotal, vatAmount, total, vatRate: form.vatRate,
         notes: form.notes || null, status: "draft",
+        createdBy: getRequestScope().userId || null,
         items: form.items.filter(i => i.descAr || i.descEn),
       };
       await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -131,7 +135,7 @@ export function InvoicesTab() {
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
   };
 
-  const buildInvoiceHtml = (inv: Invoice) => {
+  const buildInvoiceHtml = async (inv: Invoice) => {
     const sysCfg = getSystemSettings();
     const pd = sysCfg.printDesign;
     const about = getAboutData();
@@ -160,6 +164,16 @@ export function InvoicesTab() {
     const customFooter = esc(isRtl ? sysCfg.invoiceFooterAr : sysCfg.invoiceFooterEn);
     const contactBits = [about.address, about.phone1, about.email1, about.website].filter(Boolean).map(v => esc(String(v).split("\n").join(" — "))).join(" · ");
     const printFont = getPrintFontCss();
+    const qrBlock = await zatcaQrBlockHtml({
+      sellerName: coNameAr,
+      vatNumber: coVat,
+      timestamp: `${inv.issueDate}T00:00:00Z`,
+      total: parseFloat(inv.total || "0").toFixed(2),
+      vat: parseFloat(inv.vatAmount || "0").toFixed(2),
+      labelAr: isRtl,
+    });
+    const wmark = watermarkHtml(pd, sysCfg);
+    const preparedBy = preparedByHtml(inv.createdBy, isRtl ? "ar" : "en");
     const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${esc(inv.invoiceNumber)}</title>
     <style>${printFont.css}
     body{font-family:${printFont.family};font-size:12px;margin:0;padding:20px;color:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -176,6 +190,8 @@ export function InvoicesTab() {
     .badge-draft{background:#f1f5f9;color:#475569}.badge-paid{background:#dcfce7;color:#166534}.badge-sent{background:#dbeafe;color:#1d4ed8}.badge-partial{background:#fef9c3;color:#854d0e}
     .footer{margin-top:30px;border-top:2px solid ${pd.accentColor};padding:10px 14px;text-align:center;color:${pd.footerTextColor};font-size:10px;background:${pd.footerBgColor};${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""}border-radius:0 0 6px 6px}</style>
     </head><body>
+    ${wmark}
+    <div style="position:relative;z-index:1;">
     <div class="header">
       <div style="display:flex;align-items:center;gap:12px">
         ${logoHtml}
@@ -212,19 +228,24 @@ export function InvoicesTab() {
       ${parseFloat(inv.paidAmount) > 0 ? `<div class="total-row"><span style="color:#16a34a">${isRtl ? "المدفوع:" : "Paid:"}</span><span style="color:#16a34a">${parseFloat(inv.paidAmount).toLocaleString()} ${inv.currency}</span></div>` : ""}
     </div>
     ${inv.notes ? `<div style="margin-top:15px;padding:10px;background:#f8fafc;border-radius:6px;font-size:11px;color:#475569">${esc(inv.notes)}</div>` : ""}
+    ${qrBlock ? `<div style="margin-top:18px;display:flex;justify-content:${isRtl ? "flex-end" : "flex-start"};">${qrBlock}</div>` : ""}
     <div class="footer">
       <div>${esc(coNameAr)} · ${esc(coNameEn)} · ${isRtl ? "الرقم الضريبي" : "VAT No"}: ${esc(coVat)}</div>
       ${contactBits ? `<div style="margin-top:4px">${contactBits}</div>` : ""}
       ${customFooter ? `<div style="margin-top:6px;font-style:italic;opacity:0.9">${customFooter}</div>` : ""}
+      ${preparedBy}
+    </div>
     </div>
     </body></html>`;
     return html;
   };
 
   const printInvoice = (inv: Invoice) => {
-    const html = buildInvoiceHtml(inv);
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
+    if (!w) return;
+    buildInvoiceHtml(inv).then((html) => {
+      w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500);
+    });
   };
 
   const filtered = invoices.filter(inv => {

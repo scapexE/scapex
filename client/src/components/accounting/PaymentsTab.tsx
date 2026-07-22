@@ -16,7 +16,9 @@ import { Plus, Printer, Trash2, ArrowDownCircle, ArrowUpCircle, Loader2, Mail } 
 import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { getPrintFontCss } from "@/lib/companySettings";
+import { getPrintFontCss, getAboutData, getSystemSettings } from "@/lib/companySettings";
+import { watermarkHtml, preparedByHtml } from "@/lib/printShared";
+import { getRequestScope } from "@/lib/queryClient";
 
 interface Payment {
   id: number; paymentNumber: string; type: string;
@@ -24,6 +26,7 @@ interface Payment {
   amount: string; currency: string; method: string;
   reference: string | null; date: string; notes: string | null;
   scheduleId: number | null; contractRef: string | null;
+  createdBy?: string | null;
   createdAt: string;
 }
 interface Contact { id: number; nameAr: string | null; nameEn: string | null; }
@@ -49,12 +52,28 @@ function buildVoucherHtml(pmt: Payment, contacts: Contact[], isRtl: boolean): st
   const contact = contacts.find(c => c.id === pmt.contactId);
   const contactName = contact ? (isRtl ? contact.nameAr : contact.nameEn) : "—";
   const printFont = getPrintFontCss();
+  const about = getAboutData();
+  const sysCfg = getSystemSettings();
+  const pd = sysCfg.printDesign;
+  const coNameAr = about.companyNameAr || "شركة سكابكس";
+  const coNameEn = about.companyNameEn || "Scapex Company";
+  const coVat = about.vatNumber || "";
+  const coLogoUrl = pd.headerLogo || sysCfg.brandLogo || "";
+  const logoHtml = !pd.showLogo
+    ? ""
+    : coLogoUrl
+    ? `<img src="${esc(coLogoUrl)}" style="width:48px;height:48px;object-fit:contain;border-radius:8px" />`
+    : "";
+  const wmark = watermarkHtml(pd, sysCfg);
+  const preparedBy = preparedByHtml(pmt.createdBy, isRtl ? "ar" : "en");
+  const contactBits = [about.address, about.phone1, about.email1, about.website].filter(Boolean).map(v => esc(String(v).split("\n").join(" — "))).join(" · ");
 
   const html = `<!DOCTYPE html><html dir="${isRtl ? "rtl" : "ltr"}"><head><meta charset="UTF-8"><title>${esc(pmt.paymentNumber)}</title>
   <style>${printFont.css}
-  body{font-family:${printFont.family};font-size:12px;margin:30px;color:#1a1a1a;max-width:600px}
-  .header{display:flex;justify-content:space-between;border-bottom:3px solid ${isReceipt ? "#166534" : "#991b1b"};padding-bottom:12px;margin-bottom:20px}
-  .logo{font-size:20px;font-weight:900;color:${isReceipt ? "#166534" : "#991b1b"}}
+  body{font-family:${printFont.family};font-size:12px;margin:30px;color:#1a1a1a;max-width:600px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid ${isReceipt ? "#166534" : "#991b1b"};padding-bottom:12px;margin-bottom:20px;background:${pd.headerBgColor};${pd.headerBgImage ? `background-image:url('${pd.headerBgImage}');background-size:cover;background-position:center;` : ""}${pd.headerBgColor !== "#ffffff" || pd.headerBgImage ? "padding:12px 14px;border-radius:8px;" : ""}color:${pd.headerTextColor}}
+  .co-name{font-size:15px;font-weight:700;color:${pd.headerTextColor}}
+  .co-sub{font-size:10px;color:${pd.headerTextColor};opacity:0.75}
   .type-badge{background:${isReceipt ? "#dcfce7" : "#fee2e2"};color:${isReceipt ? "#166534" : "#991b1b"};padding:4px 14px;border-radius:6px;font-weight:700;font-size:14px}
   .amount-box{background:${isReceipt ? "#f0fdf4" : "#fff1f2"};border:2px solid ${isReceipt ? "#166534" : "#991b1b"};border-radius:10px;padding:16px;text-align:center;margin:20px 0}
   .amount{font-size:28px;font-weight:900;color:${isReceipt ? "#166534" : "#991b1b"}}
@@ -64,10 +83,18 @@ function buildVoucherHtml(pmt: Payment, contacts: Contact[], isRtl: boolean): st
   .field-value{font-weight:600;font-size:12px}
   .sig{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:40px;padding-top:15px;border-top:1px solid #e2e8f0}
   .sig-line{border-top:1px solid #1a1a1a;margin-top:30px;padding-top:4px;text-align:center;font-size:10px;color:#64748b}
-  .footer{text-align:center;margin-top:20px;color:#94a3b8;font-size:10px;border-top:1px solid #e2e8f0;padding-top:10px}</style>
+  .footer{text-align:center;margin-top:20px;color:${pd.footerTextColor};font-size:10px;border-top:2px solid ${pd.accentColor};padding:10px 14px;background:${pd.footerBgColor};${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""}border-radius:0 0 6px 6px}</style>
   </head><body>
+  ${wmark}
+  <div style="position:relative;z-index:1;">
   <div class="header">
-    <div class="logo">Scapex</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      ${logoHtml}
+      <div>
+        <div class="co-name">${esc(isRtl ? coNameAr : coNameEn)}</div>
+        <div class="co-sub">${esc(isRtl ? coNameEn : coNameAr)}</div>
+      </div>
+    </div>
     <span class="type-badge">${isRtl ? (isReceipt ? "سند قبض" : "سند صرف") : (isReceipt ? "Receipt Voucher" : "Payment Voucher")}</span>
   </div>
   <div class="amount-box">
@@ -86,7 +113,12 @@ function buildVoucherHtml(pmt: Payment, contacts: Contact[], isRtl: boolean): st
     <div><div class="sig-line">${isRtl ? "توقيع المستلم" : "Received by"}</div></div>
     <div><div class="sig-line">${isRtl ? "توقيع المسؤول" : "Authorized by"}</div></div>
   </div>
-  <div class="footer">شركة سكابكس · Scapex Company</div>
+  <div class="footer">
+    <div>${esc(coNameAr)} · ${esc(coNameEn)}${coVat ? ` · ${isRtl ? "الرقم الضريبي" : "VAT No"}: ${esc(coVat)}` : ""}</div>
+    ${contactBits ? `<div style="margin-top:4px">${contactBits}</div>` : ""}
+    ${preparedBy}
+  </div>
+  </div>
   </body></html>`;
   return html;
 }
@@ -148,7 +180,7 @@ export function PaymentsTab() {
     try {
       await fetch("/api/payments", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: voucherType, contactId: form.contactId || null, invoiceId: form.invoiceId || null, amount: parseFloat(form.amount), method: form.method, reference: form.reference || null, date: form.date, notes: form.notes || null, scheduleId: form.scheduleId || null, contractRef: form.contractRef || null }),
+        body: JSON.stringify({ type: voucherType, contactId: form.contactId || null, invoiceId: form.invoiceId || null, amount: parseFloat(form.amount), method: form.method, reference: form.reference || null, date: form.date, notes: form.notes || null, scheduleId: form.scheduleId || null, contractRef: form.contractRef || null, createdBy: getRequestScope().userId || null }),
       });
       toast({ title: isRtl ? "تم إنشاء السند" : "Voucher created" });
       setShowCreate(false);

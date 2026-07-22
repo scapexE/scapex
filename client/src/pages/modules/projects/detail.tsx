@@ -494,8 +494,33 @@ function ProjectDocumentsTab({ projectId, isRtl, userName }: {
   );
 }
 
+interface ContractSchedRow {
+  id: number; contractRef: string; contractName: string | null;
+  installmentNumber: number; descriptionAr: string | null; descriptionEn: string | null;
+  percentage: string | null; amount: string | null; paidAmount: string | null;
+  dueDate: string | null; paidDate: string | null; status: string | null;
+}
+
+interface ReceiptRow {
+  id: number; paymentNumber: string | null; amount: string; currency: string | null;
+  method: string | null; date: string | null; contractRef: string | null;
+  scheduleId: number | null; contactId: number | null; type: string | null;
+}
+
+const SCHED_STATUS_AR: Record<string, string> = { pending: "قيد الانتظار", partial: "مدفوعة جزئياً", paid: "مدفوعة", overdue: "متأخرة" };
+const SCHED_STATUS_EN: Record<string, string> = { pending: "Pending", partial: "Partial", paid: "Paid", overdue: "Overdue" };
+const SCHED_STATUS_COLORS: Record<string, string> = {
+  pending: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  partial: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  overdue: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+};
+
 function ProjectPaymentsTab({ project, isRtl }: { project: ApiProject; isRtl: boolean }) {
   const [invoices, setInvoices] = useState<ApiProjectInvoice[]>([]);
+  const [schedule, setSchedule] = useState<ContractSchedRow[]>([]);
+  const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
+  const [contractRef, setContractRef] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [newTotal, setNewTotal] = useState("");
@@ -504,9 +529,36 @@ function ProjectPaymentsTab({ project, isRtl }: { project: ApiProject; isRtl: bo
   const [newNotes, setNewNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    listProjectInvoices(project.id).then(setInvoices).catch(() => setInvoices([])).finally(() => setLoading(false));
-  }, [project.id]);
+    (async () => {
+      const [inv, sched, recs] = await Promise.all([
+        listProjectInvoices(project.id).catch(() => [] as ApiProjectInvoice[]),
+        (async () => {
+          if (!project.contractId) return { ref: null as string | null, rows: [] as ContractSchedRow[] };
+          try {
+            const ctr = await scopedFetch(`/api/contracts/${project.contractId}`).then(r => r.ok ? r.json() : null);
+            const ref: string | null = ctr?.contractNumber || null;
+            if (!ref) return { ref: null, rows: [] };
+            const rows = await scopedFetch(`/api/contract-payment-schedules?contractRef=${encodeURIComponent(ref)}`).then(r => r.ok ? r.json() : []);
+            return { ref, rows: Array.isArray(rows) ? rows : [] };
+          } catch { return { ref: null, rows: [] }; }
+        })(),
+        scopedFetch("/api/payments?type=received").then(r => r.ok ? r.json() : []).catch(() => []),
+      ]);
+      if (cancelled) return;
+      setInvoices(inv);
+      setContractRef(sched.ref);
+      setSchedule(sched.rows);
+      const all: ReceiptRow[] = Array.isArray(recs) ? recs : [];
+      setReceipts(all.filter(p =>
+        (sched.ref && p.contractRef === sched.ref) ||
+        (project.contactId != null && p.contactId === project.contactId)
+      ));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [project.id, project.contractId, project.contactId]);
 
   async function handleCreate() {
     const total = Number(newTotal);
@@ -575,6 +627,75 @@ function ProjectPaymentsTab({ project, isRtl }: { project: ApiProject; isRtl: bo
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {!loading && schedule.length > 0 && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold">{isRtl ? "جدول دفعات العقد" : "Contract payment schedule"}{contractRef ? ` — ${contractRef}` : ""}</h4>
+              <div className="text-xs text-muted-foreground tabular-nums">
+                {isRtl ? "المسدد" : "Paid"}: {schedule.reduce((s, r) => s + Number(r.paidAmount ?? 0), 0).toLocaleString()} / {schedule.reduce((s, r) => s + Number(r.amount ?? 0), 0).toLocaleString()}
+              </div>
+            </div>
+            <div className="border border-border/50 rounded-lg overflow-hidden" data-testid="list-contract-schedule">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-xs text-muted-foreground">
+                    <th className="p-2 text-start">{isRtl ? "القسط" : "#"}</th>
+                    <th className="p-2 text-start">{isRtl ? "الوصف" : "Description"}</th>
+                    <th className="p-2 text-start">{isRtl ? "الاستحقاق" : "Due"}</th>
+                    <th className="p-2 text-end">{isRtl ? "المبلغ" : "Amount"}</th>
+                    <th className="p-2 text-end">{isRtl ? "المسدد" : "Paid"}</th>
+                    <th className="p-2 text-center">{isRtl ? "الحالة" : "Status"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {schedule.map(s => {
+                    const st = s.status || "pending";
+                    const overdueNow = st !== "paid" && s.dueDate && new Date(s.dueDate) < new Date();
+                    const shown = overdueNow && st === "pending" ? "overdue" : st;
+                    return (
+                      <tr key={s.id} className="border-t border-border/40" data-testid={`row-schedule-${s.id}`}>
+                        <td className="p-2 tabular-nums">{s.installmentNumber}</td>
+                        <td className="p-2">{(isRtl ? s.descriptionAr : s.descriptionEn) || s.descriptionAr || s.descriptionEn || "—"}</td>
+                        <td className="p-2 tabular-nums text-xs">{s.dueDate ? String(s.dueDate).slice(0, 10) : "—"}</td>
+                        <td className="p-2 text-end tabular-nums">{Number(s.amount ?? 0).toLocaleString()}</td>
+                        <td className="p-2 text-end tabular-nums">{Number(s.paidAmount ?? 0).toLocaleString()}</td>
+                        <td className="p-2 text-center">
+                          <Badge variant="outline" className={cn("border-transparent text-[10px]", SCHED_STATUS_COLORS[shown] || SCHED_STATUS_COLORS.pending)}>
+                            {(isRtl ? SCHED_STATUS_AR : SCHED_STATUS_EN)[shown] || shown}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {!loading && receipts.length > 0 && (
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold mb-2">{isRtl ? "سندات القبض" : "Payment receipts"}</h4>
+            <div className="space-y-2" data-testid="list-receipts">
+              {receipts.map(p => (
+                <div key={p.id} className="flex items-center justify-between border border-border/50 rounded-lg p-3" data-testid={`row-receipt-${p.id}`}>
+                  <div>
+                    <div className="font-medium text-sm">{p.paymentNumber || `#${p.id}`}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                      {p.date && <span className="tabular-nums">{String(p.date).slice(0, 10)}</span>}
+                      {p.method && <Badge variant="outline" className="text-[10px]">{p.method}</Badge>}
+                      {p.contractRef && <span className="font-mono text-[10px]">{p.contractRef}</span>}
+                    </div>
+                  </div>
+                  <div className="font-semibold text-sm tabular-nums text-emerald-600 dark:text-emerald-400">
+                    +{Number(p.amount ?? 0).toLocaleString()} {p.currency || "SAR"}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

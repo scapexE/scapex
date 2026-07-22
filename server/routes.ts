@@ -24,6 +24,7 @@ import {
 import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, type SurveyQuestionDef } from "@shared/schema";
 import { sendEmail, generateTempPassword, sendPortalWelcomeEmail } from "./email";
 import crypto from "crypto";
+import QRCode from "qrcode";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
 import { and, desc, inArray, isNull, or, sql, getTableColumns } from "drizzle-orm";
@@ -1948,6 +1949,111 @@ export async function registerRoutes(
         }
       } catch (e) { console.error("notify due-soon scan:", e); }
 
+      // Best-effort: payment installments due within 7 days (or overdue).
+      // In-app notification for the contract creator + optional emails
+      // (employee/client) controlled by system settings toggles.
+      try {
+        const now = new Date();
+        const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const oldest = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+        const schedRows = await db.select().from(contractPaymentSchedules);
+        const dueSched = schedRows.filter((s) => {
+          if (!s.dueDate) return false;
+          if (s.status === "paid" || s.status === "cancelled") return false;
+          const remaining = Number(s.amount || 0) - Number(s.paidAmount || 0);
+          if (remaining <= 0.009) return false;
+          const d = new Date(s.dueDate as any);
+          return d <= soon && d >= oldest;
+        });
+        if (dueSched.length) {
+          let empEmailOn = true, clientEmailOn = false;
+          try {
+            const [cfgRow] = await db.select().from(appData).where(eq(appData.key, "scapex_system_settings"));
+            const raw = cfgRow?.value as any;
+            const cfg = typeof raw === "string" ? JSON.parse(raw) : raw;
+            if (cfg && typeof cfg === "object") {
+              if (cfg.payReminderEmployeeEmail === false) empEmailOn = false;
+              if (cfg.payReminderClientEmail === true) clientEmailOn = true;
+            }
+          } catch {}
+          const refs = Array.from(new Set(dueSched.map((s) => s.contractRef).filter(Boolean)));
+          const ctrRows = refs.length ? await db.select().from(contracts).where(inArray(contracts.contractNumber, refs)) : [];
+          const byRef = new Map(ctrRows.map((c) => [c.contractNumber, c]));
+          for (const s of dueSched) {
+            const ctr = byRef.get(s.contractRef);
+            const overdue = new Date(s.dueDate as any) < now;
+            const dueTxt = String(s.dueDate).slice(0, 10);
+            const remaining = (Number(s.amount || 0) - Number(s.paidAmount || 0)).toFixed(2);
+            const noteType = overdue ? "payment_overdue" : "payment_due";
+            // In-app (on-demand, for the contract creator)
+            if (ctr?.createdBy && ctr.createdBy === scope.actor.id) {
+              const existing = await db.select().from(notifications).where(and(
+                eq(notifications.userId, scope.actor.id),
+                eq(notifications.module, "payments"),
+                eq(notifications.entityId, String(s.id)),
+                eq(notifications.type, noteType),
+              ));
+              if (!existing.length) {
+                await db.insert(notifications).values({
+                  userId: scope.actor.id,
+                  titleAr: overdue ? "دفعة متأخرة عن السداد" : "دفعة قاربت على الاستحقاق",
+                  titleEn: overdue ? "Installment overdue" : "Installment due soon",
+                  message: `${s.contractName || s.contractRef} — قسط ${s.installmentNumber} (${remaining} ر.س) — استحقاق ${dueTxt}`,
+                  type: noteType,
+                  module: "payments",
+                  entityId: String(s.id),
+                  link: "/accounting",
+                });
+              }
+            }
+            // Emails — dedupe via emailLogs.category (one email per installment per recipient)
+            const remainLine = `المبلغ المتبقي: ${remaining} ر.س — تاريخ الاستحقاق: ${dueTxt}`;
+            if (empEmailOn && ctr?.createdBy) {
+              const cat = `payrem_${s.id}_emp`;
+              const [dup] = await db.select({ id: emailLogs.id }).from(emailLogs).where(eq(emailLogs.category, cat)).limit(1);
+              if (!dup) {
+                const [creator] = await db.select().from(users).where(eq(users.id, ctr.createdBy));
+                if (creator?.email) {
+                  const subject = `${overdue ? "دفعة متأخرة" : "تذكير بدفعة مستحقة"} — ${s.contractName || s.contractRef} (قسط ${s.installmentNumber})`;
+                  const html = `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.9">
+                    <p>مرحباً${creator.name ? ` ${creator.name}` : ""}،</p>
+                    <p>${overdue ? "تجاوزت الدفعة التالية تاريخ استحقاقها" : "تقترب الدفعة التالية من تاريخ استحقاقها"}:</p>
+                    <ul><li>العقد: <b>${s.contractName || s.contractRef}</b></li><li>العميل: ${s.clientName || "—"}</li><li>القسط رقم ${s.installmentNumber}</li><li>${remainLine}</li></ul>
+                    <p>يرجى متابعة التحصيل من خلال نظام سكابكس — قسم المحاسبة.</p></div>`;
+                  const r = await sendEmail({ to: creator.email, subject, html });
+                  await db.insert(emailLogs).values({
+                    fromEmail: "system", toEmails: [creator.email], subject,
+                    status: r.success ? "sent" : "failed", errorMessage: r.error || null,
+                    resendId: r.id || null, category: cat,
+                  });
+                }
+              }
+            }
+            if (clientEmailOn && ctr?.contactId) {
+              const cat = `payrem_${s.id}_client`;
+              const [dup] = await db.select({ id: emailLogs.id }).from(emailLogs).where(eq(emailLogs.category, cat)).limit(1);
+              if (!dup) {
+                const [client] = await db.select().from(contacts).where(eq(contacts.id, ctr.contactId));
+                if (client?.email) {
+                  const subject = `تذكير بدفعة مستحقة — ${s.contractName || s.contractRef}`;
+                  const html = `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.9">
+                    <p>عزيزنا العميل ${client.nameAr || client.nameEn || ""}،</p>
+                    <p>نود تذكيركم بدفعة مستحقة على العقد <b>${s.contractName || s.contractRef}</b>:</p>
+                    <ul><li>القسط رقم ${s.installmentNumber}</li><li>${remainLine}</li></ul>
+                    <p>نشكر لكم تعاونكم. لأي استفسار يرجى التواصل معنا.</p></div>`;
+                  const r = await sendEmail({ to: client.email, subject, html });
+                  await db.insert(emailLogs).values({
+                    fromEmail: "system", toEmails: [client.email], subject,
+                    status: r.success ? "sent" : "failed", errorMessage: r.error || null,
+                    resendId: r.id || null, category: cat,
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (e) { console.error("notify payment-due scan:", e); }
+
       const rows = await db.select().from(notifications)
         .where(eq(notifications.userId, scope.actor.id))
         .orderBy(desc(notifications.createdAt))
@@ -1995,6 +2101,42 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (err: any) {
       console.error("Delete all notifications error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // ─────── CRM payment alerts (per-contact due/overdue installment counts) ──
+  app.get("/api/crm/payment-alerts", async (req, res) => {
+    try {
+      const scope = await resolveActivityScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const now = new Date();
+      const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const schedRows = await db.select().from(contractPaymentSchedules);
+      const open = schedRows.filter((s) => {
+        if (!s.dueDate || s.status === "paid" || s.status === "cancelled") return false;
+        const remaining = Number(s.amount || 0) - Number(s.paidAmount || 0);
+        return remaining > 0.009 && new Date(s.dueDate as any) <= soon;
+      });
+      if (!open.length) return res.json([]);
+      const refs = Array.from(new Set(open.map((s) => s.contractRef).filter(Boolean)));
+      const ctrRows = refs.length ? await db.select().from(contracts).where(inArray(contracts.contractNumber, refs)) : [];
+      const refToContact = new Map(ctrRows.filter((c) => c.contactId).map((c) => [c.contractNumber, c.contactId as number]));
+      const byContact = new Map<number, { contactId: number; overdue: number; dueSoon: number; nextDueDate: string | null; totalRemaining: number }>();
+      for (const s of open) {
+        const contactId = refToContact.get(s.contractRef);
+        if (!contactId) continue;
+        const entry = byContact.get(contactId) || { contactId, overdue: 0, dueSoon: 0, nextDueDate: null, totalRemaining: 0 };
+        const due = new Date(s.dueDate as any);
+        if (due < now) entry.overdue += 1; else entry.dueSoon += 1;
+        entry.totalRemaining += Number(s.amount || 0) - Number(s.paidAmount || 0);
+        const dueTxt = String(s.dueDate).slice(0, 10);
+        if (!entry.nextDueDate || dueTxt < entry.nextDueDate) entry.nextDueDate = dueTxt;
+        byContact.set(contactId, entry);
+      }
+      res.json(Array.from(byContact.values()).map((e) => ({ ...e, totalRemaining: e.totalRemaining.toFixed(2) })));
+    } catch (err: any) {
+      console.error("CRM payment alerts error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -2880,6 +3022,68 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Portal: receipts (payments) + payment schedule ───────────────────────
+  app.get("/api/portal/payments", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const rows = await db.select().from(payments)
+        .where(and(eq(payments.contactId, me.id), eq(payments.type, "received")))
+        .orderBy(desc(payments.date), desc(payments.createdAt));
+      res.json(rows.map((p) => ({
+        id: p.id,
+        paymentNumber: p.paymentNumber,
+        type: p.type,
+        amount: p.amount,
+        currency: p.currency,
+        method: p.method,
+        reference: p.reference,
+        date: p.date,
+        contractRef: p.contractRef,
+        scheduleId: p.scheduleId,
+        createdAt: p.createdAt,
+      })));
+    } catch (err: any) {
+      console.error("Portal payments error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/portal/payment-schedule", async (req, res) => {
+    const me = await requirePortalContact(req, res);
+    if (!me) return;
+    try {
+      const ctrConds: ReturnType<typeof eq>[] = [eq(contracts.contactId, me.id)];
+      if (me.nameAr) ctrConds.push(eq(contracts.clientName, me.nameAr));
+      if (me.nameEn) ctrConds.push(eq(contracts.clientName, me.nameEn));
+      const myContracts = await db.select().from(contracts).where(or(...ctrConds));
+      const refs = Array.from(new Set(myContracts.map((c) => c.contractNumber)));
+      // Only expose installments whose contract is provably owned by this contact
+      // (no clientName-based schedule matching — names are not unique).
+      if (!refs.length) return res.json([]);
+      const rows = await db.select().from(contractPaymentSchedules)
+        .where(inArray(contractPaymentSchedules.contractRef, refs))
+        .orderBy(contractPaymentSchedules.contractRef, contractPaymentSchedules.installmentNumber);
+      res.json(rows.map((s) => ({
+        id: s.id,
+        contractRef: s.contractRef,
+        contractName: s.contractName,
+        installmentNumber: s.installmentNumber,
+        descriptionAr: s.descriptionAr,
+        descriptionEn: s.descriptionEn,
+        percentage: s.percentage,
+        amount: s.amount,
+        paidAmount: s.paidAmount,
+        dueDate: s.dueDate,
+        paidDate: s.paidDate,
+        status: s.status,
+      })));
+    } catch (err: any) {
+      console.error("Portal payment schedule error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.get("/api/portal/contracts", async (req, res) => {
     const me = await requirePortalContact(req, res);
     if (!me) return;
@@ -2950,6 +3154,24 @@ export async function registerRoutes(
   });
 
   // ─── Portal: view proposal/contract/invoice as printable HTML ──────────────
+  // ZATCA phase-1 e-invoice QR (TLV → base64 → QR data URL) — server-side
+  function zatcaTlv(tag: number, value: string): Buffer {
+    const v = Buffer.from(value || "", "utf8");
+    return Buffer.concat([Buffer.from([tag, Math.min(v.length, 255)]), v]);
+  }
+  async function zatcaQrDataUrlServer(opts: { sellerName: string; vatNumber: string; timestamp: string; total: string; vat: string }): Promise<string> {
+    try {
+      const b64 = Buffer.concat([
+        zatcaTlv(1, opts.sellerName),
+        zatcaTlv(2, opts.vatNumber),
+        zatcaTlv(3, opts.timestamp),
+        zatcaTlv(4, opts.total),
+        zatcaTlv(5, opts.vat),
+      ]).toString("base64");
+      return await QRCode.toDataURL(b64, { errorCorrectionLevel: "M", margin: 1, width: 220 });
+    } catch { return ""; }
+  }
+
   function portalDocHtml(opts: {
     title: string; number: string; clientName: string;
     projectName?: string | null; date?: string | null;
@@ -3144,11 +3366,33 @@ export async function registerRoutes(
       if (!allowed) return res.status(404).json({ error: "Not found" });
       const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
       const STATUS_AR: Record<string, string> = { draft: "مسودة", sent: "مُرسلة", paid: "مدفوعة", overdue: "متأخرة", cancelled: "ملغاة" };
+      // ZATCA phase-1 QR (seller name + VAT from company settings in app_data)
+      let sellerName = "شركة سكابكس", sellerVat = "";
+      try {
+        const [aboutRow] = await db.select().from(appData).where(eq(appData.key, "scapex_about_settings"));
+        const rawAbout = aboutRow?.value as any;
+        const about = typeof rawAbout === "string" ? JSON.parse(rawAbout) : rawAbout;
+        if (about && typeof about === "object") {
+          sellerName = about.companyNameAr || about.companyNameEn || sellerName;
+          sellerVat = about.vatNumber || "";
+        }
+      } catch {}
+      const qrTs = inv.issueDate ? `${String(inv.issueDate).slice(0, 10)}T00:00:00Z` : (inv.createdAt?.toISOString() ?? new Date().toISOString());
+      const qrUrl = await zatcaQrDataUrlServer({
+        sellerName, vatNumber: sellerVat, timestamp: qrTs,
+        total: Number(inv.total || 0).toFixed(2), vat: Number(inv.vatAmount || 0).toFixed(2),
+      });
+      const qrBlock = qrUrl ? `<div class="section" style="display:flex;justify-content:flex-end;padding-top:8px;padding-bottom:0">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <img src="${qrUrl}" style="width:110px;height:110px" alt="ZATCA QR"/>
+          <div style="font-size:9px;color:#94a3b8">رمز الفاتورة الإلكترونية (زاتكا)</div>
+        </div>
+      </div>` : "";
       const extra = `<div class="meta-box" style="padding-top:12px;padding-bottom:12px">
         ${inv.issueDate ? `<div class="meta-item"><label>تاريخ الإصدار</label><span>${new Date(inv.issueDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
         ${inv.dueDate ? `<div class="meta-item"><label>تاريخ الاستحقاق</label><span>${new Date(inv.dueDate).toLocaleDateString("ar-SA")}</span></div>` : ""}
         ${Number(inv.paidAmount || 0) > 0 ? `<div class="meta-item"><label>المبلغ المدفوع</label><span style="color:#16a34a">${Number(inv.paidAmount).toLocaleString()} ${inv.currency || "SAR"}</span></div>` : ""}
-      </div>`;
+      </div>` + qrBlock;
       const html = portalDocHtml({
         title: "الفاتورة", number: inv.invoiceNumber,
         clientName: inv.clientName || "", projectName: null,

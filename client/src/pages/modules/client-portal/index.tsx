@@ -7,6 +7,7 @@ import {
   Calendar, MapPin, User as UserIcon, ArrowLeft, ArrowRight, Send,
   FolderArchive, Upload, Download, X, FileSignature, ClipboardList, Pen, Check, RotateCcw,
   Smartphone, KeyRound, RefreshCw, Search, Mail, ExternalLink, Shield, Users, LayoutDashboard,
+  Wallet, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -15,12 +16,14 @@ import {
   portalGetMe, portalListProjects, portalGetProject,
   portalListStages, portalListDocuments, portalListInvoices, portalListProposals,
   portalListMyInvoices, portalListMyContracts,
+  portalListMyPayments, portalListMySchedule,
   portalApproveProposal, portalSignContract,
   portalSubmitRequest, portalListMyDocuments, portalDownloadDocument, portalUploadDocument,
   portalOpenDocHtml, portalChangePassword,
   getPortalContact, getPortalToken, clearPortalSession, setPortalSession,
   type PortalContact, type PortalProject, type PortalStage, type PortalDocument, type PortalInvoice,
   type PortalClientDocument, type PortalProposal, type PortalMyInvoice, type PortalMyContract,
+  type PortalMyPayment, type PortalScheduleItem,
 } from "@/lib/portalApi";
 
 export type PortalTheme = "default" | "ocean" | "forest" | "royal" | "sunset" | "slate";
@@ -1383,13 +1386,15 @@ export default function ClientPortalModule() {
   const [showThemePicker, setShowThemePicker] = useState(false);
   const theme = useMemo(() => PORTAL_THEMES.find((x) => x.id === portalTheme) || PORTAL_THEMES[0], [portalTheme]);
 
-  const [view, setView] = useState<"projects" | "proposals" | "invoices" | "contracts" | "documents" | "contact">("projects");
+  const [view, setView] = useState<"projects" | "proposals" | "invoices" | "contracts" | "payments" | "documents" | "contact">("projects");
   const [projects, setProjects] = useState<PortalProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [openProjectId, setOpenProjectId] = useState<number | null>(null);
   const [myProposals, setMyProposals] = useState<PortalProposal[]>([]);
   const [myInvoices, setMyInvoices] = useState<PortalMyInvoice[]>([]);
   const [myContracts, setMyContracts] = useState<PortalMyContract[]>([]);
+  const [myPayments, setMyPayments] = useState<PortalMyPayment[]>([]);
+  const [mySchedule, setMySchedule] = useState<PortalScheduleItem[]>([]);
   const [loadingFinancial, setLoadingFinancial] = useState(false);
 
   const [signModal, setSignModal] = useState<{ type: "proposal" | "contract"; id: number; title: string } | null>(null);
@@ -1438,10 +1443,14 @@ export default function ClientPortalModule() {
       portalListProposals().catch(() => []),
       portalListMyInvoices().catch(() => []),
       portalListMyContracts().catch(() => []),
-    ]).then(([props, invs, cnts]) => {
+      portalListMyPayments().catch(() => []),
+      portalListMySchedule().catch(() => []),
+    ]).then(([props, invs, cnts, pays, sched]) => {
       setMyProposals(props);
       setMyInvoices(invs);
       setMyContracts(cnts);
+      setMyPayments(pays);
+      setMySchedule(sched);
     }).finally(() => setLoadingFinancial(false));
   }, [contact]);
 
@@ -1592,6 +1601,11 @@ export default function ClientPortalModule() {
                       <FileSignature className="w-4 h-4 me-2" />
                       {t("عقودي", "Contracts")}
                       {myContracts.length > 0 && <span className="ms-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary tabular-nums">{myContracts.length}</span>}
+                    </Button>
+                    <Button variant={view === "payments" ? "default" : "outline"} size="sm" onClick={() => setView("payments")} data-testid="button-view-payments">
+                      <Wallet className="w-4 h-4 me-2" />
+                      {t("مدفوعاتي", "Payments")}
+                      {myPayments.length > 0 && <span className="ms-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary tabular-nums">{myPayments.length}</span>}
                     </Button>
                     <Button variant={view === "documents" ? "default" : "outline"} size="sm" onClick={() => setView("documents")} data-testid="button-view-documents">
                       <FolderArchive className="w-4 h-4 me-2" />
@@ -1885,6 +1899,120 @@ export default function ClientPortalModule() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {view === "payments" && (
+                <div data-testid="view-portal-payments" className="space-y-6">
+                  <div>
+                    <h2 className={cn("text-sm font-semibold mb-3 flex items-center gap-2", theme.text)}>
+                      <CalendarClock className="w-4 h-4" />
+                      {t("جدول الدفعات القادمة", "Upcoming payment schedule")}
+                    </h2>
+                    {loadingFinancial ? (
+                      <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                    ) : mySchedule.length === 0 ? (
+                      <div className="bg-card border border-dashed border-border/50 rounded-xl p-8 text-center text-sm text-muted-foreground" data-testid="text-no-schedule">
+                        {t("لا يوجد جدول دفعات مرتبط بعقودك", "No payment schedule linked to your contracts yet")}
+                      </div>
+                    ) : (
+                      <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[680px] text-sm text-center [&_th]:align-middle [&_td]:align-middle">
+                            <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                              <tr>
+                                <th className="px-4 py-3 font-semibold w-[140px]">{t("العقد", "Contract")}</th>
+                                <th className="px-4 py-3 font-semibold w-[60px]">{t("القسط", "#")}</th>
+                                <th className="px-4 py-3 font-semibold">{t("الوصف", "Description")}</th>
+                                <th className="px-4 py-3 font-semibold w-[110px]">{t("الاستحقاق", "Due date")}</th>
+                                <th className="px-4 py-3 font-semibold w-[130px]">{t("المبلغ", "Amount")}</th>
+                                <th className="px-4 py-3 font-semibold w-[130px]">{t("المسدد", "Paid")}</th>
+                                <th className="px-4 py-3 font-semibold w-[110px]">{t("الحالة", "Status")}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {mySchedule.map((s) => {
+                                const st = s.status || "pending";
+                                const isOverdue = st !== "paid" && st !== "cancelled" && s.dueDate && new Date(s.dueDate) < new Date();
+                                const shown = isOverdue && (st === "pending" || st === "partial") ? "overdue" : st;
+                                return (
+                                  <tr key={s.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-schedule-top-${s.id}`}>
+                                    <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{s.contractRef}</td>
+                                    <td className="px-4 py-3 tabular-nums">{s.installmentNumber}</td>
+                                    <td className="px-4 py-3 max-w-[240px] overflow-hidden"><span className="block truncate">{(isRtl ? s.descriptionAr : s.descriptionEn) || s.descriptionAr || s.descriptionEn || "—"}</span></td>
+                                    <td className="px-4 py-3 text-xs tabular-nums whitespace-nowrap">{s.dueDate ? String(s.dueDate).slice(0, 10) : "—"}</td>
+                                    <td className="px-4 py-3 tabular-nums font-medium whitespace-nowrap">{Number(s.amount || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 tabular-nums text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{Number(s.paidAmount || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <span className={cn("text-xs px-2 py-0.5 rounded-full inline-flex items-center",
+                                        shown === "paid" ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" :
+                                        shown === "partial" ? "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300" :
+                                        shown === "overdue" ? "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300" :
+                                        shown === "cancelled" ? "bg-muted text-muted-foreground" :
+                                        "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300")}>
+                                        {shown === "paid" ? t("مدفوعة", "Paid") :
+                                         shown === "partial" ? t("مدفوعة جزئياً", "Partial") :
+                                         shown === "overdue" ? t("متأخرة", "Overdue") :
+                                         shown === "cancelled" ? t("ملغاة", "Cancelled") :
+                                         t("قيد الانتظار", "Pending")}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h2 className={cn("text-sm font-semibold mb-3 flex items-center gap-2", theme.text)}>
+                      <Wallet className="w-4 h-4" />
+                      {t("المدفوعات المستلمة", "Received payments")}
+                    </h2>
+                    {loadingFinancial ? (
+                      <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                    ) : myPayments.length === 0 ? (
+                      <div className="bg-card border border-dashed border-border/50 rounded-xl p-8 text-center text-sm text-muted-foreground" data-testid="text-no-payments">
+                        {t("لا توجد مدفوعات مسجلة بعد", "No payments recorded yet")}
+                      </div>
+                    ) : (
+                      <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[620px] text-sm text-center [&_th]:align-middle [&_td]:align-middle">
+                            <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                              <tr>
+                                <th className="px-4 py-3 font-semibold w-[160px]">{t("رقم السند", "Receipt #")}</th>
+                                <th className="px-4 py-3 font-semibold w-[110px]">{t("التاريخ", "Date")}</th>
+                                <th className="px-4 py-3 font-semibold w-[140px]">{t("المبلغ", "Amount")}</th>
+                                <th className="px-4 py-3 font-semibold w-[120px]">{t("طريقة الدفع", "Method")}</th>
+                                <th className="px-4 py-3 font-semibold w-[140px]">{t("العقد", "Contract")}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {myPayments.map((p) => (
+                                <tr key={p.id} className="border-t border-border/50 hover:bg-muted/20 transition-colors" data-testid={`row-payment-top-${p.id}`}>
+                                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{p.paymentNumber || `#${p.id}`}</td>
+                                  <td className="px-4 py-3 text-xs tabular-nums whitespace-nowrap">{p.date ? String(p.date).slice(0, 10) : "—"}</td>
+                                  <td className="px-4 py-3 tabular-nums font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{p.currency || "SAR"} {Number(p.amount || 0).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-xs whitespace-nowrap">
+                                    {p.method === "bank_transfer" ? t("تحويل بنكي", "Bank transfer") :
+                                     p.method === "cash" ? t("نقداً", "Cash") :
+                                     p.method === "cheque" ? t("شيك", "Cheque") :
+                                     p.method === "card" ? t("بطاقة", "Card") :
+                                     p.method || "—"}
+                                  </td>
+                                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{p.contractRef || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

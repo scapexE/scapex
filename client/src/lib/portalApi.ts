@@ -303,6 +303,47 @@ export async function portalListMyContracts(): Promise<PortalMyContract[]> {
   return r.json();
 }
 
+export interface PortalMyPayment {
+  id: number;
+  paymentNumber: string | null;
+  type: string | null;
+  amount: string;
+  currency: string | null;
+  method: string | null;
+  reference: string | null;
+  date: string | null;
+  contractRef: string | null;
+  scheduleId: number | null;
+  createdAt: string | null;
+}
+
+export interface PortalScheduleItem {
+  id: number;
+  contractRef: string;
+  contractName: string | null;
+  installmentNumber: number;
+  descriptionAr: string | null;
+  descriptionEn: string | null;
+  percentage: string | null;
+  amount: string | null;
+  paidAmount: string | null;
+  dueDate: string | null;
+  paidDate: string | null;
+  status: string | null;
+}
+
+export async function portalListMyPayments(): Promise<PortalMyPayment[]> {
+  const r = await portalFetch("/api/portal/payments");
+  if (!r.ok) return [];
+  return r.json();
+}
+
+export async function portalListMySchedule(): Promise<PortalScheduleItem[]> {
+  const r = await portalFetch("/api/portal/payment-schedule");
+  if (!r.ok) return [];
+  return r.json();
+}
+
 export async function portalApproveProposal(id: number, payload: { signerName: string; signature: string; otp?: string }): Promise<void> {
   const r = await portalFetch(`/api/portal/proposals/${id}/approve`, {
     method: "POST",

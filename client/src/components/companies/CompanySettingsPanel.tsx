@@ -531,6 +531,32 @@ export function CompanySettingsPanel({ companies, onSaved }: {
 
           <Card className="border-border/50">
             <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><Clock className="w-4 h-4 text-amber-600" />{t("تذكيرات الدفعات المستحقة", "Payment Due Reminders")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-xs text-muted-foreground">{t(
+                "تظهر التنبيهات داخل النظام دائماً عند اقتراب موعد استحقاق دفعة. يمكنك أيضاً تفعيل الإرسال بالبريد الإلكتروني.",
+                "In-app alerts always appear when an installment is due soon. You can also enable email notifications.",
+              )}</div>
+              <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2.5">
+                <div>
+                  <Label className="text-xs font-medium">{t("إرسال بريد إلكتروني للموظف المسؤول", "Email the responsible employee")}</Label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{t("منشئ العقد / السند", "Contract/voucher creator")}</p>
+                </div>
+                <Switch checked={sysForm.payReminderEmployeeEmail !== false} onCheckedChange={(v) => { setSysForm((prev) => ({ ...prev, payReminderEmployeeEmail: v })); setHasSysChanges(true); }} data-testid="switch-pay-reminder-employee" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2.5">
+                <div>
+                  <Label className="text-xs font-medium">{t("إرسال بريد إلكتروني للعميل", "Email the client")}</Label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{t("تذكير مهذب قبل موعد الاستحقاق", "A polite reminder before the due date")}</p>
+                </div>
+                <Switch checked={sysForm.payReminderClientEmail === true} onCheckedChange={(v) => { setSysForm((prev) => ({ ...prev, payReminderClientEmail: v })); setHasSysChanges(true); }} data-testid="switch-pay-reminder-client" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />{t("نوع الخط", "Font Family")}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -707,6 +733,34 @@ export function CompanySettingsPanel({ companies, onSaved }: {
                           <ImageField label={t("صورة خلفية التذييل (اختياري)", "Footer background image (optional)")} value={pd.footerBgImage} field="footerBgImage" testId="input-print-footer-bg-image" />
                         </div>
                       </div>
+                    </div>
+                    <div className="space-y-3 pt-2 border-t border-border/50">
+                      <div className="text-sm font-semibold">{t("العلامة المائية", "Watermark")}</div>
+                      <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
+                        <div>
+                          <Label className="text-xs">{t("إظهار شعار الشركة كعلامة مائية في المستندات", "Show company logo as a watermark on documents")}</Label>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{t("يظهر بشفافية خفيفة خلف المحتوى عند الطباعة", "Appears faintly behind the content when printing")}</p>
+                        </div>
+                        <Switch checked={!!pd.watermarkEnabled} onCheckedChange={(v) => updatePrintDesign("watermarkEnabled", v)} data-testid="switch-print-watermark" />
+                      </div>
+                      {pd.watermarkEnabled && (
+                        <div className="space-y-1.5 px-1">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">{t("درجة الوضوح", "Opacity")}</Label>
+                            <span className="text-xs font-mono text-muted-foreground">{Math.min(30, Math.max(0, Number(pd.watermarkOpacity) || 0))}%</span>
+                          </div>
+                          <input
+                            type="range" min={0} max={30} step={1}
+                            value={Math.min(30, Math.max(0, Number(pd.watermarkOpacity) || 0))}
+                            onChange={(e) => updatePrintDesign("watermarkOpacity", parseInt(e.target.value, 10))}
+                            className="w-full accent-primary"
+                            data-testid="slider-print-watermark-opacity"
+                          />
+                          {!(pd.headerLogo || sysForm.brandLogo) && (
+                            <p className="text-[10px] text-amber-600">{t("لا يوجد شعار مرفوع — ارفع شعاراً أولاً لتظهر العلامة المائية.", "No logo uploaded — upload a logo first for the watermark to appear.")}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {/* Live preview */}
                     <div className="space-y-2 pt-2 border-t border-border/50">

@@ -18,6 +18,8 @@ export interface PrintDesign {
   footerBgColor: string;
   footerTextColor: string;
   footerBgImage: string;    // optional background image (data URL)
+  watermarkEnabled: boolean;   // show company logo as a page watermark on printed docs
+  watermarkOpacity: number;    // 0–30 (percent)
 }
 
 export const DEFAULT_PRINT_DESIGN: PrintDesign = {
@@ -32,6 +34,8 @@ export const DEFAULT_PRINT_DESIGN: PrintDesign = {
   footerBgColor: "#f8fafc",
   footerTextColor: "#374151",
   footerBgImage: "",
+  watermarkEnabled: false,
+  watermarkOpacity: 8,
 };
 
 export interface SystemSettings {
@@ -52,6 +56,10 @@ export interface SystemSettings {
   brandName: string;
   brandSubtitleAr: string;
   brandSubtitleEn: string;
+  /** Payment-due reminders: send email to the responsible employee */
+  payReminderEmployeeEmail: boolean;
+  /** Payment-due reminders: send email to the client */
+  payReminderClientEmail: boolean;
 }
 
 export const FONT_OPTIONS: { value: FontFamily; label: string; labelAr: string; family: string }[] = [
@@ -212,6 +220,8 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   brandName: "Scapex",
   brandSubtitleAr: "منصة إدارة الأعمال الذكية",
   brandSubtitleEn: "Smart Business Management Platform",
+  payReminderEmployeeEmail: true,
+  payReminderClientEmail: false,
 };
 
 export const SYSTEM_SETTINGS_KEY = "scapex_system_settings";

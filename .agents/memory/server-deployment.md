@@ -25,11 +25,11 @@ pm2 delete scapex && pm2 start /var/www/scapex/ecosystem.config.cjs && pm2 save
 - `SESSION_SECRET`, `DATABASE_URL`, `RESEND_API_KEY`, `FROM_EMAIL`
 - All stored in `/var/www/scapex/ecosystem.config.cjs`
 
-## jszip bundling
-`jszip` must be in the allowlist in `script/build.ts` — it's used by server/backup.ts.
-If missing from allowlist, it becomes external and crashes with MODULE_NOT_FOUND on server.
+## Server dependency bundling (jszip, qrcode, …)
+Any npm package `require`d by server code must be in the allowlist in `script/build.ts` (e.g. `jszip`, `qrcode`), otherwise it becomes external and prod crashes with MODULE_NOT_FOUND (VPS node_modules is not synced with Replit).
 
 **Why:** esbuild bundles only allowlisted packages; everything else is expected in node_modules.
+**How to apply:** when adding a new server-side import, add it to the allowlist and rebuild before deploying; a 502 + MODULE_NOT_FOUND in `pm2 logs scapex` is the symptom.
 
 ## DB schema sync lessons
 - Run `drizzle-kit push --force` on server after uploading new schema.ts

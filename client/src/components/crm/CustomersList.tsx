@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   Search, Filter, Mail, Phone, MapPin, Plus, Trash2, Loader2,
   MoreVertical, Building, Star, MessageSquare, Download, Copy, FileText,
-  ClipboardCheck, UserCog, User as UserIcon, Users
+  ClipboardCheck, UserCog, User as UserIcon, Users, CircleDollarSign
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -59,6 +59,14 @@ interface SimpleUser {
   roles?: string[];
 }
 
+interface PaymentAlert {
+  contactId: number;
+  overdue: number;
+  dueSoon: number;
+  nextDueDate: string | null;
+  totalRemaining: string;
+}
+
 function toCustomer(c: DbContact, isRtl: boolean): Customer {
   const name = (isRtl ? c.nameAr : c.nameEn) || c.nameEn || c.nameAr || "—";
   return {
@@ -93,6 +101,7 @@ export function CustomersList({
 
   const [rows, setRows] = useState<DbContact[]>([]);
   const [users, setUsers] = useState<SimpleUser[]>([]);
+  const [payAlerts, setPayAlerts] = useState<Map<number, PaymentAlert>>(new Map());
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(canSeeAll);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -126,12 +135,14 @@ export function CustomersList({
       // "Mine" mode: any user can filter to only their own assigned customers
       if (!showAll && currentUser?.id) params.set("assignedTo", currentUser.id);
       const url = `/api/customers${params.toString() ? `?${params.toString()}` : ""}`;
-      const [r, u] = await Promise.all([
+      const [r, u, pa] = await Promise.all([
         scopedFetch(url).then(x => x.json()),
         scopedFetch("/api/users").then(x => x.json()),
+        scopedFetch("/api/crm/payment-alerts").then(x => x.json()).catch(() => []),
       ]);
       setRows(Array.isArray(r) ? r : []);
       setUsers(Array.isArray(u) ? u : []);
+      setPayAlerts(new Map((Array.isArray(pa) ? pa : []).map((a: PaymentAlert) => [a.contactId, a])));
     } catch (err) {
       console.error("Failed to load customers:", err);
       toast({
@@ -561,6 +572,31 @@ export function CustomersList({
                                 {isRtl ? "هوية" : "ID"} {(dbRow as any).nationalId}
                               </span>
                             )}
+                            {(() => {
+                              const alert = payAlerts.get(dbRow.id);
+                              if (!alert) return null;
+                              const hasOverdue = alert.overdue > 0;
+                              const title = isRtl
+                                ? `${hasOverdue ? `${alert.overdue} دفعة متأخرة` : ""}${hasOverdue && alert.dueSoon > 0 ? " + " : ""}${alert.dueSoon > 0 ? `${alert.dueSoon} دفعة قريبة الاستحقاق` : ""} — المتبقي ${Number(alert.totalRemaining).toLocaleString()} ر.س${alert.nextDueDate ? ` — أقرب استحقاق ${alert.nextDueDate}` : ""}`
+                                : `${hasOverdue ? `${alert.overdue} overdue` : ""}${hasOverdue && alert.dueSoon > 0 ? " + " : ""}${alert.dueSoon > 0 ? `${alert.dueSoon} due soon` : ""} — remaining ${Number(alert.totalRemaining).toLocaleString()} SAR${alert.nextDueDate ? ` — next due ${alert.nextDueDate}` : ""}`;
+                              return (
+                                <span
+                                  title={title}
+                                  data-testid={`badge-payment-alert-${customer.id}`}
+                                  className={cn(
+                                    "inline-flex items-center gap-1 text-[10px] font-normal rounded px-1.5 py-0.5 border",
+                                    hasOverdue
+                                      ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800 animate-pulse"
+                                      : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+                                  )}
+                                >
+                                  <CircleDollarSign className="w-3 h-3" />
+                                  {isRtl
+                                    ? (hasOverdue ? "دفعة متأخرة" : "دفعة مستحقة")
+                                    : (hasOverdue ? "Overdue" : "Due soon")}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <MapPin className="w-3 h-3" />

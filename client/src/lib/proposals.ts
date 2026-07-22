@@ -2,6 +2,7 @@ import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
 import { getAboutData, getSystemSettings, getPrintFontCss } from "@/lib/companySettings";
 import { getDocumentSignatures } from "@/lib/signatures";
 import { esc } from "@/lib/htmlEscape";
+import { watermarkHtml, preparedByHtml } from "@/lib/printShared";
 
 // ─── Proposal Data Layer ────────────────────────────────────────────────────
 
@@ -1045,7 +1046,8 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 .footer-info-item { display:flex; align-items:center; gap:5px; font-size:10px; color:${pd.footerTextColor}; }
 .footer-info-item strong { font-weight:600; }
 </style></head><body>
-<div class="page">
+${watermarkHtml(pd, sysCfgP)}
+<div class="page" style="position:relative;z-index:1;">
 <div class="header" dir="ltr">
   <div class="header-logo">
     ${logoHtml}
@@ -1076,10 +1078,11 @@ ${(() => {
   const fill = (t: string) => fillDocPlaceholders(t, proposal.projectName, displayClientName);
   const introAr = esc(fill((proposal.introductionAr || proposal.introduction || "").trim()));
   const introEn = esc(fill((proposal.introductionEn || "").trim()));
-  const introText = lang === "both" && introAr && introEn ? `<div dir="rtl" style="margin-bottom:6px;">${introAr}</div><div dir="ltr">${introEn}</div>` : ar ? introAr : (introEn || introAr);
+  const twoCol = (arHtml: string, enHtml: string) => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" dir="rtl"><div dir="rtl" style="border-left:1px solid #e2e8f0;padding-left:10px;">${arHtml}</div><div dir="ltr" style="color:#475569;">${enHtml}</div></div>`;
+  const introText = lang === "both" && introAr && introEn ? twoCol(introAr, introEn) : ar ? introAr : (introEn || introAr);
   const sAr = esc(fill((proposal.scopeAr || proposal.projectDesc || "").trim()));
   const sEn = esc(fill((proposal.scopeEn || "").trim()));
-  const scopeText = lang === "both" && sAr && sEn ? `<div dir="rtl" style="margin-bottom:6px;">${sAr}</div><div dir="ltr">${sEn}</div>` : ar ? sAr : (sEn || sAr);
+  const scopeText = lang === "both" && sAr && sEn ? twoCol(sAr, sEn) : ar ? sAr : (sEn || sAr);
   if (introText && scopeText) {
     return `<div class="intro-box">${introText}</div>
 <div class="sec-title">${bi("نطاق العمل", "SCOPE OF WORK")}</div>
@@ -1150,7 +1153,7 @@ ${(() => {
     vat ? `${bi("الرقم الضريبي:", "VAT:")} ${vat}` : "",
     cr ? `${bi("س.ت:", "CR:")} ${cr}` : "",
   ].filter(Boolean);
-  return `<div class="footer-info"><div style="text-align:center;font-size:9px;color:${pd.footerTextColor};line-height:1.8;">${parts.map((p) => `<span style="white-space:nowrap;">${p}</span>`).join('<span style="margin:0 6px;opacity:0.5;">•</span>')}</div></div>`;
+  return `<div class="footer-info"><div style="text-align:center;font-size:9px;color:${pd.footerTextColor};line-height:1.8;">${parts.map((p) => `<span style="white-space:nowrap;">${p}</span>`).join('<span style="margin:0 6px;opacity:0.5;">•</span>')}</div>${preparedByHtml(proposal.createdBy, lang)}</div>`;
 })()}
 </div>
 <script>window.onload=function(){window.print();}</script>
@@ -1213,7 +1216,10 @@ export function buildContractHtml(contract: Contract, isRtl: boolean, options?: 
 
   const cFill = (t: string) => fillDocPlaceholders(t, contract.projectName, displayClientName);
   const clauseContent = (c: Contract["clauses"][0]) => {
-    if (lang === "both") return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(c.titleAr)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;margin-bottom:8px;">${esc(cFill(c.bodyAr))}</div><div style="font-weight:600;color:#1e40af;margin-bottom:4px;font-size:12px;">${esc(c.titleEn)}</div><div style="font-size:11px;line-height:1.8;color:#64748b;white-space:pre-line;">${esc(cFill(c.bodyEn))}</div>`;
+    if (lang === "both") return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" dir="rtl">
+      <div dir="rtl" style="border-left:1px solid #e2e8f0;padding-left:12px;"><div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(c.titleAr)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${esc(cFill(c.bodyAr))}</div></div>
+      <div dir="ltr"><div style="font-weight:600;color:#1e40af;margin-bottom:6px;font-size:12px;">${esc(c.titleEn)}</div><div style="font-size:11px;line-height:1.8;color:#64748b;white-space:pre-line;">${esc(cFill(c.bodyEn))}</div></div>
+    </div>`;
     return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(ar ? c.titleAr : c.titleEn)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${esc(cFill(ar ? c.bodyAr : c.bodyEn))}</div>`;
   };
   const clausesHtml = contract.clauses.map((c) => `
@@ -1251,7 +1257,8 @@ tbody tr:nth-child(even) { background:#f8fafc; }
 .sig-box { text-align:center; }
 .sig-line { border-bottom:2px solid #374151; height:60px; margin-bottom:10px; }
 </style></head><body>
-<div class="page">
+${watermarkHtml(pd, sysCfgC)}
+<div class="page" style="position:relative;z-index:1;">
 <div class="header">
   <div class="logo-row">
     ${cLogoHtml}
@@ -1331,7 +1338,7 @@ ${(() => {
     cr ? `${bi("س.ت:", "CR:")} ${cr}` : "",
   ].filter(Boolean);
   return `<div style="margin-top:24px;padding:12px 16px;border-top:2px solid ${pd.accentColor};background:${pd.footerBgColor};${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""}color:${pd.footerTextColor};border-radius:0 0 6px 6px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
-  <div style="text-align:center;font-size:9px;line-height:1.8;">${parts.map((p) => `<span style="white-space:nowrap;">${p}</span>`).join('<span style="margin:0 6px;opacity:0.5;">•</span>')}</div></div>`;
+  <div style="text-align:center;font-size:9px;line-height:1.8;">${parts.map((p) => `<span style="white-space:nowrap;">${p}</span>`).join('<span style="margin:0 6px;opacity:0.5;">•</span>')}</div>${preparedByHtml(contract.createdBy, lang)}</div>`;
 })()}
 </div>
 <script>window.onload=function(){window.print();}</script>
