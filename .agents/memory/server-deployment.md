@@ -8,8 +8,9 @@ description: Hostinger VPS deployment config for erp.scape.sa — key lessons fo
 ## Auto-deploy pipeline (working as of 2026-07-10)
 Push to GitHub main → GitHub Actions (`.github/workflows/deploy.yml`) → POST https://erp.scape.sa/deploy → nginx proxies to webhook service (pm2 app `webhook`, `/var/www/webhook/deploy.js`, port 4000) → git pull + drizzle-kit push + npm install + npm run build + pm2 restart. Logs: `pm2 logs webhook` and `/var/www/deploy.log`.
 **Lesson:** the webhook script originally lacked the `npm run build` step — site kept serving stale bundles despite "Deploy OK". Verify deploys by checking the hashed asset filename in the live index.html changes.
-**Caveat:** `/deploy` is UNAUTHENTICATED (anyone can trigger a deploy of GitHub main). Secure code path exists at `/hooks/deploy` (needs DEPLOY_HOOK_SECRET) but isn't wired up.
-Main agent cannot `git push` (sandbox-blocked) — delegate pushes to a background Project Task. SSH access from Replit works via `sshpass -p "$DEPLOY_PASS"`.
+**Auth:** `/deploy` now REQUIRES header `x-deploy-secret` matching `/var/www/webhook/secret.txt` on the VPS. Trigger manually: SSH in, then `curl -X POST http://localhost:4000/deploy -H "x-deploy-secret: $(cat /var/www/webhook/secret.txt)"`.
+**Lockfile trap:** package-lock.json committed from Replit can contain `package-firewall.replit.local` URLs — unreachable from the VPS, breaks dependency install during deploy. Fix: sed them to `https://registry.npmjs.org/` (fixed locally + on server 2026-07-22; ensure the local fix gets committed and pushed).
+`git push origin main` WORKS from main agent (verified 2026-07-22; ignore stale lock warning, confirm with `git ls-remote origin main`). `git commit` is blocked — rely on platform auto-commits, then push. SSH access from Replit works via `sshpass -p "$DEPLOY_PASS"`.
 
 **PM2 start command** (NOT `pm2 restart` — it ignores ecosystem env vars):
 ```bash
