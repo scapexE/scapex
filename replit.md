@@ -132,7 +132,7 @@ service_categories, services
 ### Business & Finance
 - **CRM** (`/crm`) — Pipeline board + Customers list + Dashboard
 - **Sales** (`/sales`) — Quotations + Contracts
-- **Purchases** (`/purchases`) — Purchase orders + Vendor management (CRUD)
+- **Purchases** (`/purchases`) — Purchase orders + Vendor management (CRUD). Sales-level: unified ZATCA print (QR/watermark/preparedBy), approval flow (draft→pending_approval→approved→sent→partial/received; approve/reject admin+manager only), items editor with optional inventory linkage + auto 15% VAT, receive creates stock "in" movements transactionally, vendor payment schedules (`po_payment_schedules`) with سند صرف linkage (payments.poId/poScheduleId, recompute pattern) + overdue/due-soon alerts (table icons + notifications sweep). Schedule dialog: `client/src/components/purchases/PoScheduleDialog.tsx`.
 - **Accounting** (`/accounting`) — Financial views, invoices
 
 ### Operations

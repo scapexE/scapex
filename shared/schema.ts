@@ -397,6 +397,7 @@ export const purchaseOrderItems = pgTable("purchase_order_items", {
   unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).default("0"),
   total: numeric("total", { precision: 14, scale: 2 }).default("0"),
   receivedQty: numeric("received_qty", { precision: 12, scale: 3 }).default("0"),
+  inventoryItemId: integer("inventory_item_id"),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -564,6 +565,8 @@ export const payments = pgTable("payments", {
   activityId: text("activity_id").references(() => businessActivities.id),
   scheduleId: integer("schedule_id"),
   contractRef: text("contract_ref"),
+  poId: integer("po_id"),
+  poScheduleId: integer("po_schedule_id"),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1356,6 +1359,28 @@ export const contractPaymentSchedules = pgTable("contract_payment_schedules", {
 export const insertContractPaymentScheduleSchema = createInsertSchema(contractPaymentSchedules).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertContractPaymentSchedule = z.infer<typeof insertContractPaymentScheduleSchema>;
 export type ContractPaymentSchedule = typeof contractPaymentSchedules.$inferSelect;
+
+// ─── Purchase Order Payment Schedules (جدول دفعات الموردين) ─────────────────
+export const poPaymentSchedules = pgTable("po_payment_schedules", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
+  poId: integer("po_id").notNull().references(() => purchaseOrders.id),
+  installmentNumber: integer("installment_number").notNull(),
+  descriptionAr: text("description_ar"),
+  descriptionEn: text("description_en"),
+  amount: numeric("amount", { precision: 14, scale: 2 }).default("0"),
+  dueDate: date("due_date"),
+  status: text("status").default("pending"),
+  paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }).default("0"),
+  paidDate: date("paid_date"),
+  paymentId: integer("payment_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertPoPaymentScheduleSchema = createInsertSchema(poPaymentSchedules).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPoPaymentSchedule = z.infer<typeof insertPoPaymentScheduleSchema>;
+export type PoPaymentSchedule = typeof poPaymentSchedules.$inferSelect;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EMAIL LOGS + SURVEYS (CRM ACTIONS) — real persistence for sent emails, surveys

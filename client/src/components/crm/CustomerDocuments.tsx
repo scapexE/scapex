@@ -327,7 +327,7 @@ export function CustomerDocuments({
                   );
                 })}
                 {/* Docs linked to projects not in the current list (e.g. archived) */}
-                {[...byProject.keys()].filter((pid) => !projects.some((p) => p.id === pid)).map((pid) => (
+                {Array.from(byProject.keys()).filter((pid) => !projects.some((p) => p.id === pid)).map((pid) => (
                   <div key={pid} className="border border-border/40 rounded-xl p-3 bg-secondary/20">
                     <div className="flex items-center gap-2 mb-2">
                       <FolderOpen className="w-3.5 h-3.5 text-slate-500" />

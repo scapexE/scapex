@@ -9,8 +9,10 @@ description: Hostinger VPS deployment config for erp.scape.sa — key lessons fo
 Push to GitHub main → GitHub Actions (`.github/workflows/deploy.yml`) → POST https://erp.scape.sa/deploy → nginx proxies to webhook service (pm2 app `webhook`, `/var/www/webhook/deploy.js`, port 4000) → git pull + drizzle-kit push + npm install + npm run build + pm2 restart. Logs: `pm2 logs webhook` and `/var/www/deploy.log`.
 **Lesson:** the webhook script originally lacked the `npm run build` step — site kept serving stale bundles despite "Deploy OK". Verify deploys by checking the hashed asset filename in the live index.html changes.
 **Auth:** `/deploy` now REQUIRES header `x-deploy-secret` matching `/var/www/webhook/secret.txt` on the VPS. Trigger manually: SSH in, then `curl -X POST http://localhost:4000/deploy -H "x-deploy-secret: $(cat /var/www/webhook/secret.txt)"`.
-**Lockfile trap:** package-lock.json committed from Replit can contain `package-firewall.replit.local` URLs — unreachable from the VPS, breaks dependency install during deploy. Fix: sed them to `https://registry.npmjs.org/` (fixed locally + on server 2026-07-22; ensure the local fix gets committed and pushed).
-`git push origin main` WORKS from main agent (verified 2026-07-22; ignore stale lock warning, confirm with `git ls-remote origin main`). `git commit` is blocked — rely on platform auto-commits, then push. SSH access from Replit works via `sshpass -p "$DEPLOY_PASS"`.
+**Lockfile trap:** package-lock.json committed from Replit can contain `package-firewall.replit.local` URLs — unreachable from the VPS, breaks dependency install during deploy. Fix: sed them to `https://registry.npmjs.org/` and keep the fix committed.
+`git push origin main` works from main agent (ignore stale lock warning, confirm with `git ls-remote origin main`). `git commit` is blocked — rely on platform auto-commits, then push. SSH access from Replit works via `sshpass -p "$DEPLOY_PASS"`.
+**Prod DB sync one-liner:** SCP shared/schema.ts, then on VPS: `cd /var/www/scapex && DATABASE_URL=$(node -e "console.log(require('/var/www/scapex/ecosystem.config.cjs').apps[0].env.DATABASE_URL)") node_modules/.bin/drizzle-kit push --force` — no manual ALTERs needed.
+**API smoke-testing note:** all /api/* staff routes require an HMAC `x-session-token`; mint one via POST /api/auth/login (x-user-id alone gets 401).
 
 **PM2 start command** (NOT `pm2 restart` — it ignores ecosystem env vars):
 ```bash

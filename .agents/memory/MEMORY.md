@@ -1,6 +1,6 @@
 - [Proposal scope bug](proposal-scope.md) — crmContactId must be stored in Proposal object itself; ProposalDetail has no closure access to CreateProposal state.
 - [Company settings merge](company-settings-merge.md) — settings merged into /companies tab; per-company key `scapex_system_settings::<id>` w/ global fallback; wouter redirect needs component prop not bare child.
-- [Payment ↔ installment linkage](payment-installment-linkage.md) — POST /api/payments is single source of truth; installment paid state is RECOMPUTED from linked vouchers, never incrementally, to keep create/delete symmetric.
+- [Payment ↔ installment linkage](payment-installment-linkage.md) — POST /api/payments is single source of truth; installment paid state (contract & PO schedules) is RECOMPUTED from linked vouchers, never incrementally.
 - [Portal signing OTP channels](portal-sign-otp-channels.md) — email OTP is default/working (Resend); SMS needs a paid provider; keep devCode gated to dev only.
 - [Server deployment setup](server-deployment.md) — Hostinger VPS deployment notes: ecosystem.config.cjs, missing DB columns, jszip bundling, deploy process.
 - [Client identity bridge](client-identity-bridge.md) — register bridges users→contacts by verified email only, never by nationalId; prod admins are real accounts, dev creds don't exist there.

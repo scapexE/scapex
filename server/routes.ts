@@ -21,7 +21,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, type SurveyQuestionDef } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, poPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, type SurveyQuestionDef } from "@shared/schema";
 import { sendEmail, generateTempPassword, sendPortalWelcomeEmail } from "./email";
 import crypto from "crypto";
 import QRCode from "qrcode";
@@ -2054,6 +2054,57 @@ export async function registerRoutes(
         }
       } catch (e) { console.error("notify payment-due scan:", e); }
 
+      // Best-effort: vendor (PO) installments due within 7 days (or overdue).
+      // In-app notification for the PO creator and admins/managers.
+      try {
+        const now = new Date();
+        const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const oldest = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+        const poSchedRows = await db.select().from(poPaymentSchedules);
+        const duePoSched = poSchedRows.filter((s) => {
+          if (!s.dueDate) return false;
+          if (s.status === "paid" || s.status === "cancelled") return false;
+          const remaining = Number(s.amount || 0) - Number(s.paidAmount || 0);
+          if (remaining <= 0.009) return false;
+          const d = new Date(s.dueDate as any);
+          return d <= soon && d >= oldest;
+        });
+        if (duePoSched.length) {
+          const poIds = Array.from(new Set(duePoSched.map((s) => s.poId)));
+          const poRows = poIds.length ? await db.select().from(purchaseOrders).where(inArray(purchaseOrders.id, poIds)) : [];
+          const byPoId = new Map(poRows.map((p) => [p.id, p]));
+          const actorIsPriv = scope.actor.roles.has("admin") || scope.actor.roles.has("manager");
+          for (const s of duePoSched) {
+            const po = byPoId.get(s.poId);
+            if (!po) continue;
+            const isCreator = po.createdBy && po.createdBy === scope.actor.id;
+            if (!isCreator && !actorIsPriv) continue;
+            const overdue = new Date(s.dueDate as any) < now;
+            const dueTxt = String(s.dueDate).slice(0, 10);
+            const remaining = (Number(s.amount || 0) - Number(s.paidAmount || 0)).toFixed(2);
+            const noteType = overdue ? "po_payment_overdue" : "po_payment_due";
+            const existing = await db.select().from(notifications).where(and(
+              eq(notifications.userId, scope.actor.id),
+              eq(notifications.module, "purchases"),
+              eq(notifications.entityId, `posched_${s.id}`),
+              eq(notifications.type, noteType),
+            ));
+            if (!existing.length) {
+              await db.insert(notifications).values({
+                userId: scope.actor.id,
+                titleAr: overdue ? "دفعة مورد متأخرة عن السداد" : "دفعة مورد قاربت على الاستحقاق",
+                titleEn: overdue ? "Vendor installment overdue" : "Vendor installment due soon",
+                message: `${po.poNumber} — قسط ${s.installmentNumber} (${remaining} ر.س) — استحقاق ${dueTxt}`,
+                type: noteType,
+                module: "purchases",
+                entityId: `posched_${s.id}`,
+                link: "/purchases",
+              });
+            }
+          }
+        }
+      } catch (e) { console.error("notify PO payment-due scan:", e); }
+
       const rows = await db.select().from(notifications)
         .where(eq(notifications.userId, scope.actor.id))
         .orderBy(desc(notifications.createdAt))
@@ -3791,16 +3842,42 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.get("/api/purchase-orders", async (_req, res) => {
-    try { res.json(await db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt))); }
-    catch (e: any) { res.status(500).json({ error: e.message }); }
+    try {
+      const [pos, vens, items] = await Promise.all([
+        db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt)),
+        db.select().from(vendors),
+        db.select().from(purchaseOrderItems),
+      ]);
+      const vById = new Map(vens.map((v) => [v.id, v]));
+      const itemsByPo = new Map<number, typeof items>();
+      for (const it of items) {
+        const arr = itemsByPo.get(it.poId) || [];
+        arr.push(it);
+        itemsByPo.set(it.poId, arr);
+      }
+      res.json(pos.map((p) => {
+        const v = p.vendorId ? vById.get(p.vendorId) : undefined;
+        return { ...p, vendorNameAr: v?.nameAr || null, vendorNameEn: v?.nameEn || null, vendorVat: v?.vatNumber || null, dbItems: itemsByPo.get(p.id) || [] };
+      }));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/purchase-orders", async (req, res) => {
     if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
-      const [row] = await db.insert(purchaseOrders).values({ poNumber: b.poNumber, vendorId: b.vendorId ? parseInt(b.vendorId) : null, total: String(b.total || 0), status: b.status || "draft", deliveryDate: b.deliveryDate || b.expectedDate, notes: b.notes }).returning();
+      const [row] = await db.insert(purchaseOrders).values({
+        poNumber: b.poNumber, vendorId: b.vendorId ? parseInt(b.vendorId) : null,
+        subtotal: String(b.subtotal || 0), vatAmount: String(b.vatAmount || 0), total: String(b.total || 0),
+        status: b.status || "draft", deliveryDate: b.deliveryDate || b.expectedDate || null,
+        terms: b.terms || null, notes: b.notes || null, createdBy: b.createdBy || null,
+      }).returning();
       if (b.items?.length) {
-        await db.insert(purchaseOrderItems).values(b.items.map((it: any) => ({ poId: row.id, descAr: it.name, descEn: it.name, qty: String(it.qty || 1), unit: it.unit, unitPrice: String(it.unitPrice || 0), total: String((it.qty || 1) * (it.unitPrice || 0)) })));
+        await db.insert(purchaseOrderItems).values(b.items.map((it: any) => ({
+          poId: row.id, descAr: it.nameAr || it.name, descEn: it.nameEn || it.name,
+          qty: String(it.qty || 1), unit: it.unit, unitPrice: String(it.unitPrice || 0),
+          total: String((it.qty || 1) * (it.unitPrice || 0)),
+          inventoryItemId: it.inventoryItemId ? parseInt(it.inventoryItemId) : null,
+        })));
       }
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -3809,7 +3886,15 @@ export async function registerRoutes(
     if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
-      const [row] = await db.update(purchaseOrders).set({ status: b.status, notes: b.notes, deliveryDate: b.deliveryDate || b.expectedDate, total: String(b.total || 0), updatedAt: new Date() }).where(eq(purchaseOrders.id, parseInt(req.params.id))).returning();
+      const upd: any = { updatedAt: new Date() };
+      if (b.status !== undefined) upd.status = b.status;
+      if (b.notes !== undefined) upd.notes = b.notes;
+      if (b.terms !== undefined) upd.terms = b.terms;
+      if (b.deliveryDate !== undefined || b.expectedDate !== undefined) upd.deliveryDate = b.deliveryDate || b.expectedDate || null;
+      if (b.total !== undefined) upd.total = String(b.total || 0);
+      if (b.subtotal !== undefined) upd.subtotal = String(b.subtotal || 0);
+      if (b.vatAmount !== undefined) upd.vatAmount = String(b.vatAmount || 0);
+      const [row] = await db.update(purchaseOrders).set(upd).where(eq(purchaseOrders.id, parseInt(req.params.id))).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -3817,6 +3902,8 @@ export async function registerRoutes(
     if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
+      await db.update(payments).set({ poId: null, poScheduleId: null }).where(eq(payments.poId, id));
+      await db.delete(poPaymentSchedules).where(eq(poPaymentSchedules.poId, id));
       await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, id));
       await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
       res.json({ success: true });
@@ -3825,6 +3912,180 @@ export async function registerRoutes(
   app.get("/api/purchase-orders/:id/items", async (req, res) => {
     try { res.json(await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.poId, parseInt(req.params.id)))); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─────── PO approval flow (اعتماد أوامر الشراء) ─────────────────────────
+  app.post("/api/purchase-orders/:id/submit-approval", async (req, res) => {
+    try {
+      const actorId = staffUserId(req);
+      if (!actorId) return res.status(401).json({ error: "Unauthorized" });
+      const id = parseInt(req.params.id);
+      const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+      if (!po) return res.status(404).json({ error: "Not found" });
+      if (po.status !== "draft") return res.status(400).json({ error: "Only draft orders can be submitted for approval" });
+      const [row] = await db.update(purchaseOrders).set({ status: "pending_approval", updatedAt: new Date() }).where(eq(purchaseOrders.id, id)).returning();
+      // Notify admins/managers
+      try {
+        const allUsers = await db.select().from(users);
+        const approvers = allUsers.filter((u) => {
+          const r = new Set<string>([u.role || "", ...((u.roles as string[]) || [])]);
+          return (r.has("admin") || r.has("manager")) && u.id !== actorId;
+        });
+        for (const u of approvers) {
+          await db.insert(notifications).values({
+            userId: u.id,
+            titleAr: "أمر شراء بانتظار الاعتماد",
+            titleEn: "Purchase order pending approval",
+            message: `${po.poNumber} — ${parseFloat(po.total || "0").toLocaleString()} ${po.currency || "SAR"}`,
+            type: "po_approval", module: "purchases", entityId: String(po.id), link: "/purchases",
+          });
+        }
+      } catch (e) { console.error("PO approval notify:", e); }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/purchase-orders/:id/approve", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const actorId = staffUserId(req);
+      const id = parseInt(req.params.id);
+      const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+      if (!po) return res.status(404).json({ error: "Not found" });
+      if (po.status !== "pending_approval" && po.status !== "draft") return res.status(400).json({ error: "Order is not awaiting approval" });
+      const [row] = await db.update(purchaseOrders).set({ status: "approved", approvedBy: actorId, updatedAt: new Date() }).where(eq(purchaseOrders.id, id)).returning();
+      if (po.createdBy && po.createdBy !== actorId) {
+        try {
+          await db.insert(notifications).values({
+            userId: po.createdBy,
+            titleAr: "تم اعتماد أمر الشراء", titleEn: "Purchase order approved",
+            message: po.poNumber, type: "po_approved", module: "purchases", entityId: String(po.id), link: "/purchases",
+          });
+        } catch {}
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/purchase-orders/:id/reject", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const actorId = staffUserId(req);
+      const id = parseInt(req.params.id);
+      const reason = (req.body?.reason || "").toString().slice(0, 500);
+      const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+      if (!po) return res.status(404).json({ error: "Not found" });
+      if (po.status !== "pending_approval") return res.status(400).json({ error: "Order is not awaiting approval" });
+      const [row] = await db.update(purchaseOrders).set({ status: "draft", updatedAt: new Date() }).where(eq(purchaseOrders.id, id)).returning();
+      if (po.createdBy && po.createdBy !== actorId) {
+        try {
+          await db.insert(notifications).values({
+            userId: po.createdBy,
+            titleAr: "تم رفض أمر الشراء", titleEn: "Purchase order rejected",
+            message: `${po.poNumber}${reason ? ` — ${reason}` : ""}`,
+            type: "po_rejected", module: "purchases", entityId: String(po.id), link: "/purchases",
+          });
+        } catch {}
+      }
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─────── PO receive → stock movements (استلام أمر الشراء → المخزون) ──────
+  app.post("/api/purchase-orders/:id/receive", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const actorId = staffUserId(req);
+      const id = parseInt(req.params.id);
+      const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+      if (!po) return res.status(404).json({ error: "Not found" });
+      if (po.status === "received" || po.status === "cancelled") return res.status(400).json({ error: "Order already closed" });
+      const items = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.poId, id));
+      let moved = 0, skipped = 0;
+      await db.transaction(async (tx) => {
+        for (const it of items) {
+          const qty = parseFloat(it.qty || "0") || 0;
+          const already = parseFloat(it.receivedQty || "0") || 0;
+          const remaining = qty - already;
+          if (remaining <= 0) continue;
+          if (!it.inventoryItemId) { skipped++; continue; }
+          const [invItem] = await tx.select().from(inventoryItems).where(eq(inventoryItems.id, it.inventoryItemId));
+          if (!invItem) { skipped++; continue; }
+          await tx.insert(stockMovements).values({
+            itemId: it.inventoryItemId, warehouseId: invItem.warehouseId,
+            type: "in", qty: String(remaining),
+            reference: po.poNumber, notes: `استلام أمر شراء ${po.poNumber}`,
+            createdBy: actorId || null,
+          });
+          const cur = parseFloat(invItem.currentQty as string) || 0;
+          const newQty = cur + remaining;
+          await tx.update(inventoryItems).set({
+            currentQty: String(newQty),
+            totalValue: String(newQty * (parseFloat(invItem.unitCost as string) || 0)),
+            lastRestocked: new Date(), updatedAt: new Date(),
+          }).where(eq(inventoryItems.id, it.inventoryItemId));
+          await tx.update(purchaseOrderItems).set({ receivedQty: String(qty) }).where(eq(purchaseOrderItems.id, it.id));
+          moved++;
+        }
+        await tx.update(purchaseOrders).set({ status: "received", updatedAt: new Date() }).where(eq(purchaseOrders.id, id));
+      });
+      res.json({ success: true, movedItems: moved, skippedItems: skipped });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─────── PO payment schedules (جدول دفعات الموردين) ──────────────────────
+  const poSchedWithLiveStatus = (s: any) => {
+    let status = s.status || "pending";
+    if (status === "pending" && s.dueDate && new Date(s.dueDate) < new Date()) status = "overdue";
+    return { ...s, status };
+  };
+  app.get("/api/po-payment-schedules", async (req, res) => {
+    try {
+      const poId = req.query.poId ? parseInt(req.query.poId as string) : null;
+      const rows = poId
+        ? await db.select().from(poPaymentSchedules).where(eq(poPaymentSchedules.poId, poId)).orderBy(poPaymentSchedules.installmentNumber)
+        : await db.select().from(poPaymentSchedules).orderBy(poPaymentSchedules.poId, poPaymentSchedules.installmentNumber);
+      res.json(rows.map(poSchedWithLiveStatus));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/po-payment-schedules", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const b = req.body;
+      if (!b.poId) return res.status(400).json({ error: "poId is required" });
+      let status = b.status || "pending";
+      if (status === "pending" && b.dueDate && new Date(b.dueDate) < new Date()) status = "overdue";
+      const [row] = await db.insert(poPaymentSchedules).values({
+        poId: parseInt(b.poId), installmentNumber: parseInt(b.installmentNumber || 1),
+        descriptionAr: b.descriptionAr || null, descriptionEn: b.descriptionEn || null,
+        amount: String(b.amount || 0), dueDate: b.dueDate || null, status,
+        notes: b.notes || null,
+      }).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.put("/api/po-payment-schedules/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const b = req.body;
+      const upd: any = { updatedAt: new Date() };
+      if (b.installmentNumber !== undefined) upd.installmentNumber = parseInt(b.installmentNumber);
+      if (b.descriptionAr !== undefined) upd.descriptionAr = b.descriptionAr;
+      if (b.descriptionEn !== undefined) upd.descriptionEn = b.descriptionEn;
+      if (b.amount !== undefined) upd.amount = String(b.amount || 0);
+      if (b.dueDate !== undefined) upd.dueDate = b.dueDate || null;
+      if (b.status !== undefined) upd.status = b.status;
+      if (b.notes !== undefined) upd.notes = b.notes;
+      const [row] = await db.update(poPaymentSchedules).set(upd).where(eq(poPaymentSchedules.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/po-payment-schedules/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      await db.update(payments).set({ poScheduleId: null }).where(eq(payments.poScheduleId, id));
+      await db.delete(poPaymentSchedules).where(eq(poPaymentSchedules.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -5231,6 +5492,24 @@ export async function registerRoutes(
     }).where(eq(contractPaymentSchedules.id, scheduleId));
   };
 
+  const recomputePoInstallmentFromPayments = async (poScheduleId: number) => {
+    const [inst] = await db.select().from(poPaymentSchedules).where(eq(poPaymentSchedules.id, poScheduleId));
+    if (!inst) return;
+    const linked = await db.select().from(payments).where(and(eq(payments.poScheduleId, poScheduleId), eq(payments.type, "paid")));
+    const due = parseFloat(inst.amount || "0");
+    const sum = linked.reduce((s, p) => s + parseFloat(p.amount || "0"), 0);
+    const newPaid = Math.min(sum, due);
+    const status = due > 0 && newPaid >= due ? "paid" : newPaid > 0 ? "partial" : "pending";
+    const latest = linked.reduce<(typeof linked)[number] | null>((a, p) => (!a || p.id > a.id ? p : a), null);
+    await db.update(poPaymentSchedules).set({
+      paidAmount: String(newPaid),
+      status,
+      paidDate: latest ? latest.date : null,
+      paymentId: latest ? latest.id : null,
+      updatedAt: new Date(),
+    }).where(eq(poPaymentSchedules.id, poScheduleId));
+  };
+
   app.post("/api/payments", async (req, res) => {
     try {
       const b = req.body;
@@ -5246,6 +5525,14 @@ export async function registerRoutes(
         [installment] = await db.select().from(contractPaymentSchedules).where(eq(contractPaymentSchedules.id, scheduleId));
         if (!installment) return res.status(400).json({ error: "Linked installment not found" });
       }
+      // PO (vendor) installment linkage — سند صرف مرتبط بجدول دفعات مورد
+      const poScheduleId = b.poScheduleId ? parseInt(b.poScheduleId) : null;
+      let poInstallment: any = null;
+      if (poScheduleId) {
+        [poInstallment] = await db.select().from(poPaymentSchedules).where(eq(poPaymentSchedules.id, poScheduleId));
+        if (!poInstallment) return res.status(400).json({ error: "Linked PO installment not found" });
+      }
+      const poId = b.poId ? parseInt(b.poId) : poInstallment?.poId || null;
       const contractRef = b.contractRef || installment?.contractRef || null;
       // Resolve contactId from the contract when not supplied but linked to a schedule
       let contactId = b.contactId ? parseInt(b.contactId) : null;
@@ -5261,7 +5548,7 @@ export async function registerRoutes(
         method: b.method || "bank_transfer", reference: b.reference || null,
         date: b.date || today, notes: b.notes || null,
         activityId: b.activityId || null, createdBy: b.createdBy || null,
-        scheduleId, contractRef,
+        scheduleId, contractRef, poId, poScheduleId,
       }).returning();
       // Update invoice paidAmount if linked
       if (b.invoiceId && b.type === "received") {
@@ -5276,6 +5563,10 @@ export async function registerRoutes(
       // Auto-update the linked contract installment (سند قبض ↔ جدول الدفعات)
       if (scheduleId && (b.type || "received") === "received") {
         await recomputeInstallmentFromPayments(scheduleId);
+      }
+      // Auto-update the linked PO installment (سند صرف ↔ جدول دفعات المورد)
+      if (poScheduleId && b.type === "paid") {
+        await recomputePoInstallmentFromPayments(poScheduleId);
       }
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -5312,6 +5603,7 @@ export async function registerRoutes(
       await db.delete(payments).where(eq(payments.id, id));
       // Recompute the linked installment from remaining vouchers (symmetric with create)
       if (pmt?.scheduleId) await recomputeInstallmentFromPayments(pmt.scheduleId);
+      if (pmt?.poScheduleId) await recomputePoInstallmentFromPayments(pmt.poScheduleId);
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
