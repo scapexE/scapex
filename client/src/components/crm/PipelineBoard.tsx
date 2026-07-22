@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   MoreHorizontal, Plus, Search, Filter, Phone, Loader2, Trash2,
   Clock, Calendar, AlertCircle, FileText, Mail, UserCog, User as UserIcon,
-  Star, TrendingUp, Building2,
+  Star, TrendingUp, Building2, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scopedFetch, apiRequest } from "@/lib/queryClient";
@@ -34,6 +34,8 @@ interface DbDeal {
   expectedClose: string | null;
   notes: string | null;
   nextAction: string | null;
+  reminderDate: string | null;
+  reminderLabel: string | null;
   stage: string | null;
   priority: string | null;
   status: string | null;
@@ -105,6 +107,19 @@ const initials = (name: string) => {
   return name.slice(0, 2).toUpperCase();
 };
 
+// Reminder urgency: "red" if ≤1 month remains (or overdue), "orange" if ≤2 months, null otherwise
+export function reminderUrgency(reminderDate: string | null | undefined): "red" | "orange" | null {
+  if (!reminderDate) return null;
+  const target = new Date(reminderDate + "T00:00:00");
+  if (isNaN(target.getTime())) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const days = Math.ceil((target.getTime() - now.getTime()) / 86400000);
+  if (days <= 30) return "red";
+  if (days <= 60) return "orange";
+  return null;
+}
+
 const PriorityStars = ({ priority }: { priority: string | null }) => {
   const count = priority === "high" ? 3 : priority === "medium" ? 2 : 1;
   return (
@@ -154,7 +169,10 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   const [form, setForm] = useState({
     titleAr: "", titleEn: "", contactId: "", value: "",
     priority: "medium", nextAction: "", expectedClose: "", notes: "",
+    reminderDate: "", reminderLabel: "",
   });
+  const [reminderTarget, setReminderTarget] = useState<DbDeal | null>(null);
+  const [reminderForm, setReminderForm] = useState({ date: "", label: "" });
 
   const STAGES = [
     {
@@ -240,7 +258,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
   useEffect(() => {
     if (openAddDialogSignal !== undefined && openAddDialogSignal > 0) {
       setAddStage("new");
-      setForm({ titleAr: "", titleEn: "", contactId: "", value: "", priority: "medium", nextAction: "", expectedClose: "", notes: "" });
+      setForm({ titleAr: "", titleEn: "", contactId: "", value: "", priority: "medium", nextAction: "", expectedClose: "", notes: "", reminderDate: "", reminderLabel: "" });
       setAddOpen(true);
     }
   }, [openAddDialogSignal]);
@@ -330,7 +348,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
 
   const openAdd = (stageId: string) => {
     setAddStage(stageId);
-    setForm({ titleAr: "", titleEn: "", contactId: "", value: "", priority: "medium", nextAction: "", expectedClose: "", notes: "" });
+    setForm({ titleAr: "", titleEn: "", contactId: "", value: "", priority: "medium", nextAction: "", expectedClose: "", notes: "", reminderDate: "", reminderLabel: "" });
     setAddOpen(true);
   };
 
@@ -347,6 +365,8 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
         value: form.value || "0", priority: form.priority,
         nextAction: form.nextAction, expectedClose: form.expectedClose || null,
         notes: form.notes, stage: addStage,
+        reminderDate: form.reminderDate || null,
+        reminderLabel: form.reminderLabel || null,
         ...(activeActivity ? { activityId: activeActivity.id } : {}),
         createdBy: currentUser?.id || null,
         assignedTo: currentUser?.id || null,
@@ -370,6 +390,22 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
       await fetchData();
     } catch {
       toast({ title: isRtl ? "تعذر الحذف" : "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const handleReminderSave = async () => {
+    if (!reminderTarget) return;
+    try {
+      const res = await apiRequest("PATCH", `/api/deals/${reminderTarget.id}`, {
+        reminderDate: reminderForm.date || null,
+        reminderLabel: reminderForm.label || null,
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: isRtl ? (reminderForm.date ? "تم حفظ التذكير ✓" : "تم حذف التذكير") : (reminderForm.date ? "Reminder saved ✓" : "Reminder removed") });
+      setReminderTarget(null);
+      await fetchData();
+    } catch {
+      toast({ title: isRtl ? "تعذر حفظ التذكير" : "Failed to save reminder", variant: "destructive" });
     }
   };
 
@@ -494,6 +530,7 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                         const clientName = dealClientName(d);
                         const editable = canEdit(d);
                         const dateInfo = formatDate(d.expectedClose, isRtl);
+                        const urgency = reminderUrgency(d.reminderDate);
                         const isHovered = hoveredCard === d.id;
 
                         return (
@@ -508,7 +545,11 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                               "group bg-card rounded-xl border shadow-sm transition-all duration-200 overflow-hidden",
                               "hover:shadow-md hover:-translate-y-0.5",
                               editable ? "cursor-pointer active:cursor-grabbing" : "cursor-pointer opacity-90",
-                              d.priority === "high" ? "border-red-200 dark:border-red-800" : "border-border/60",
+                              urgency === "red"
+                                ? "border-red-500 dark:border-red-600 border-2 bg-red-50 dark:bg-red-950/40"
+                                : urgency === "orange"
+                                ? "border-orange-400 dark:border-orange-500 border-2 bg-orange-50 dark:bg-orange-950/40"
+                                : d.priority === "high" ? "border-red-200 dark:border-red-800" : "border-border/60",
                             )}
                             data-testid={`card-deal-${d.id}`}
                           >
@@ -550,6 +591,14 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                                         {isRtl ? "نقل / إسناد" : "Transfer / Assign"}
                                       </button>
                                     )}
+                                    {editable && (
+                                      <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 rounded"
+                                        onClick={() => { setReminderTarget(d); setReminderForm({ date: d.reminderDate || "", label: d.reminderLabel || "" }); }}
+                                        data-testid={`button-reminder-deal-${d.id}`}>
+                                        <Bell className="w-3.5 h-3.5" />
+                                        {isRtl ? "تذكير المتابعة" : "Follow-up Reminder"}
+                                      </button>
+                                    )}
                                     {(isAdmin || isManager) && (
                                       <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded"
                                         onClick={() => setDeleteId(d.id)}
@@ -583,6 +632,24 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
                                 <span className="font-bold text-primary text-base leading-none">{formatValue(d.value, d.currency)}</span>
                                 <PriorityStars priority={d.priority} />
                               </div>
+
+                              {/* Reminder badge */}
+                              {d.reminderDate && (
+                                <div className={cn(
+                                  "flex items-start gap-1.5 text-[11px] rounded-lg px-2 py-1.5 mb-2.5 font-medium",
+                                  urgency === "red"
+                                    ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+                                    : urgency === "orange"
+                                    ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"
+                                    : "bg-secondary/40 text-muted-foreground"
+                                )} data-testid={`badge-reminder-${d.id}`}>
+                                  <Bell className="w-3 h-3 shrink-0 mt-0.5" />
+                                  <span className="line-clamp-1">
+                                    {(d.reminderLabel || (isRtl ? "تذكير" : "Reminder")) + " — " +
+                                      new Date(d.reminderDate + "T00:00:00").toLocaleDateString(isRtl ? "ar-SA" : "en-GB", { year: "numeric", month: "short", day: "numeric" })}
+                                  </span>
+                                </div>
+                              )}
 
                               {/* Next action */}
                               {d.nextAction && (
@@ -699,6 +766,14 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
               <Label>{isRtl ? "الإجراء التالي" : "Next Action"}</Label>
               <Input value={form.nextAction} onChange={e => setForm({ ...form, nextAction: e.target.value })} data-testid="input-lead-action" />
             </div>
+            <div className="space-y-1.5">
+              <Label>{isRtl ? "اسم التذكير (مثال: انتهاء الترخيص)" : "Reminder name (e.g. license expiry)"}</Label>
+              <Input value={form.reminderLabel} onChange={e => setForm({ ...form, reminderLabel: e.target.value })} data-testid="input-lead-reminder-label" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{isRtl ? "تاريخ التذكير / الانتهاء" : "Reminder / Expiry date"}</Label>
+              <Input type="date" value={form.reminderDate} onChange={e => setForm({ ...form, reminderDate: e.target.value })} data-testid="input-lead-reminder-date" />
+            </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>{isRtl ? "ملاحظات" : "Notes"}</Label>
               <Textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid="input-lead-notes" />
@@ -736,6 +811,46 @@ export function PipelineBoard({ onCreateProposal, openAddDialogSignal }: {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignTarget(null)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
             <Button onClick={handleAssign} data-testid="button-confirm-assign-deal">{isRtl ? "نقل" : "Transfer"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Reminder Dialog ──────────────────────────────────── */}
+      <Dialog open={!!reminderTarget} onOpenChange={o => { if (!o) setReminderTarget(null); }}>
+        <DialogContent dir={dir} data-testid="dialog-deal-reminder">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-amber-500" />
+              {isRtl ? "تذكير المتابعة" : "Follow-up Reminder"}
+            </DialogTitle>
+            <DialogDescription>
+              {isRtl
+                ? "حدد تاريخ انتهاء الترخيص أو التصريح واسم التذكير. تتلون البطاقة برتقالياً قبل شهرين من التاريخ وأحمر قبل شهر."
+                : "Set the license/permit expiry date and reminder name. The card turns orange 2 months before the date and red 1 month before."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="space-y-1.5">
+              <Label>{isRtl ? "اسم التذكير" : "Reminder name"}</Label>
+              <Input value={reminderForm.label} placeholder={isRtl ? "مثال: انتهاء الترخيص البيئي" : "e.g. Environmental license expiry"}
+                onChange={e => setReminderForm({ ...reminderForm, label: e.target.value })} data-testid="input-reminder-label" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{isRtl ? "تاريخ التذكير / الانتهاء" : "Reminder / Expiry date"}</Label>
+              <Input type="date" value={reminderForm.date}
+                onChange={e => setReminderForm({ ...reminderForm, date: e.target.value })} data-testid="input-reminder-date" />
+            </div>
+            {reminderTarget?.reminderDate && (
+              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 px-2"
+                onClick={() => setReminderForm({ date: "", label: "" })} data-testid="button-clear-reminder">
+                <Trash2 className="w-3.5 h-3.5 me-1.5" />
+                {isRtl ? "إزالة التذكير" : "Remove reminder"}
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReminderTarget(null)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={handleReminderSave} data-testid="button-save-reminder">{isRtl ? "حفظ" : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

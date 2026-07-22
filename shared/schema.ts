@@ -218,6 +218,8 @@ export const deals = pgTable("deals", {
   stage: text("stage").default("new"),
   priority: text("priority").default("medium"),
   nextAction: text("next_action"),
+  reminderDate: date("reminder_date"),
+  reminderLabel: text("reminder_label"),
   lostReason: text("lost_reason"),
   activityId: text("activity_id"),
   createdBy: varchar("created_by").references(() => users.id),

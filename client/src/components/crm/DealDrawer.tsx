@@ -30,6 +30,8 @@ interface DbDeal {
   expectedClose: string | null;
   notes: string | null;
   nextAction: string | null;
+  reminderDate?: string | null;
+  reminderLabel?: string | null;
   stage: string | null;
   priority: string | null;
   status: string | null;
@@ -649,6 +651,15 @@ export function DealDrawer({
                               {isRtl ? "المسؤول" : "Assigned To"}
                             </div>
                             <span className="text-sm font-medium">{assignedUser.name}</span>
+                          </div>
+                        )}
+                        {deal.reminderDate && (
+                          <div className="flex items-center justify-between px-3 py-2" data-testid="drawer-reminder">
+                            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                              <Calendar className="w-4 h-4 text-amber-500" />
+                              {deal.reminderLabel || (isRtl ? "تذكير المتابعة" : "Follow-up Reminder")}
+                            </div>
+                            <span className="text-sm font-medium">{new Date(deal.reminderDate + "T00:00:00").toLocaleDateString(isRtl ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</span>
                           </div>
                         )}
                       </div>
