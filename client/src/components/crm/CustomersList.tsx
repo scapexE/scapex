@@ -429,8 +429,13 @@ export function CustomersList({
                   { key: "contact", header: isRtl ? "جهة الاتصال" : "Contact", accessor: (c: Customer) => c.contact },
                   { key: "email", header: isRtl ? "البريد الإلكتروني" : "Email", accessor: (c: Customer) => c.email },
                   { key: "phone", header: isRtl ? "الهاتف" : "Phone", accessor: (c: Customer) => c.phone },
+                  { key: "mobile", header: isRtl ? "الجوال" : "Mobile", accessor: (c: Customer) => rows.find(r => String(r.id) === c.id)?.mobile || "" },
+                  { key: "nationalId", header: isRtl ? "رقم الهوية" : "National ID", accessor: (c: Customer) => (rows.find(r => String(r.id) === c.id) as any)?.nationalId || "" },
+                  { key: "crNumber", header: isRtl ? "السجل التجاري" : "CR Number", accessor: (c: Customer) => (rows.find(r => String(r.id) === c.id) as any)?.crNumber || "" },
                   { key: "city", header: isRtl ? "المدينة" : "City", accessor: (c: Customer) => rows.find(r => String(r.id) === c.id)?.city || "" },
-                  { key: "status", header: isRtl ? "الحالة" : "Status", accessor: (c: Customer) => c.status },
+                  { key: "address", header: isRtl ? "العنوان" : "Address", accessor: (c: Customer) => rows.find(r => String(r.id) === c.id)?.address || "" },
+                  { key: "status", header: isRtl ? "الحالة" : "Status", accessor: (c: Customer) => c.status === "active" ? (isRtl ? "نشط" : "Active") : c.status === "inactive" ? (isRtl ? "غير نشط" : "Inactive") : (isRtl ? "عميل محتمل" : "Lead") },
+                  { key: "notes", header: isRtl ? "ملاحظات" : "Notes", accessor: (c: Customer) => rows.find(r => String(r.id) === c.id)?.notes || "" },
                 ] as ExportColumn<Customer>[]}
               />
               <Button
