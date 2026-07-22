@@ -4057,15 +4057,19 @@ export async function registerRoutes(
       if (folder && folder !== "all") conditions.push(eq(documents.folder, folder));
       if (projectId) conditions.push(eq((documents as any).projectId, projectId));
       if (contactId) {
-        // Everything belonging to this customer: company-level docs (contact_id)
-        // plus docs of any of the customer's projects.
-        const contactProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.contactId, contactId));
+        // Everything belonging to this customer: company-level docs (contact_id),
+        // docs of any of the customer's projects, and docs attached to the
+        // customer's deals in the sales pipeline.
+        const [contactProjects, contactDeals] = await Promise.all([
+          db.select({ id: projects.id }).from(projects).where(eq(projects.contactId, contactId)),
+          db.select({ id: deals.id }).from(deals).where(eq(deals.contactId, contactId)),
+        ]);
         const pids = contactProjects.map((p) => p.id);
-        conditions.push(
-          pids.length > 0
-            ? or(eq((documents as any).contactId, contactId), inArray((documents as any).projectId, pids))
-            : eq((documents as any).contactId, contactId)
-        );
+        const dids = contactDeals.map((d) => d.id);
+        const ors: any[] = [eq((documents as any).contactId, contactId)];
+        if (pids.length > 0) ors.push(inArray((documents as any).projectId, pids));
+        if (dids.length > 0) ors.push(inArray((documents as any).dealId, dids));
+        conditions.push(ors.length > 1 ? or(...ors) : ors[0]);
       }
       const rows = await db
         .select({ ...metaCols, hasFile: sql<boolean>`(${documents.fileContent} IS NOT NULL OR ${documents.fileUrl} IS NOT NULL)` })

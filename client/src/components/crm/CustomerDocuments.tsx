@@ -32,6 +32,7 @@ export interface CustomerDoc {
   type: string | null;
   contactId: number | null;
   projectId: number | null;
+  dealId: number | null;
   originalName: string | null;
   mimeType: string | null;
   fileSize: number | null;
@@ -114,7 +115,8 @@ export function CustomerDocuments({
 
   useEffect(() => { load(); }, [load]);
 
-  const companyDocs = docs.filter((d) => d.projectId == null);
+  const companyDocs = docs.filter((d) => d.projectId == null && d.dealId == null);
+  const dealDocs = docs.filter((d) => d.projectId == null && d.dealId != null);
   const byProject = new Map<number, CustomerDoc[]>();
   for (const d of docs) {
     if (d.projectId != null) {
@@ -280,6 +282,18 @@ export function CustomerDocuments({
               <div className="space-y-2">{companyDocs.map((d) => <DocRow key={d.id} d={d} />)}</div>
             )}
           </div>
+
+          {/* Sales pipeline (deal) documents */}
+          {dealDocs.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="w-4 h-4 text-violet-600" />
+                <h4 className="text-sm font-semibold">{isRtl ? "مستندات مسار المبيعات (الصفقات)" : "Sales Pipeline Documents (Deals)"}</h4>
+                <Badge variant="secondary" className="text-[10px]">{dealDocs.length}</Badge>
+              </div>
+              <div className="space-y-2">{dealDocs.map((d) => <DocRow key={d.id} d={d} />)}</div>
+            </div>
+          )}
 
           {/* Per-project documents */}
           <div>
