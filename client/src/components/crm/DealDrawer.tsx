@@ -546,7 +546,21 @@ export function DealDrawer({
                 )}
                 {deal.stage === "won" && (
                   <Button size="sm" className="w-full h-8 text-xs bg-cyan-600 hover:bg-cyan-700 text-white border-0"
-                    onClick={() => { window.location.href = "/accounting"; }}
+                    onClick={() => {
+                      const clientName = customer
+                        ? (customer.nameAr || customer.nameEn || "")
+                        : "";
+                      dbSetItem("scapex_invoice_prefill", JSON.stringify({
+                        clientName,
+                        contactId: deal.contactId,
+                        dealId: deal.id,
+                        dealTitleAr: deal.titleAr || "",
+                        dealTitleEn: deal.titleEn || "",
+                        value: deal.value || 0,
+                        currency: deal.currency || "SAR",
+                      }));
+                      window.location.href = "/accounting?tab=invoices&new=1";
+                    }}
                     data-testid="btn-issue-invoice">
                     <CreditCard className="w-3.5 h-3.5 me-1.5" />
                     {isRtl ? "إصدار فاتورة" : "Issue Invoice"}

@@ -10,9 +10,13 @@ import { FinancialReportsTab } from "@/components/accounting/FinancialReportsTab
 import { Button } from "@/components/ui/button";
 import { Download, FileText, ArrowDownCircle, TreePine, BarChart3 } from "lucide-react";
 
+const VALID_TABS = ["dashboard", "invoices", "payments", "journal", "coa", "reports"];
+
 export default function AccountingModule() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
+  const urlTab = new URLSearchParams(window.location.search).get("tab");
+  const initialTab = urlTab && VALID_TABS.includes(urlTab) ? urlTab : "dashboard";
 
   return (
     <MainLayout>
@@ -36,7 +40,7 @@ export default function AccountingModule() {
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard" className="flex-1 flex flex-col min-h-0">
+        <Tabs defaultValue={initialTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-full sm:w-auto self-start border-border/50 bg-secondary/50 overflow-x-auto flex-nowrap justify-start">
             <TabsTrigger value="dashboard" className="flex-1 sm:flex-none data-[state=active]:bg-background whitespace-nowrap">
               {isRtl ? "الملخص" : "Dashboard"}

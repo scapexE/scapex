@@ -89,6 +89,7 @@ service_categories, services
 - `scapex_activities` — business activities config (version: v2)
 - `users` — user accounts (version: v3)
 - `scapex_proposal_prefill` — temporary CRM/Sales→Proposal prefill data
+- `scapex_invoice_prefill` — temporary CRM→Invoice prefill (deal drawer «إصدار فاتورة» → /accounting?tab=invoices&new=1; consumed only when ?new=1)
 - `scapex_proposal_sub` — sub-service prefill from Service Catalog
 - `scapex_hr_employees` — HR employee records
 - `scapex_payroll_batches` — payroll batches

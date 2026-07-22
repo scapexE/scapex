@@ -10,12 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Printer, Trash2, Eye, CheckCircle2, Send, FileText, Loader2, X, Mail } from "lucide-react";
+import { Plus, Search, Printer, Trash2, Eye, CheckCircle2, Send, FileText, Loader2, X, Mail, Pencil } from "lucide-react";
 import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getAboutData, getSystemSettings, getPrintFontCss } from "@/lib/companySettings";
-import { dbGetItem } from "@/lib/dbStorage";
+import { dbGetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { watermarkHtml, preparedByHtml, zatcaQrBlockHtml } from "@/lib/printShared";
 import { getRequestScope } from "@/lib/queryClient";
 import { ExportMenu } from "@/components/shared/ExportMenu";
@@ -56,19 +56,24 @@ export function InvoicesTab() {
   const [typeFilter, setTypeFilter] = useState("all");
 
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [sendInvoice, setSendInvoice] = useState<Invoice | null>(null);
   const [showDetail, setShowDetail] = useState<Invoice | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const EMPTY_FORM = {
+    type: "sales", clientName: "", contactId: "", issueDate: today(),
+    dueDate: "", notes: "", vatRate: 15,
+    items: [{ descAr: "", descEn: "", qty: 1, unit: "عدد", unitPrice: 0, total: 0 }] as InvItem[],
+  };
 
   const [form, setForm] = useState<{
     type: string; clientName: string; contactId: string;
     issueDate: string; dueDate: string; notes: string; vatRate: number;
     items: InvItem[];
-  }>({
-    type: "sales", clientName: "", contactId: "", issueDate: today(),
-    dueDate: "", notes: "", vatRate: 15,
-    items: [{ descAr: "", descEn: "", qty: 1, unit: "عدد", unitPrice: 0, total: 0 }],
-  });
+  }>(EMPTY_FORM);
+
+  const resetForm = () => { setForm({ ...EMPTY_FORM, issueDate: today(), items: [{ descAr: "", descEn: "", qty: 1, unit: "عدد", unitPrice: 0, total: 0 }] }); setEditingId(null); };
 
   const fetchAll = useCallback(async () => {
     try {
@@ -82,6 +87,65 @@ export function InvoicesTab() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Prefill from CRM "Issue Invoice" button (deal drawer) — only when ?new=1
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("new") !== "1") return;
+      const raw = dbGetItem("scapex_invoice_prefill");
+      if (!raw) return;
+      dbRemoveItem("scapex_invoice_prefill");
+      const p = JSON.parse(raw);
+      const value = parseFloat(String(p.value ?? 0)) || 0;
+      const desc = p.dealTitleAr || p.dealTitleEn || "";
+      setForm(f => ({
+        ...f,
+        type: "sales",
+        clientName: p.clientName || "",
+        contactId: p.contactId ? String(p.contactId) : "",
+        items: [{
+          descAr: p.dealTitleAr || desc, descEn: p.dealTitleEn || desc,
+          qty: 1, unit: "عدد", unitPrice: value, total: value,
+        }],
+      }));
+      setEditingId(null);
+      setShowCreate(true);
+    } catch {}
+  }, []);
+
+  const openEdit = async (inv: Invoice) => {
+    try {
+      const res = await fetch(`/api/invoices/${inv.id}`);
+      if (!res.ok) throw new Error();
+      const full = await res.json();
+      const items: InvItem[] = Array.isArray(full.items) && full.items.length > 0
+        ? full.items.map((it: any) => ({
+            descAr: it.descAr || "", descEn: it.descEn || "",
+            qty: parseFloat(String(it.qty)) || 1,
+            unit: it.unit || "عدد",
+            unitPrice: parseFloat(String(it.unitPrice)) || 0,
+            total: parseFloat(String(it.total)) || 0,
+          }))
+        : [{ descAr: "", descEn: "", qty: 1, unit: "عدد", unitPrice: 0, total: 0 }];
+      const sub = parseFloat(full.subtotal || "0");
+      const vat = parseFloat(full.vatAmount || "0");
+      const vatRate = sub > 0 ? Math.round((vat / sub) * 10000) / 100 : 15;
+      setForm({
+        type: full.type || "sales",
+        clientName: full.clientName || "",
+        contactId: full.contactId ? String(full.contactId) : "",
+        issueDate: full.issueDate || today(),
+        dueDate: full.dueDate || "",
+        notes: full.notes || "",
+        vatRate,
+        items,
+      });
+      setEditingId(inv.id);
+      setShowCreate(true);
+    } catch {
+      toast({ title: isRtl ? "تعذر تحميل الفاتورة" : "Failed to load invoice", variant: "destructive" });
+    }
+  };
 
   const subtotal = form.items.reduce((s, i) => s + i.total, 0);
   const vatAmount = parseFloat(((subtotal * form.vatRate) / 100).toFixed(2));
@@ -102,18 +166,27 @@ export function InvoicesTab() {
     }
     setSaving(true);
     try {
-      const body = {
+      const body: Record<string, any> = {
         type: form.type, clientName: form.clientName || null,
         contactId: form.contactId || null,
         issueDate: form.issueDate, dueDate: form.dueDate || null,
         subtotal, vatAmount, total, vatRate: form.vatRate,
-        notes: form.notes || null, status: "draft",
-        createdBy: getRequestScope().userId || null,
+        notes: form.notes || null,
         items: form.items.filter(i => i.descAr || i.descEn),
       };
-      await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      toast({ title: isRtl ? "تم إنشاء الفاتورة" : "Invoice created" });
+      if (editingId) {
+        const res = await fetch(`/api/invoices/${editingId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error();
+        toast({ title: isRtl ? "تم تحديث الفاتورة" : "Invoice updated" });
+      } else {
+        body.status = "draft";
+        body.createdBy = getRequestScope().userId || null;
+        const res = await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error();
+        toast({ title: isRtl ? "تم إنشاء الفاتورة" : "Invoice created" });
+      }
       setShowCreate(false);
+      resetForm();
       fetchAll();
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
     finally { setSaving(false); }
@@ -240,10 +313,19 @@ export function InvoicesTab() {
     return html;
   };
 
+  const withItems = async (inv: Invoice): Promise<Invoice> => {
+    if (inv.items && inv.items.length > 0) return inv;
+    try {
+      const r = await fetch(`/api/invoices/${inv.id}`);
+      if (r.ok) return await r.json();
+    } catch {}
+    return inv;
+  };
+
   const printInvoice = (inv: Invoice) => {
     const w = window.open("", "_blank");
     if (!w) return;
-    buildInvoiceHtml(inv).then((html) => {
+    withItems(inv).then(buildInvoiceHtml).then((html) => {
       w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500);
     });
   };
@@ -371,6 +453,9 @@ export function InvoicesTab() {
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setShowDetail(inv); }} title={isRtl ? "عرض" : "View"}>
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-violet-600" onClick={() => openEdit(inv)} title={isRtl ? "تعديل" : "Edit"} data-testid={`button-edit-invoice-${inv.id}`}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" onClick={() => printInvoice(inv)} title={isRtl ? "طباعة" : "Print"}>
                           <Printer className="w-3.5 h-3.5" />
                         </Button>
@@ -401,12 +486,14 @@ export function InvoicesTab() {
       </Card>
 
       {/* Create Invoice Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) resetForm(); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" dir={dir}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
-              {isRtl ? "إنشاء فاتورة ضريبية جديدة" : "Create New Tax Invoice"}
+              {editingId
+                ? (isRtl ? "تعديل الفاتورة" : "Edit Invoice")
+                : (isRtl ? "إنشاء فاتورة ضريبية جديدة" : "Create New Tax Invoice")}
             </DialogTitle>
             <DialogDescription>{isRtl ? "تشمل ضريبة القيمة المضافة 15% وفق متطلبات هيئة الزكاة والضريبة" : "Includes 15% VAT per ZATCA requirements"}</DialogDescription>
           </DialogHeader>
@@ -506,10 +593,12 @@ export function InvoicesTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-1.5">
+            <Button variant="outline" onClick={() => { setShowCreate(false); resetForm(); }}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={handleSave} disabled={saving} className="gap-1.5" data-testid="button-save-invoice">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              {isRtl ? "إنشاء الفاتورة" : "Create Invoice"}
+              {editingId
+                ? (isRtl ? "حفظ التعديلات" : "Save Changes")
+                : (isRtl ? "إنشاء الفاتورة" : "Create Invoice")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -551,7 +640,7 @@ export function InvoicesTab() {
           titleAr={`فاتورة ${sendInvoice.invoiceNumber}`}
           titleEn={`Invoice ${sendInvoice.invoiceNumber}`}
           category="invoice"
-          buildHtml={() => buildInvoiceHtml(sendInvoice)}
+          buildHtml={async () => buildInvoiceHtml(await withItems(sendInvoice))}
           contactId={sendInvoice.contactId}
           allowPickContact={!sendInvoice.contactId}
         />

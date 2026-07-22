@@ -5445,7 +5445,22 @@ export async function registerRoutes(
       if (b.paidAmount !== undefined) updateData.paidAmount = String(b.paidAmount);
       if (b.notes !== undefined) updateData.notes = b.notes;
       if (b.type !== undefined) updateData.type = b.type;
-      const [row] = await db.update(invoices).set(updateData).where(eq(invoices.id, id)).returning();
+      const row = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(invoices).set(updateData).where(eq(invoices.id, id)).returning();
+        if (!updated) return null;
+        if (b.items !== undefined && Array.isArray(b.items)) {
+          await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+          if (b.items.length > 0) {
+            await tx.insert(invoiceItems).values(b.items.map((it: any) => ({
+              invoiceId: id, descAr: it.descAr, descEn: it.descEn,
+              qty: String(it.qty || 1), unit: it.unit || null,
+              unitPrice: String(it.unitPrice || 0), total: String(it.total || 0),
+            })));
+          }
+        }
+        return updated;
+      });
+      if (!row) return res.status(404).json({ error: "Not found" });
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
