@@ -815,6 +815,7 @@ export const projects = pgTable("projects", {
   clientName: text("client_name"),
   contactId: integer("contact_id").references(() => contacts.id),
   contractId: integer("contract_id").references(() => contracts.id),
+  dealId: integer("deal_id").references(() => deals.id),
   serviceType: text("service_type"),
   managerId: varchar("manager_id").references(() => users.id),
   status: text("status").default("active"),

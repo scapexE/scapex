@@ -26,7 +26,7 @@ import { sendEmail, generateTempPassword, sendPortalWelcomeEmail } from "./email
 import crypto from "crypto";
 import { hashPassword, verifyPassword as verifyPwd } from "./auth";
 import { signPortalToken, verifyPortalToken, readPortalToken } from "./portal";
-import { and, desc, inArray, or, sql, getTableColumns } from "drizzle-orm";
+import { and, desc, inArray, isNull, or, sql, getTableColumns } from "drizzle-orm";
 import { db } from "./db";
 
 // ── Signed staff session tokens ─────────────────────────────────────────────
@@ -1258,7 +1258,57 @@ export async function registerRoutes(
         assignedTo: d.assignedTo ?? existing.assignedTo,
         updatedAt: new Date(),
       }).where(eq(deals.id, id)).returning();
-      res.json(result[0]);
+      const updated = result[0];
+
+      // AUTO-CONVERT: when a deal transitions to "won", create a linked
+      // project automatically (Odoo-style: sales = pre-contract, projects =
+      // execution) and attach the deal's documents to that project.
+      if (updated.stage === "won" && existing.stage !== "won") {
+        try {
+          const [already] = await db.select({ id: projects.id }).from(projects).where(eq((projects as any).dealId, id)).limit(1);
+          if (!already) {
+            const year = new Date().getFullYear();
+            const cnt = await db.select({ id: projects.id }).from(projects);
+            const code = `PRJ-${year}-${String(cnt.length + 1).padStart(4, "0")}`;
+            let clientName: string | null = null;
+            if (updated.contactId) {
+              const [c] = await db.select().from(contacts).where(eq(contacts.id, updated.contactId)).limit(1);
+              clientName = c?.nameAr || c?.nameEn || null;
+            }
+            // Atomic: project insert + document relink succeed or fail
+            // together. A partial unique index on projects(deal_id) guards
+            // against duplicate projects under concurrent PATCHes.
+            await db.transaction(async (tx) => {
+              const [proj] = await tx.insert(projects).values({
+                companyId: updated.companyId ?? null,
+                projectCode: code,
+                nameAr: updated.titleAr || updated.titleEn || code,
+                nameEn: updated.titleEn || updated.titleAr || null,
+                description: updated.notes || null,
+                clientName,
+                contactId: updated.contactId ?? null,
+                dealId: id,
+                status: "planning",
+                priority: updated.priority || "medium",
+                startDate: new Date().toISOString().slice(0, 10),
+                budget: updated.value ?? null,
+                progress: 0,
+                activityId: updated.activityId ?? null,
+                createdBy: scope.actor.id,
+              } as any).returning();
+              // Attach the deal's documents to the new project so they show
+              // under "مستندات المشاريع" in the customer card and DMS.
+              await tx.update(documents)
+                .set({ projectId: proj.id } as any)
+                .where(and(eq((documents as any).dealId, id), isNull((documents as any).projectId)));
+            });
+          }
+        } catch (convErr) {
+          console.error("Auto-convert won deal to project failed:", convErr);
+        }
+      }
+
+      res.json(updated);
     } catch (err: any) {
       console.error("Update deal error:", err);
       res.status(500).json({ error: "Server error" });
