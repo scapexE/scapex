@@ -891,12 +891,52 @@ export type PrintLanguage = "ar" | "en" | "both";
 export interface PrintProposalOptions {
   showValidity?: boolean;
   language?: PrintLanguage;
+  clientNameEn?: string;
+}
+
+async function resolveClientNameEn(clientName: string, contactId?: number): Promise<string | undefined> {
+  try {
+    const res = await fetch("/api/customers");
+    if (!res.ok) return undefined;
+    const list = (await res.json()) as Array<{ id: number | string; nameAr?: string | null; nameEn?: string | null }>;
+    const norm = (s: string) => s.trim();
+    const co = (contactId ? list.find((c) => String(c.id) === String(contactId)) : undefined)
+      || list.find((c) => (c.nameAr && norm(c.nameAr) === norm(clientName)) || (c.nameEn && norm(c.nameEn) === norm(clientName)));
+    return co?.nameEn?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function buildProposalHtmlWithNames(proposal: Proposal, isRtl: boolean, options?: PrintProposalOptions): Promise<string> {
+  const lang = options?.language || (isRtl ? "ar" : "en");
+  if (lang === "ar") return buildProposalHtml(proposal, isRtl, options);
+  const nameEn = await resolveClientNameEn(proposal.clientName, proposal.crmContactId);
+  return buildProposalHtml(proposal, isRtl, { ...options, clientNameEn: nameEn });
 }
 
 export function printProposal(proposal: Proposal, isRtl: boolean, options?: PrintProposalOptions): void {
-  const html = buildProposalHtml(proposal, isRtl, options);
   const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); }
+  if (!w) return;
+  buildProposalHtmlWithNames(proposal, isRtl, options)
+    .catch(() => buildProposalHtml(proposal, isRtl, options))
+    .then((html) => { w.document.write(html); w.document.close(); });
+}
+
+function fillDocPlaceholders(text: string, projectName?: string, clientName?: string): string {
+  if (!text) return text;
+  let t = text;
+  const pn = (projectName || "").trim();
+  const cn = (clientName || "").trim();
+  if (pn) {
+    t = t.replace(/[(（]\s*(?:اسم\s*)?المشروع\s*[)）]/g, pn);
+    t = t.replace(/[(（]\s*project(?:\s*name)?\s*[)）]/gi, pn);
+  }
+  if (cn) {
+    t = t.replace(/[(（]\s*(?:اسم\s*)?العميل\s*[)）]/g, cn);
+    t = t.replace(/[(（]\s*client(?:\s*name)?\s*[)）]/gi, cn);
+  }
+  return t;
 }
 
 export function buildProposalHtml(proposal: Proposal, isRtl: boolean, options?: PrintProposalOptions): string {
@@ -910,6 +950,7 @@ export function buildProposalHtml(proposal: Proposal, isRtl: boolean, options?: 
     return ar ? arText : enText;
   };
   const svc = SERVICE_META[proposal.serviceType];
+  const displayClientName = !ar && options?.clientNameEn ? options.clientNameEn : proposal.clientName;
   const fmt = (n: number) => n.toLocaleString();
   const dateAr = new Date(proposal.createdAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" });
   const dateEn = new Date(proposal.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -1011,10 +1052,9 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
   </div>
   <div class="header-name" dir="rtl">
     <div class="co-name-block">
-      <div class="co-name-ar">${esc(coNameAr)}</div>
-      <div class="co-name-en">${esc(coNameEn)}</div>
+      <div class="co-name-ar">${esc(ar ? coNameAr : coNameEn)}</div>
+      <div class="co-name-en">${esc(ar ? coNameEn : coNameAr)}</div>
     </div>
-    <div class="co-vat">${bi(`الرقم الضريبي: ${esc(coVat)}`, `VAT No: ${esc(coVat)}`)}</div>
     ${(() => { const note = lang === "both" ? [pd.headerNoteAr, pd.headerNoteEn].filter(Boolean).join(" / ") : ar ? pd.headerNoteAr : pd.headerNoteEn; return note ? `<div class="header-note">${esc(note)}</div>` : ""; })()}
   </div>
 </div>
@@ -1027,17 +1067,18 @@ tfoot td { background:#f1f5f9; font-weight:600; padding:6px 5px; }
 <div class="sec-title">${bi("معلومات العميل والمشروع", "CLIENT & PROJECT INFORMATION")}</div>
 
 <div class="info-grid">
-  <div class="info-item"><label>${bi("اسم العميل / الجهة", "Client / Entity")}</label><span>${esc(proposal.clientName)}</span></div>
+  <div class="info-item"><label>${bi("اسم العميل / الجهة", "Client / Entity")}</label><span>${esc(displayClientName)}</span></div>
   <div class="info-item"><label>${bi("اسم المشروع", "Project Name")}</label><span>${esc(proposal.projectName)}</span></div>
   ${proposal.clientContact ? `<div class="info-item"><label>${bi("التواصل", "Contact")}</label><span dir="ltr">${esc(proposal.clientContact)}</span></div>` : ""}
   ${proposal.clientEmail ? `<div class="info-item"><label>${bi("البريد الإلكتروني", "Email")}</label><span dir="ltr">${esc(proposal.clientEmail)}</span></div>` : ""}
 </div>
 ${(() => {
-  const introAr = esc((proposal.introductionAr || proposal.introduction || "").trim());
-  const introEn = esc((proposal.introductionEn || "").trim());
+  const fill = (t: string) => fillDocPlaceholders(t, proposal.projectName, displayClientName);
+  const introAr = esc(fill((proposal.introductionAr || proposal.introduction || "").trim()));
+  const introEn = esc(fill((proposal.introductionEn || "").trim()));
   const introText = lang === "both" && introAr && introEn ? `<div dir="rtl" style="margin-bottom:6px;">${introAr}</div><div dir="ltr">${introEn}</div>` : ar ? introAr : (introEn || introAr);
-  const sAr = esc((proposal.scopeAr || proposal.projectDesc || "").trim());
-  const sEn = esc((proposal.scopeEn || "").trim());
+  const sAr = esc(fill((proposal.scopeAr || proposal.projectDesc || "").trim()));
+  const sEn = esc(fill((proposal.scopeEn || "").trim()));
   const scopeText = lang === "both" && sAr && sEn ? `<div dir="rtl" style="margin-bottom:6px;">${sAr}</div><div dir="ltr">${sEn}</div>` : ar ? sAr : (sEn || sAr);
   if (introText && scopeText) {
     return `<div class="intro-box">${introText}</div>
@@ -1087,7 +1128,7 @@ ${(() => {
     </div>`;
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:30px;padding-top:16px;border-top:1px solid #e2e8f0;">
     ${sigBox(bi("الطرف الأول — مقدم الخدمة", "First Party — Service Provider"), sigs.first)}
-    ${sigBox(bi(`الطرف الثاني — ${esc(proposal.clientName)}`, `Second Party — ${esc(proposal.clientName)}`), sigs.second)}
+    ${sigBox(bi(`الطرف الثاني — ${esc(proposal.clientName)}`, `Second Party — ${esc(displayClientName)}`), sigs.second)}
   </div>`;
 })()}
 ${(() => {
@@ -1099,13 +1140,17 @@ ${(() => {
   const email = esc(about.email1 || "info@scapex.sa");
   const web = esc(about.website || "www.scapex.sa");
   const phone = esc(about.phone1 || "");
-  const customFooter = esc(lang === "both" ? [sysCfg.proposalFooterAr, sysCfg.proposalFooterEn].filter(Boolean).join(" / ") : ar ? sysCfg.proposalFooterAr : sysCfg.proposalFooterEn);
-  return `<div class="footer-info"><div class="footer-info-grid">
-  ${addr ? `<div class="footer-info-item"><strong>📍</strong> ${addr}</div>` : ""}
-  ${phone ? `<div class="footer-info-item"><strong>📞</strong> ${phone}</div>` : ""}
-  <div class="footer-info-item"><strong>✉</strong> ${email}</div>
-  <div class="footer-info-item"><strong>🌐</strong> ${web}</div>
-</div>${customFooter ? `<div style="text-align:center;margin-top:8px;font-size:10px;color:${pd.footerTextColor};opacity:0.9;font-style:italic;">${customFooter}</div>` : ""}</div>`;
+  const vat = esc(about.vatNumber || "");
+  const cr = esc(about.crNumber || "");
+  const parts = [
+    addr ? `📍 ${addr}` : "",
+    phone ? `📞 ${phone}` : "",
+    email ? `✉ ${email}` : "",
+    web ? `🌐 ${web}` : "",
+    vat ? `${bi("الرقم الضريبي:", "VAT:")} ${vat}` : "",
+    cr ? `${bi("س.ت:", "CR:")} ${cr}` : "",
+  ].filter(Boolean);
+  return `<div class="footer-info"><div style="text-align:center;font-size:9px;color:${pd.footerTextColor};line-height:1.8;">${parts.map((p) => `<span style="white-space:nowrap;">${p}</span>`).join('<span style="margin:0 6px;opacity:0.5;">•</span>')}</div></div>`;
 })()}
 </div>
 <script>window.onload=function(){window.print();}</script>
@@ -1113,13 +1158,22 @@ ${(() => {
   return html;
 }
 
-export function printContract(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage }): void {
-  const html = buildContractHtml(contract, isRtl, options);
-  const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); }
+export async function buildContractHtmlWithNames(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage; clientNameEn?: string }): Promise<string> {
+  const lang = options?.language || (isRtl ? "ar" : "en");
+  if (lang === "ar") return buildContractHtml(contract, isRtl, options);
+  const nameEn = await resolveClientNameEn(contract.clientName);
+  return buildContractHtml(contract, isRtl, { ...options, clientNameEn: nameEn });
 }
 
-export function buildContractHtml(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage }): string {
+export function printContract(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage; clientNameEn?: string }): void {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  buildContractHtmlWithNames(contract, isRtl, options)
+    .catch(() => buildContractHtml(contract, isRtl, options))
+    .then((html) => { w.document.write(html); w.document.close(); });
+}
+
+export function buildContractHtml(contract: Contract, isRtl: boolean, options?: { language?: PrintLanguage; clientNameEn?: string }): string {
   const lang = options?.language || (isRtl ? "ar" : "en");
   const ar = lang === "ar" || lang === "both";
   const en = lang === "en" || lang === "both";
@@ -1129,6 +1183,7 @@ export function buildContractHtml(contract: Contract, isRtl: boolean, options?: 
     return ar ? arText : enText;
   };
   const svc = SERVICE_META[contract.serviceType];
+  const displayClientName = !ar && options?.clientNameEn ? options.clientNameEn : contract.clientName;
   const fmt = (n: number) => n.toLocaleString();
   const dateAr = new Date(contract.createdAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" });
   const dateEn = new Date(contract.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -1156,9 +1211,10 @@ export function buildContractHtml(contract: Contract, isRtl: boolean, options?: 
     ? `<img src="${esc(cLogoUrl)}" style="width:48px;height:48px;object-fit:contain;border-radius:8px;" />`
     : `<div style="background:${cLogoColor};color:white;width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:bold;">${cLogoChar}</div>`;
 
+  const cFill = (t: string) => fillDocPlaceholders(t, contract.projectName, displayClientName);
   const clauseContent = (c: Contract["clauses"][0]) => {
-    if (lang === "both") return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(c.titleAr)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;margin-bottom:8px;">${esc(c.bodyAr)}</div><div style="font-weight:600;color:#1e40af;margin-bottom:4px;font-size:12px;">${esc(c.titleEn)}</div><div style="font-size:11px;line-height:1.8;color:#64748b;white-space:pre-line;">${esc(c.bodyEn)}</div>`;
-    return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(ar ? c.titleAr : c.titleEn)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${esc(ar ? c.bodyAr : c.bodyEn)}</div>`;
+    if (lang === "both") return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(c.titleAr)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;margin-bottom:8px;">${esc(cFill(c.bodyAr))}</div><div style="font-weight:600;color:#1e40af;margin-bottom:4px;font-size:12px;">${esc(c.titleEn)}</div><div style="font-size:11px;line-height:1.8;color:#64748b;white-space:pre-line;">${esc(cFill(c.bodyEn))}</div>`;
+    return `<div style="font-weight:700;color:#1e40af;margin-bottom:6px;font-size:13px;">${esc(ar ? c.titleAr : c.titleEn)}</div><div style="font-size:12px;line-height:1.9;color:#374151;white-space:pre-line;">${esc(cFill(ar ? c.bodyAr : c.bodyEn))}</div>`;
   };
   const clausesHtml = contract.clauses.map((c) => `
     <div style="margin-bottom:16px;padding:14px;background:#f8fafc;border-radius:8px;border-${mainDir === "rtl" ? "right" : "left"}:4px solid #1e40af;">
@@ -1202,7 +1258,6 @@ tbody tr:nth-child(even) { background:#f8fafc; }
     <div style="text-align:${mainDir === "rtl" ? "right" : "left"}">
       <div style="font-size:16px;font-weight:700;color:${pd.headerTextColor};">${esc(ar ? cNameAr : cNameEn)}</div>
       <div style="font-size:11px;color:${pd.headerTextColor};opacity:0.8;">${esc(ar ? cNameEn : cNameAr)}</div>
-      <div style="font-size:9px;color:${pd.headerTextColor};opacity:0.65;margin-top:2px;">${bi(`الرقم الضريبي: ${esc(cVat)}`, `VAT No: ${esc(cVat)}`)}</div>
       ${(() => { const note = lang === "both" ? [pd.headerNoteAr, pd.headerNoteEn].filter(Boolean).join(" / ") : ar ? pd.headerNoteAr : pd.headerNoteEn; return note ? `<div style="font-size:10px;color:${pd.headerTextColor};opacity:0.85;margin-top:3px;white-space:pre-line;">${esc(note)}</div>` : ""; })()}
     </div>
   </div>
@@ -1215,13 +1270,13 @@ tbody tr:nth-child(even) { background:#f8fafc; }
 <div class="parties">
   <div class="party">
     <div class="party-lbl">${bi("الطرف الأول — مقدم الخدمة", "First Party — Service Provider")}</div>
-    <div class="party-name">Scapex</div>
-    <div style="font-size:12px;color:#374151;margin-top:4px;">${bi("شركة سكابكس للاستشارات والخدمات الهندسية", "Scapex Consulting & Engineering Services")}</div>
-    <div style="font-size:11px;color:#64748b;margin-top:2px;">${bi("الرقم الضريبي: 300123456700003", "VAT: 300123456700003")}</div>
+    <div class="party-name">${esc(ar ? cNameAr : cNameEn)}</div>
+    <div style="font-size:12px;color:#374151;margin-top:4px;">${esc(ar ? cNameEn : cNameAr)}</div>
+    <div style="font-size:11px;color:#64748b;margin-top:2px;">${bi(`الرقم الضريبي: ${esc(cVat)}`, `VAT: ${esc(cVat)}`)}</div>
   </div>
   <div class="party">
     <div class="party-lbl">${bi("الطرف الثاني — العميل", "Second Party — Client")}</div>
-    <div class="party-name">${esc(contract.clientName)}</div>
+    <div class="party-name">${esc(displayClientName)}</div>
     ${contract.clientContact ? `<div style="font-size:12px;color:#374151;margin-top:4px;">${esc(contract.clientContact)}</div>` : ""}
     ${contract.clientEmail ? `<div style="font-size:11px;color:#64748b;margin-top:2px;" dir="ltr">${esc(contract.clientEmail)}</div>` : ""}
   </div>
@@ -1253,8 +1308,8 @@ ${(() => {
     ? `<div style="font-size:10px;color:#64748b;margin-top:4px;">${esc(sig.signerName)} — ${esc(sig.signerRole)}</div><div style="font-size:9px;color:#94a3b8;">${new Date(sig.signedAt).toLocaleDateString(ar ? "ar-SA" : "en-US", { year:"numeric", month:"short", day:"numeric" })}</div>`
     : `<div style="font-size:10px;color:#64748b;margin-top:4px;">${bi("التوقيع والختم والتاريخ", "Signature, Stamp & Date")}</div>`;
   return `<div class="sig-grid">
-  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.first)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الأول — Scapex", "First Party — Scapex")}</div>${sigMeta(sigs.first)}</div>
-  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.second)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الثاني —", "Second Party —")} ${esc(contract.clientName)}</div>${sigMeta(sigs.second)}</div>
+  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.first)}</div><div style="font-weight:700;font-size:13px;">${bi(`الطرف الأول — ${esc(cNameAr)}`, `First Party — ${esc(cNameEn)}`)}</div>${sigMeta(sigs.first)}</div>
+  <div class="sig-box"><div class="sig-line" style="display:flex;align-items:center;justify-content:center;">${sigContent(sigs.second)}</div><div style="font-weight:700;font-size:13px;">${bi("الطرف الثاني —", "Second Party —")} ${esc(displayClientName)}</div>${sigMeta(sigs.second)}</div>
 </div>`;
 })()}
 ${(() => {
@@ -1265,13 +1320,18 @@ ${(() => {
   const email = esc(about.email1 || "");
   const web = esc(about.website || "");
   const phone = esc(about.phone1 || "");
+  const vat = esc(about.vatNumber || "");
+  const cr = esc(about.crNumber || "");
+  const parts = [
+    addr ? `📍 ${addr}` : "",
+    phone ? `📞 ${phone}` : "",
+    email ? `✉ ${email}` : "",
+    web ? `🌐 ${web}` : "",
+    vat ? `${bi("الرقم الضريبي:", "VAT:")} ${vat}` : "",
+    cr ? `${bi("س.ت:", "CR:")} ${cr}` : "",
+  ].filter(Boolean);
   return `<div style="margin-top:24px;padding:12px 16px;border-top:2px solid ${pd.accentColor};background:${pd.footerBgColor};${pd.footerBgImage ? `background-image:url('${pd.footerBgImage}');background-size:cover;background-position:center;` : ""}color:${pd.footerTextColor};border-radius:0 0 6px 6px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
-  <div style="display:flex;justify-content:center;gap:28px;flex-wrap:wrap;font-size:10px;">
-  ${addr ? `<span>📍 ${addr}</span>` : ""}
-  ${phone ? `<span>📞 ${phone}</span>` : ""}
-  ${email ? `<span>✉ ${email}</span>` : ""}
-  ${web ? `<span>🌐 ${web}</span>` : ""}
-  </div></div>`;
+  <div style="text-align:center;font-size:9px;line-height:1.8;">${parts.map((p) => `<span style="white-space:nowrap;">${p}</span>`).join('<span style="margin:0 6px;opacity:0.5;">•</span>')}</div></div>`;
 })()}
 </div>
 <script>window.onload=function(){window.print();}</script>

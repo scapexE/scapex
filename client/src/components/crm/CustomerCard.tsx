@@ -14,7 +14,7 @@ import {
   Plus, TrendingUp, Calendar, ArrowRight, Shield, FileCheck, ClipboardCheck,
   Users, UserCheck, Eye,
 } from "lucide-react";
-import { getProposals, getContracts, hydrateSalesData, STATUS_META, SERVICE_META, buildProposalHtml, buildContractHtml, type Proposal, type Contract } from "@/lib/proposals";
+import { getProposals, getContracts, hydrateSalesData, STATUS_META, SERVICE_META, buildProposalHtmlWithNames, buildContractHtmlWithNames, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
 import { listProjects, listStages, type ApiProject, type ApiStage, PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN, STAGE_STATUS_LABELS_AR, STAGE_STATUS_LABELS_EN } from "@/lib/projectsApi";
 import { CreateProjectDialog } from "@/components/projects/ProjectsList";
@@ -281,7 +281,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                               title={isRtl ? "عرض المستند" : "View document"}
                               onClick={() => {
                                 const w = window.open("", "_blank");
-                                if (w) { w.document.write(buildProposalHtml(p, isRtl)); w.document.close(); }
+                                if (w) { buildProposalHtmlWithNames(p, isRtl).then((html) => { w.document.write(html); w.document.close(); }); }
                               }}
                               data-testid={`button-view-proposal-${p.id}`}
                             >
@@ -354,7 +354,7 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                             title={isRtl ? "عرض العقد" : "View contract"}
                             onClick={() => {
                               const w = window.open("", "_blank");
-                              if (w) { w.document.write(buildContractHtml(c, isRtl)); w.document.close(); }
+                              if (w) { buildContractHtmlWithNames(c, isRtl).then((html) => { w.document.write(html); w.document.close(); }); }
                             }}
                             data-testid={`button-view-contract-${c.id}`}
                           >

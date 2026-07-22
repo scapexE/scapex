@@ -25,7 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ContractSignature } from "./ContractSignature";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { printContract, buildContractHtml, type Contract as LSContract } from "@/lib/proposals";
+import { printContract, buildContractHtmlWithNames, type Contract as LSContract } from "@/lib/proposals";
 import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
 import { Mail } from "lucide-react";
 
@@ -825,7 +825,7 @@ export function ContractsList() {
           titleAr={`عقد ${sendContract.contractNumber}`}
           titleEn={`Contract ${sendContract.contractNumber}`}
           category="contract"
-          buildHtml={() => buildContractHtml(toLsContract(sendContract), isRtl)}
+          buildHtml={() => buildContractHtmlWithNames(toLsContract(sendContract), isRtl)}
           defaultEmail={sendContract.clientEmail || ""}
           allowPickContact
         />

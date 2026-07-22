@@ -22,7 +22,7 @@ export interface SendToClientDialogProps {
   /** documents.category, e.g. "proposal" | "contract" | "invoice" | "voucher" | "letter". */
   category: string;
   /** Builds the printable HTML of the document at send time. */
-  buildHtml: () => string;
+  buildHtml: () => string | Promise<string>;
   /** Known client email (prefill). */
   defaultEmail?: string;
   /** Known CRM contact id — enables the portal option without picking a contact. */
@@ -79,7 +79,7 @@ export function SendToClientDialog(props: SendToClientDialogProps) {
     }
     setSending(true);
     try {
-      const html = buildHtml();
+      const html = await buildHtml();
       const res = await sendDocumentToClient({
         email: email.trim(),
         contactId: effectiveContactId,

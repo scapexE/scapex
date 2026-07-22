@@ -42,7 +42,7 @@ import { SignatureDialog } from "@/components/proposals/SignatureDialog";
 import { getDocumentSignatures } from "@/lib/signatures";
 import { PenLine } from "lucide-react";
 import { SendToClientDialog } from "@/components/shared/SendToClientDialog";
-import { buildProposalHtml, buildContractHtml } from "@/lib/proposals";
+import { buildProposalHtmlWithNames, buildContractHtmlWithNames } from "@/lib/proposals";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 
@@ -1420,7 +1420,7 @@ function ProposalDetail({ proposal: init, isRtl, onBack, onSave, onViewContract 
         titleAr={`عرض سعر ${proposal.proposalNumber}`}
         titleEn={`Proposal ${proposal.proposalNumber}`}
         category="proposal"
-        buildHtml={() => buildProposalHtml(proposal, isRtl, { showValidity: printShowValidity, language: printLang })}
+        buildHtml={() => buildProposalHtmlWithNames(proposal, isRtl, { showValidity: printShowValidity, language: printLang })}
         defaultEmail={proposal.clientEmail || ""}
         contactId={proposal.crmContactId || null}
       />
@@ -1701,7 +1701,7 @@ function ContractView({ contract: init, isRtl, onBack }: {
         titleAr={`عقد ${contract.contractNumber}`}
         titleEn={`Contract ${contract.contractNumber}`}
         category="contract"
-        buildHtml={() => buildContractHtml(contract, isRtl, { language: printLang })}
+        buildHtml={() => buildContractHtmlWithNames(contract, isRtl, { language: printLang })}
         defaultEmail={contract.clientEmail || ""}
         allowPickContact
       />
