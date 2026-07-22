@@ -3933,7 +3933,44 @@ export async function registerRoutes(
       if (companyId) filtered = filtered.filter((d) => d.companyId === companyId);
       if (category && category !== "all") filtered = filtered.filter((d) => d.category === category);
       if (folder && folder !== "all") filtered = filtered.filter((d) => d.folder === folder);
-      res.json(filtered);
+      // Strip heavy file payloads from the list response — use /api/documents/:id/file to fetch content.
+      const safe = filtered.map((d: any) => {
+        const { fileContent, fileUrl, ...rest } = d;
+        return { ...rest, hasFile: Boolean(fileContent || fileUrl) };
+      });
+      res.json(safe);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/documents/:id/file", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+      const [doc] = await db.select().from(documents).where(eq(documents.id, id));
+      if (!doc) return res.status(404).json({ error: "Not found" });
+      const anyDoc = doc as any;
+      const filename = encodeURIComponent(anyDoc.originalName || doc.titleAr || "file");
+      if (anyDoc.fileContent) {
+        const buffer = Buffer.from(anyDoc.fileContent, "base64");
+        res.setHeader("Content-Type", anyDoc.mimeType || "application/octet-stream");
+        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+        res.setHeader("Content-Length", buffer.length);
+        return res.send(buffer);
+      }
+      if (anyDoc.fileUrl) {
+        // data URL stored inline
+        const m = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(anyDoc.fileUrl);
+        if (m) {
+          const mime = m[1] || anyDoc.mimeType || "application/octet-stream";
+          const buffer = m[2] ? Buffer.from(m[3], "base64") : Buffer.from(decodeURIComponent(m[3]), "utf8");
+          res.setHeader("Content-Type", mime);
+          res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+          res.setHeader("Content-Length", buffer.length);
+          return res.send(buffer);
+        }
+        return res.redirect(anyDoc.fileUrl);
+      }
+      return res.status(404).json({ error: "No file content" });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
@@ -5426,6 +5463,7 @@ export async function registerRoutes(
           clauses: c.clauses ?? [],
           paymentSchedule: c.paymentSchedule ?? [],
           items: c.items ?? [],
+          payload: c,
         };
         await db.insert(contracts).values({
           companyId,
@@ -5461,7 +5499,18 @@ export async function registerRoutes(
       // Idempotent: return existing record if proposalNumber already saved
       const existing = await db.select({ id: proposals.id })
         .from(proposals).where(eq(proposals.proposalNumber, b.proposalNumber));
-      if (existing.length > 0) { res.json(existing[0]); return; }
+      if (existing.length > 0) {
+        // Idempotent upsert: refresh the stored payload/status if provided
+        if (b.payload) {
+          await db.update(proposals).set({
+            payload: b.payload,
+            status: b.status || undefined,
+            updatedAt: new Date(),
+          }).where(eq(proposals.id, existing[0].id));
+        }
+        res.json(existing[0]);
+        return;
+      }
       const [row] = await db.insert(proposals).values({
         proposalNumber: b.proposalNumber,
         contactId: b.contactId ? parseInt(b.contactId) : null,
@@ -5478,6 +5527,7 @@ export async function registerRoutes(
         currency: b.currency || "SAR",
         status: b.status || "draft",
         notes: b.notes || null,
+        payload: b.payload || null,
         createdBy: staffId || b.createdBy || null,
         activityId: b.activityId || null,
         companyId: 1,
@@ -5497,6 +5547,241 @@ export async function registerRoutes(
         );
       }
       res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // List proposals — DB is the source of truth; full-fidelity object in payload
+  app.get("/api/proposals", async (req, res) => {
+    try {
+      const rows = await db.select().from(proposals).orderBy(desc(proposals.createdAt));
+      const items = await db.select().from(proposalItems);
+      const result = rows.map((r) => {
+        if (r.payload && typeof r.payload === "object") {
+          return { ...(r.payload as any), dbId: r.id, status: r.status || (r.payload as any).status };
+        }
+        // Legacy rows without payload: reconstruct from relational columns
+        const its = items.filter((it) => it.proposalId === r.id).sort((a, b2) => (a.sortOrder ?? 0) - (b2.sortOrder ?? 0));
+        return {
+          id: `db-${r.id}`,
+          dbId: r.id,
+          proposalNumber: r.proposalNumber,
+          clientName: r.clientName,
+          clientContact: r.clientContact || undefined,
+          clientEmail: r.clientEmail || undefined,
+          projectName: r.projectName || "",
+          projectDesc: r.projectDesc || "",
+          serviceType: r.serviceType || "design",
+          activityId: r.activityId || undefined,
+          items: its.map((it) => ({
+            id: `dbi-${it.id}`,
+            descAr: it.descAr || "",
+            descEn: it.descEn || "",
+            qty: Number(it.qty || 1),
+            unit: it.unit || "",
+            unitPrice: Number(it.unitPrice || 0),
+            total: Number(it.total || 0),
+          })),
+          subtotal: Number(r.subtotal || 0),
+          vatRate: Number(r.vatRate || 15),
+          vatAmount: Number(r.vatAmount || 0),
+          total: Number(r.total || 0),
+          currency: r.currency || "SAR",
+          status: r.status || "draft",
+          notes: r.notes || undefined,
+          validity: r.validity ?? 30,
+          aiGenerated: !!r.aiGenerated,
+          createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+          createdBy: r.createdBy || "",
+          crmContactId: r.contactId || undefined,
+        };
+      });
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Upsert full proposal payload by proposalNumber
+  app.put("/api/proposals/by-number/:proposalNumber", async (req, res) => {
+    try {
+      const num = req.params.proposalNumber;
+      const b = req.body || {};
+      const p = b.payload || b;
+      const [existing] = await db.select({ id: proposals.id }).from(proposals).where(eq(proposals.proposalNumber, num));
+      if (existing) {
+        await db.update(proposals).set({
+          clientName: p.clientName ?? undefined,
+          clientContact: p.clientContact ?? undefined,
+          clientEmail: p.clientEmail ?? undefined,
+          projectName: p.projectName ?? undefined,
+          projectDesc: p.projectDesc ?? undefined,
+          serviceType: p.serviceType ?? undefined,
+          subtotal: p.subtotal != null ? String(p.subtotal) : undefined,
+          vatRate: p.vatRate != null ? String(p.vatRate) : undefined,
+          vatAmount: p.vatAmount != null ? String(p.vatAmount) : undefined,
+          total: p.total != null ? String(p.total) : undefined,
+          currency: p.currency ?? undefined,
+          status: p.status ?? undefined,
+          notes: p.notes ?? undefined,
+          validity: p.validity ?? undefined,
+          contactId: p.crmContactId != null ? Number(p.crmContactId) : undefined,
+          payload: p,
+          updatedAt: new Date(),
+        }).where(eq(proposals.id, existing.id));
+        return res.json({ id: existing.id, updated: true });
+      }
+      const staffId = staffUserId(req);
+      const [row] = await db.insert(proposals).values({
+        proposalNumber: num,
+        contactId: p.crmContactId != null ? Number(p.crmContactId) : null,
+        clientName: p.clientName || "",
+        clientContact: p.clientContact || null,
+        clientEmail: p.clientEmail || null,
+        projectName: p.projectName || null,
+        projectDesc: p.projectDesc || null,
+        serviceType: p.serviceType || null,
+        subtotal: String(p.subtotal || 0),
+        vatRate: String(p.vatRate || 15),
+        vatAmount: String(p.vatAmount || 0),
+        total: String(p.total || 0),
+        currency: p.currency || "SAR",
+        status: p.status || "draft",
+        notes: p.notes || null,
+        validity: p.validity ?? 30,
+        payload: p,
+        createdBy: staffId || p.createdBy || null,
+        activityId: p.activityId || null,
+        companyId: 1,
+        createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+      }).returning();
+      res.json({ id: row.id, created: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/proposals/by-number/:proposalNumber", async (req, res) => {
+    try {
+      const staffId = staffUserId(req);
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const num = req.params.proposalNumber;
+      const [row] = await db.select({ id: proposals.id }).from(proposals).where(eq(proposals.proposalNumber, num));
+      if (row) {
+        await db.delete(proposalItems).where(eq(proposalItems.proposalId, row.id));
+        await db.delete(proposals).where(eq(proposals.id, row.id));
+      }
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Bulk migrate proposals from localStorage blob — idempotent by proposalNumber
+  app.post("/api/proposals/migrate", async (req, res) => {
+    try {
+      const list: any[] = req.body?.proposals ?? [];
+      const staffId = staffUserId(req);
+      const existing = await db.select({ proposalNumber: proposals.proposalNumber }).from(proposals);
+      const existingNums = new Set(existing.map((r) => r.proposalNumber));
+      let imported = 0;
+      for (const p of list) {
+        if (!p?.proposalNumber || existingNums.has(p.proposalNumber)) continue;
+        await db.insert(proposals).values({
+          proposalNumber: p.proposalNumber,
+          contactId: p.crmContactId != null ? Number(p.crmContactId) : null,
+          clientName: p.clientName || "",
+          clientContact: p.clientContact || null,
+          clientEmail: p.clientEmail || null,
+          projectName: p.projectName || null,
+          projectDesc: p.projectDesc || null,
+          serviceType: p.serviceType || null,
+          subtotal: String(p.subtotal || 0),
+          vatRate: String(p.vatRate || 15),
+          vatAmount: String(p.vatAmount || 0),
+          total: String(p.total || 0),
+          currency: p.currency || "SAR",
+          status: p.status || "draft",
+          notes: p.notes || null,
+          validity: p.validity ?? 30,
+          payload: p,
+          createdBy: staffId || p.createdBy || null,
+          activityId: p.activityId || null,
+          companyId: 1,
+          createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+        });
+        imported++;
+      }
+      res.json({ imported, skipped: list.length - imported });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Upsert full contract by contractNumber — keeps DB the source of truth
+  app.put("/api/contracts/by-number/:contractNumber", async (req, res) => {
+    try {
+      const num = req.params.contractNumber;
+      const c = req.body?.payload || req.body || {};
+      const staffId = staffUserId(req);
+      const [existing] = await db.select().from(contracts).where(eq(contracts.contractNumber, num));
+      const extra = {
+        localId: c.id,
+        proposalNumber: c.proposalNumber,
+        proposalLocalId: c.proposalId,
+        clientContact: c.clientContact,
+        clientEmail: c.clientEmail,
+        projectDesc: c.projectDesc,
+        clauses: c.clauses ?? [],
+        paymentSchedule: c.paymentSchedule ?? [],
+        items: c.items ?? [],
+        payload: c,
+      };
+      if (existing) {
+        const [row] = await db.update(contracts).set({
+          clientName: c.clientName ?? existing.clientName,
+          projectName: c.projectName ?? existing.projectName,
+          serviceType: c.serviceType ?? existing.serviceType,
+          subtotal: c.subtotal != null ? String(c.subtotal) : existing.subtotal,
+          vatRate: c.vatRate != null ? String(c.vatRate) : existing.vatRate,
+          vatAmount: c.vatAmount != null ? String(c.vatAmount) : existing.vatAmount,
+          total: c.total != null ? String(c.total) : existing.total,
+          currency: c.currency ?? existing.currency,
+          status: c.status ?? existing.status,
+          startDate: c.startDate ?? existing.startDate,
+          endDate: c.endDate ?? existing.endDate,
+          terms: JSON.stringify(extra),
+          updatedAt: new Date(),
+        }).where(eq(contracts.id, existing.id)).returning();
+        return res.json({ id: row.id, updated: true });
+      }
+      const [row] = await db.insert(contracts).values({
+        companyId: c.companyId ?? 1,
+        contractNumber: num,
+        clientName: c.clientName || "",
+        projectName: c.projectName || null,
+        serviceType: c.serviceType || null,
+        subtotal: String(c.subtotal || 0),
+        vatRate: String(c.vatRate || 15),
+        vatAmount: String(c.vatAmount || 0),
+        total: String(c.total || 0),
+        currency: c.currency || "SAR",
+        status: c.status || "draft",
+        startDate: c.startDate || null,
+        endDate: c.endDate || null,
+        terms: JSON.stringify(extra),
+        createdBy: staffId || null,
+        createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+      }).returning();
+      res.json({ id: row.id, created: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/contracts/by-number/:contractNumber", async (req, res) => {
+    try {
+      const staffId = staffUserId(req);
+      const role = await resolveUserRole(staffId);
+      if (!isManagerOrAdmin(role)) return res.status(403).json({ error: "Manager access required" });
+      const num = req.params.contractNumber;
+      const [row] = await db.select({ id: contracts.id }).from(contracts).where(eq(contracts.contractNumber, num));
+      if (row) {
+        await db.delete(contractItems).where(eq(contractItems.contractId, row.id));
+        await db.delete(contracts).where(eq(contracts.id, row.id));
+      }
+      res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

@@ -135,9 +135,19 @@ export function saveProposal(proposal: Proposal): void {
   if (idx >= 0) list[idx] = proposal;
   else list.unshift(proposal);
   saveProposals(list);
+  // Write-through to the database (source of truth) — fire and forget
+  fetch(`/api/proposals/by-number/${encodeURIComponent(proposal.proposalNumber)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ payload: proposal }),
+  }).catch(() => {});
 }
 export function deleteProposal(id: string): void {
+  const target = getProposals().find((p) => p.id === id);
   saveProposals(getProposals().filter((p) => p.id !== id));
+  if (target?.proposalNumber) {
+    fetch(`/api/proposals/by-number/${encodeURIComponent(target.proposalNumber)}`, { method: "DELETE" }).catch(() => {});
+  }
 }
 export function generateProposalNumber(): string {
   const year = new Date().getFullYear();
@@ -161,6 +171,105 @@ export function saveContract(contract: Contract): void {
   if (idx >= 0) list[idx] = contract;
   else list.unshift(contract);
   dbSetItem(CONTRACTS_KEY, JSON.stringify(list));
+  // Write-through to the database (source of truth) — fire and forget
+  fetch(`/api/contracts/by-number/${encodeURIComponent(contract.contractNumber)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ payload: contract }),
+  }).catch(() => {});
+}
+export function deleteContract(id: string): void {
+  const target = getContracts().find((c) => c.id === id);
+  dbSetItem(CONTRACTS_KEY, JSON.stringify(getContracts().filter((c) => c.id !== id)));
+  if (target?.contractNumber) {
+    fetch(`/api/contracts/by-number/${encodeURIComponent(target.contractNumber)}`, { method: "DELETE" }).catch(() => {});
+  }
+}
+
+// ─── Hydration: DB → local cache (DB is the source of truth) ────────────────
+let hydratedOnce = false;
+let hydrationInFlight: Promise<void> | null = null;
+export function hydrateSalesData(force = false): Promise<void> {
+  if (hydratedOnce && !force) return Promise.resolve();
+  if (hydrationInFlight) return hydrationInFlight;
+  hydrationInFlight = doHydrate().finally(() => { hydrationInFlight = null; });
+  return hydrationInFlight;
+}
+
+async function doHydrate(): Promise<void> {
+  try {
+    const localProposals = getProposals();
+    const localContracts = getContracts();
+    const [pRes, cRes] = await Promise.all([
+      fetch("/api/proposals"),
+      fetch("/api/contracts"),
+    ]);
+    if (!pRes.ok || !cRes.ok) return;
+    let serverProposals: any[] = await pRes.json();
+    let serverContracts: any[] = await cRes.json();
+
+    // One-time migration: push local blob data the server doesn't know about
+    const serverPropNums = new Set(serverProposals.map((p) => p.proposalNumber));
+    const missingProps = localProposals.filter((p) => !serverPropNums.has(p.proposalNumber));
+    if (missingProps.length > 0) {
+      await fetch("/api/proposals/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposals: missingProps }),
+      }).catch(() => {});
+    }
+    const serverConNums = new Set(serverContracts.map((c) => c.contractNumber));
+    const missingCons = localContracts.filter((c) => !serverConNums.has(c.contractNumber));
+    if (missingCons.length > 0) {
+      await fetch("/api/contracts/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contracts: missingCons }),
+      }).catch(() => {});
+    }
+    if (missingProps.length > 0 || missingCons.length > 0) {
+      const [pRes2, cRes2] = await Promise.all([fetch("/api/proposals"), fetch("/api/contracts")]);
+      if (pRes2.ok) serverProposals = await pRes2.json();
+      if (cRes2.ok) serverContracts = await cRes2.json();
+    }
+
+    // Refresh the local cache from the server
+    const mappedProposals: Proposal[] = serverProposals.map((r) => ({ ...r }));
+    const mappedContracts: Contract[] = serverContracts.map((r) => mapServerContract(r));
+    dbSetItem(PROPOSALS_KEY, JSON.stringify(mappedProposals));
+    dbSetItem(CONTRACTS_KEY, JSON.stringify(mappedContracts));
+    hydratedOnce = true; // only mark done after a fully successful sync
+  } catch {}
+}
+
+function mapServerContract(r: any): Contract {
+  if (r.payload && typeof r.payload === "object") return r.payload as Contract;
+  return {
+    id: r.localId || `db-${r.id}`,
+    contractNumber: r.contractNumber,
+    proposalId: r.proposalLocalId || "",
+    proposalNumber: r.proposalNumber || "",
+    clientName: r.clientName || "",
+    clientContact: r.clientContact || undefined,
+    clientEmail: r.clientEmail || undefined,
+    projectName: r.projectName || "",
+    projectDesc: r.projectDesc || "",
+    serviceType: r.serviceType || "eng_consulting",
+    items: Array.isArray(r.items) ? r.items : [],
+    subtotal: Number(r.subtotal || 0),
+    vatRate: Number(r.vatRate || 15),
+    vatAmount: Number(r.vatAmount || 0),
+    total: Number(r.total || 0),
+    currency: r.currency || "SAR",
+    status: r.status || "draft",
+    clauses: Array.isArray(r.clauses) ? r.clauses : [],
+    paymentSchedule: Array.isArray(r.paymentSchedule) ? r.paymentSchedule : [],
+    startDate: r.startDate || "",
+    endDate: r.endDate || "",
+    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+    createdBy: r.createdBy || "",
+  };
 }
 export async function saveContractToDB(contract: Contract, userId?: string, contactId?: number): Promise<number | null> {
   try {
@@ -812,7 +921,8 @@ export function buildProposalHtml(proposal: Proposal, isRtl: boolean, options?: 
 
   // ── Company data: getAboutData() is the single source of truth ──
   const aboutData = getAboutData();
-  const pd = getSystemSettings().printDesign;
+  const sysCfgP = getSystemSettings();
+  const pd = sysCfgP.printDesign;
   const coNameAr   = aboutData.companyNameAr || "شركة سكيب للاستشارات والخدمات الهندسية";
   const coNameEn   = aboutData.companyNameEn || "Scapex Consulting & Engineering Services";
   const coVat      = aboutData.vatNumber || "300123456700003";
@@ -834,7 +944,7 @@ export function buildProposalHtml(proposal: Proposal, isRtl: boolean, options?: 
   } catch {}
 
   // ── Build logo HTML (print design logo overrides company logo) ───────────
-  if (pd.headerLogo) coLogoUrl = pd.headerLogo;
+  coLogoUrl = pd.headerLogo || coLogoUrl || sysCfgP.brandLogo || "";
   const logoHtml = !pd.showLogo
     ? ""
     : coLogoUrl
@@ -1024,7 +1134,8 @@ export function buildContractHtml(contract: Contract, isRtl: boolean, options?: 
   const dateEn = new Date(contract.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const date = bi(dateAr, dateEn);
 
-  const pd = getSystemSettings().printDesign;
+  const sysCfgC = getSystemSettings();
+  const pd = sysCfgC.printDesign;
   let cNameAr = "شركة سكيب للاستشارات والخدمات الهندسية";
   let cNameEn = "Scapex Consulting & Engineering Services";
   let cVat    = "300123456700003";
@@ -1038,7 +1149,7 @@ export function buildContractHtml(contract: Contract, isRtl: boolean, options?: 
       if (co) { cNameAr = co.nameAr; cNameEn = co.nameEn; cVat = co.vatNumber||cVat; cLogoUrl = co.logoUrl||""; cLogoColor = co.logoColor||"#1e40af"; cLogoChar = co.nameEn?.charAt(0)?.toUpperCase()||"S"; }
     }
   } catch {}
-  if (pd.headerLogo) cLogoUrl = pd.headerLogo;
+  cLogoUrl = pd.headerLogo || cLogoUrl || sysCfgC.brandLogo || "";
   const cLogoHtml = !pd.showLogo
     ? ""
     : cLogoUrl

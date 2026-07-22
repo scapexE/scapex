@@ -8,7 +8,7 @@ import { PartnerAccounts } from "@/components/sales/PartnerAccounts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, CheckCircle2, Send, Clock, TrendingUp, CalendarCheck, Handshake, Bot } from "lucide-react";
-import { getProposals, STATUS_META, SERVICE_META, type Proposal } from "@/lib/proposals";
+import { getProposals, hydrateSalesData, STATUS_META, SERVICE_META, type Proposal } from "@/lib/proposals";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
@@ -23,6 +23,7 @@ function ProposalQuotationsList({ isRtl, onNewProposal, onViewProposal }: {
 
   useEffect(() => {
     setProposals(getProposals());
+    hydrateSalesData().then(() => setProposals(getProposals()));
   }, []);
 
   const sentPending = proposals.filter((p) => p.status === "sent" || p.status === "under_review");

@@ -26,7 +26,7 @@ import {
   type PriceRegion, type ProjectSize, type ProposalPriceAnalysis,
   SERVICE_META, STATUS_META, REGION_META, SIZE_META,
   generateAITemplate, generateId, generateProposalNumber,
-  saveProposal, getProposals, deleteProposal,
+  saveProposal, getProposals, deleteProposal, hydrateSalesData,
   generateContractFromProposal, saveContract, saveContractToDB, saveProposalToDB, saveInvoiceToDB, getContracts,
   getPriceSuggestions, analyzeProposalPrices, getSmartPricing,
   printProposal, printContract,
@@ -1747,6 +1747,10 @@ export function ProposalGenerator() {
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
 
   const reload = () => setProposals(getProposals());
+
+  useEffect(() => {
+    hydrateSalesData().then(() => setProposals(getProposals()));
+  }, []);
 
   const handleNew = () => { setSelected(null); setView("create"); };
 

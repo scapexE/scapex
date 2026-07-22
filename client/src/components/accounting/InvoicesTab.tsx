@@ -150,6 +150,7 @@ export function InvoicesTab() {
         }
       } catch {}
     }
+    if (!coLogoUrl) coLogoUrl = sysCfg.brandLogo || "";
     const logoHtml = !pd.showLogo
       ? ""
       : coLogoUrl

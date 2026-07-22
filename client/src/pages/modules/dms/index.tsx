@@ -10,10 +10,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Search, Folder, Download, Lock, Globe, Edit, Trash2, File, FileImage, FileSpreadsheet, Link as LinkIcon, Users, Briefcase } from "lucide-react";
+import { FileText, Plus, Search, Folder, Download, Lock, Globe, Edit, Trash2, File, FileImage, FileSpreadsheet, Link as LinkIcon, Users, Briefcase, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+
+// Fetch a document file with the authenticated fetch wrapper (adds x-session-token),
+// then view it in a new tab or trigger a download via a blob URL.
+async function openDocumentFile(id: number, download: boolean, filename?: string | null) {
+  try {
+    const res = await fetch(`/api/documents/${id}/file`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    if (download) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "document";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } else {
+      window.open(url, "_blank");
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {}
+}
 
 interface Doc {
   id: number;
@@ -25,6 +47,7 @@ interface Doc {
   status: string | null;
   version: number | null;
   accessLevel: string | null;
+  originalName?: string | null;
   tags: string[];
   description: string | null;
   uploadedBy: string | null;
@@ -32,6 +55,7 @@ interface Doc {
   fileSize: number | null;
   projectId: number | null;
   companyId: number | null;
+  hasFile?: boolean;
   createdAt: string;
 }
 
@@ -357,6 +381,12 @@ export default function DMSModule() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1">
+                              {doc.hasFile && (
+                                <>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title={isRtl ? "عرض" : "View"} onClick={() => openDocumentFile(doc.id, false, doc.originalName || doc.titleAr)} data-testid={`button-view-doc-${doc.id}`}><Eye className="w-3.5 h-3.5" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title={isRtl ? "تنزيل" : "Download"} onClick={() => openDocumentFile(doc.id, true, doc.originalName || doc.titleAr)} data-testid={`button-download-doc-${doc.id}`}><Download className="w-3.5 h-3.5" /></Button>
+                                </>
+                              )}
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(doc)} data-testid={`button-edit-doc-${doc.id}`}><Edit className="w-3.5 h-3.5" /></Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(doc.id)} data-testid={`button-delete-doc-${doc.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
                             </div>

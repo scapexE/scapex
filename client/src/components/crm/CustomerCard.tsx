@@ -12,9 +12,9 @@ import {
   Building, Mail, Phone, MapPin, Star, FileText, Briefcase,
   Receipt, CheckCircle2, Clock, AlertTriangle, ExternalLink,
   Plus, TrendingUp, Calendar, ArrowRight, Shield, FileCheck, ClipboardCheck,
-  Users, UserCheck,
+  Users, UserCheck, Eye,
 } from "lucide-react";
-import { getProposals, getContracts, STATUS_META, SERVICE_META, type Proposal, type Contract } from "@/lib/proposals";
+import { getProposals, getContracts, hydrateSalesData, STATUS_META, SERVICE_META, buildProposalHtml, buildContractHtml, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
 import { listProjects, listStages, type ApiProject, type ApiStage, PROJECT_STATUS_LABELS_AR, PROJECT_STATUS_LABELS_EN, STAGE_STATUS_LABELS_AR, STAGE_STATUS_LABELS_EN } from "@/lib/projectsApi";
 import { CreateProjectDialog } from "@/components/projects/ProjectsList";
@@ -62,13 +62,14 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
 
   useEffect(() => {
     if (!customer || !open) return;
-    const allProposals = getProposals();
-    const allContracts = getContracts();
-    const allProjects = getProjects();
-
     const name = customer.name.toLowerCase();
-    setProposals(allProposals.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
-    setContracts(allContracts.filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
+    const applySales = () => {
+      setProposals(getProposals().filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
+      setContracts(getContracts().filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
+    };
+    applySales();
+    hydrateSalesData().then(applySales);
+    const allProjects = getProjects();
     setProjects(allProjects.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
     fetchSurveys(customer.id).then(list => setSurveyCount(list.length)).catch(() => {});
 
@@ -273,6 +274,19 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-primary">{p.total.toLocaleString()} {p.currency}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title={isRtl ? "عرض المستند" : "View document"}
+                              onClick={() => {
+                                const w = window.open("", "_blank");
+                                if (w) { w.document.write(buildProposalHtml(p, isRtl)); w.document.close(); }
+                              }}
+                              data-testid={`button-view-proposal-${p.id}`}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
                         </div>
                         {p.convertedToContractId && (
@@ -331,7 +345,22 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
                           <FileCheck className="w-3.5 h-3.5" />
                           {isRtl ? "مرتبط بعرض:" : "Linked to:"} {c.proposalNumber}
                         </div>
-                        <span className="text-sm font-bold text-primary">{c.total.toLocaleString()} {c.currency}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-primary">{c.total.toLocaleString()} {c.currency}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title={isRtl ? "عرض العقد" : "View contract"}
+                            onClick={() => {
+                              const w = window.open("", "_blank");
+                              if (w) { w.document.write(buildContractHtml(c, isRtl)); w.document.close(); }
+                            }}
+                            data-testid={`button-view-contract-${c.id}`}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

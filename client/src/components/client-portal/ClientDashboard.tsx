@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { getProposals, getContracts, STATUS_META, type Proposal, type Contract } from "@/lib/proposals";
+import { getProposals, getContracts, hydrateSalesData, STATUS_META, type Proposal, type Contract } from "@/lib/proposals";
 import { getProjects, type Project } from "@/lib/projects";
 import { Separator } from "@/components/ui/separator";
 import { PORTAL_THEMES, type PortalTheme } from "@/pages/modules/client-portal/index";
@@ -40,11 +40,13 @@ export function ClientDashboard({ portalTheme }: { portalTheme: PortalTheme }) {
 
   useEffect(() => {
     const name = CLIENT_NAME.toLowerCase();
-    const allProposals = getProposals();
-    const allContracts = getContracts();
+    const applySales = () => {
+      setProposals(getProposals().filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
+      setContracts(getContracts().filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
+    };
+    applySales();
+    hydrateSalesData().then(applySales);
     const allProjects = getProjects();
-    setProposals(allProposals.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
-    setContracts(allContracts.filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
     setProjects(allProjects.filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
   }, []);
 

@@ -271,6 +271,7 @@ export const proposals = pgTable("proposals", {
   notes: text("notes"),
   terms: text("terms"),
   aiGenerated: boolean("ai_generated").default(false),
+  payload: jsonb("payload"),
   createdBy: varchar("created_by").references(() => users.id),
   approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

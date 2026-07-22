@@ -233,6 +233,31 @@ function mergeSettings(parsed: any): SystemSettings {
   };
 }
 
+/** Find a per-company settings record that carries branding (logo), preferring the lowest company id. */
+function findPerCompanyBranding(): Partial<SystemSettings> | null {
+  try {
+    const prefix = `${SYSTEM_SETTINGS_KEY}::`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) keys.push(k);
+    }
+    keys.sort((a, b) => {
+      const na = parseInt(a.slice(prefix.length), 10);
+      const nb = parseInt(b.slice(prefix.length), 10);
+      if (isNaN(na) || isNaN(nb)) return a.localeCompare(b);
+      return na - nb;
+    });
+    for (const k of keys) {
+      const raw = dbGetItem(k);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed?.brandLogo || parsed?.printDesign?.headerLogo) return parsed;
+    }
+  } catch {}
+  return null;
+}
+
 export function getSystemSettings(companyId?: number | string | null): SystemSettings {
   try {
     if (companyId != null && companyId !== "") {
@@ -244,7 +269,25 @@ export function getSystemSettings(companyId?: number | string | null): SystemSet
       return DEFAULT_SYSTEM_SETTINGS;
     }
     const stored = dbGetItem(SYSTEM_SETTINGS_KEY);
-    if (stored) return mergeSettings(JSON.parse(stored));
+    const merged = stored ? mergeSettings(JSON.parse(stored)) : null;
+    if (merged && (merged.brandLogo || merged.printDesign.headerLogo)) return merged;
+    // Logo fallback: a company may have saved its branding only under a
+    // per-company key (scapex_system_settings::<id>) without mirroring to the
+    // global key. Fill in missing logo fields from there so documents print
+    // with the correct logo.
+    const per = findPerCompanyBranding();
+    if (per) {
+      if (!merged) return mergeSettings(per);
+      return {
+        ...merged,
+        brandLogo: merged.brandLogo || per.brandLogo || "",
+        printDesign: {
+          ...merged.printDesign,
+          headerLogo: merged.printDesign.headerLogo || per.printDesign?.headerLogo || "",
+        },
+      };
+    }
+    if (merged) return merged;
   } catch {}
   return DEFAULT_SYSTEM_SETTINGS;
 }

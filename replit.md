@@ -83,8 +83,8 @@ approval_workflows, approval_steps, approval_requests, approval_actions
 service_categories, services
 
 ## Key Storage Keys (localStorage — frontend data, pending migration to PostgreSQL API)
-- `scapex_proposals` — all proposals (JSON array)
-- `scapex_contracts` — all generated contracts (JSON array)
+- `scapex_proposals` — proposals cache (DB is source of truth via /api/proposals; hydrated on load, write-through on save)
+- `scapex_contracts` — contracts cache (DB is source of truth via /api/contracts; hydrated on load, write-through on save)
 - `scapex_activities` — business activities config (version: v2)
 - `users` — user accounts (version: v3)
 - `scapex_proposal_prefill` — temporary CRM/Sales→Proposal prefill data
