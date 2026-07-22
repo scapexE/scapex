@@ -1007,7 +1007,31 @@ export async function registerRoutes(
         crNumber,
         nationalId: d.nationalId?.trim() || null,
       } as any).returning();
-      res.json(result[0]);
+
+      // Auto portal enrollment: when the new customer has both a national ID
+      // and an email, enable portal access with a temporary password emailed
+      // to the client (they must change it on first login).
+      let portalInvited = false;
+      const newCustomer = result[0];
+      const custNid = (newCustomer as any).nationalId;
+      const custEmail = (newCustomer.email || "").trim();
+      if (custNid && custEmail) {
+        try {
+          const tempPassword = generateTempPassword();
+          const hash = await hashPassword(tempPassword);
+          await db.update(contacts).set({
+            portalEnabled: true,
+            portalPasswordHash: hash,
+            portalMustChange: true,
+            updatedAt: new Date(),
+          } as any).where(eq(contacts.id, newCustomer.id));
+          const sent = await sendPortalWelcomeEmail(custEmail, newCustomer.nameAr || newCustomer.nameEn || "", custNid, tempPassword);
+          portalInvited = sent;
+        } catch (e) {
+          console.error("Auto portal enrollment failed:", e);
+        }
+      }
+      res.json({ ...newCustomer, _portalInvited: portalInvited });
     } catch (err: any) {
       console.error("Create customer error:", err);
       res.status(500).json({ error: "Server error" });
@@ -2259,6 +2283,7 @@ export async function registerRoutes(
       organization: c.organization,
       city: c.city, address: c.address,
       activityId: c.activityId,
+      mustChangePassword: !!c.portalMustChange,
     };
   }
 
