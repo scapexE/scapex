@@ -97,6 +97,7 @@ export default function Login() {
   const [forgotError, setForgotError] = useState("");
 
   const [regNationalId, setRegNationalId] = useState("");
+  const [regPhone, setRegPhone] = useState("");
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regVerifiedEmail, setRegVerifiedEmail] = useState("");
@@ -117,7 +118,7 @@ export default function Login() {
   const [countdown, setCountdown] = useState(0);
 
   const resetRegForm = () => {
-    setRegNationalId(""); setRegName(""); setRegEmail(""); setRegVerifiedEmail("");
+    setRegNationalId(""); setRegPhone(""); setRegName(""); setRegEmail(""); setRegVerifiedEmail("");
     setRegPassword(""); setRegConfirm(""); setRegUserCode(""); setRegError("");
   };
 
@@ -306,10 +307,16 @@ export default function Login() {
     setRegError("");
     const trimmedName = regName.trim();
     const trimmedEmail = regEmail.trim();
-    if (!regNationalId || !trimmedName || !trimmedEmail || !regPassword || !regConfirm) {
+    if (!regNationalId || !trimmedName || !trimmedEmail || !regPhone || !regPassword || !regConfirm) {
       setRegError(isRtl
-        ? "يرجى ملء جميع الحقول المطلوبة (رقم الهوية، الاسم، البريد، كلمة المرور)"
-        : "Please fill all required fields (National ID, name, email, password)");
+        ? "يرجى ملء جميع الحقول المطلوبة (رقم الهوية، الاسم، البريد، رقم الجوال، كلمة المرور)"
+        : "Please fill all required fields (National ID, name, email, mobile, password)");
+      return;
+    }
+    if (!/^05\d{8}$/.test(regPhone)) {
+      setRegError(isRtl
+        ? "رقم الجوال غير صحيح — يجب أن يكون 10 أرقام ويبدأ بـ 05"
+        : "Invalid mobile number — must be 10 digits starting with 05");
       return;
     }
     if (trimmedName.length < 3) {
@@ -398,7 +405,7 @@ export default function Login() {
           name: regName.trim(),
           email: regVerifiedEmail,
           password: regPassword,
-          phone: "",
+          phone: regPhone,
           nationalId: regNationalId,
         }),
       });
@@ -804,6 +811,28 @@ export default function Login() {
                       <input data-testid="input-reg-email" type="email" placeholder="client@company.sa"
                         value={regEmail} onChange={(e) => setRegEmail(e.target.value)} onKeyDown={handleRegisterKey}
                         style={{ ...inputStyle, direction: "ltr", textAlign: isRtl ? "right" : "left" }} autoComplete="email" />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>{isRtl ? "رقم الجوال *" : "Mobile Number *"}</label>
+                      <input
+                        data-testid="input-reg-phone"
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        placeholder="05xxxxxxxx"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        onKeyDown={handleRegisterKey}
+                        style={{ ...inputStyle, direction: "ltr", textAlign: "left", letterSpacing: "0.05em" }}
+                        autoComplete="tel"
+                      />
+                      {regPhone.length > 0 && (
+                        <p style={{ fontSize: "11px", marginTop: "4px", color: /^05\d{8}$/.test(regPhone) ? "#34d399" : "#f87171" }}>
+                          {/^05\d{8}$/.test(regPhone)
+                            ? (isRtl ? "✓ رقم الجوال صحيح" : "✓ Valid mobile number")
+                            : (isRtl ? "✗ يجب أن يكون 10 أرقام ويبدأ بـ 05" : "✗ Must be 10 digits starting with 05")}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label style={labelStyle}>{isRtl ? "كلمة المرور *" : "Password *"}</label>
