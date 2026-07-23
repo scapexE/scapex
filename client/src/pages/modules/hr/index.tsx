@@ -352,13 +352,16 @@ export default function HRModule() {
         passportExpiry: form.passportExpiry || null,
         medicalInsuranceExpiry: form.medicalInsuranceExpiry || null,
       };
-      if (editEmp) {
-        await fetch(`/api/employees/${editEmp.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        toast({ title: isRtl ? "تم تحديث الموظف" : "Employee updated" });
-      } else {
-        await fetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        toast({ title: isRtl ? "تم إضافة الموظف بنجاح" : "Employee added successfully" });
+      const res = editEmp
+        ? await fetch(`/api/employees/${editEmp.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        : await fetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg = isRtl ? (err.error || "خطأ في الحفظ") : (err.errorEn || err.error || "Save error");
+        toast({ title: isRtl ? "تعذر الحفظ" : "Could not save", description: msg, variant: "destructive" });
+        return;
       }
+      toast({ title: editEmp ? (isRtl ? "تم تحديث الموظف" : "Employee updated") : (isRtl ? "تم إضافة الموظف بنجاح" : "Employee added successfully") });
       setShowDialog(false);
       fetchAll();
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }

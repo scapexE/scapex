@@ -3647,10 +3647,48 @@ export async function registerRoutes(
     }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
+  // Duplicate guard: returns the conflicting employee row or null.
+  // Checks nationalId (iqama) and employeeNumber, excluding `excludeId` on updates.
+  async function findDuplicateEmployee(b: any, excludeId?: number) {
+    const nationalId = (b.nationalId || "").trim();
+    const employeeNumber = (b.employeeNumber || "").trim();
+    if (nationalId) {
+      const rows = await db.select().from(employees).where(eq(employees.nationalId, nationalId));
+      const hit = rows.find((r) => r.id !== excludeId);
+      if (hit) return { field: "nationalId" as const, emp: hit };
+    }
+    if (employeeNumber) {
+      const rows = await db.select().from(employees).where(eq(employees.employeeNumber, employeeNumber));
+      const hit = rows.find((r) => r.id !== excludeId);
+      if (hit) return { field: "employeeNumber" as const, emp: hit };
+    }
+    return null;
+  }
+  function duplicateEmployeeError(dup: { field: "nationalId" | "employeeNumber"; emp: any }) {
+    const nameAr = dup.emp.nameAr || dup.emp.nameEn || "";
+    const nameEn = dup.emp.nameEn || dup.emp.nameAr || "";
+    if (dup.field === "nationalId") {
+      return {
+        error: `رقم الهوية/الإقامة مسجل مسبقاً باسم الموظف: ${nameAr}`,
+        errorEn: `National/Iqama ID is already registered for employee: ${nameEn}`,
+        duplicateField: "nationalId",
+        duplicateEmployeeId: dup.emp.id,
+      };
+    }
+    return {
+      error: `الرقم الوظيفي مستخدم مسبقاً للموظف: ${nameAr}`,
+      errorEn: `Employee number is already used by employee: ${nameEn}`,
+      duplicateField: "employeeNumber",
+      duplicateEmployeeId: dup.emp.id,
+    };
+  }
+
   app.post("/api/employees", async (req, res) => {
     if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
+      const dup = await findDuplicateEmployee(b);
+      if (dup) return res.status(409).json(duplicateEmployeeError(dup));
       const [row] = await db.insert(employees).values({
         nameAr: b.nameAr, nameEn: b.nameEn, employeeNumber: b.employeeNumber,
         nationalId: b.nationalId, nationality: b.nationality, phone: b.phone,
@@ -3676,6 +3714,8 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       const b = req.body;
+      const dup = await findDuplicateEmployee(b, id);
+      if (dup) return res.status(409).json(duplicateEmployeeError(dup));
       const [row] = await db.update(employees).set({
         nameAr: b.nameAr, nameEn: b.nameEn, employeeNumber: b.employeeNumber,
         nationalId: b.nationalId, nationality: b.nationality, phone: b.phone,
