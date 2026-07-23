@@ -45,6 +45,14 @@ function inRange(dateStr: string | null, from: string, to: string) {
   return dateStr >= from && dateStr <= to;
 }
 
+/** Trial balance: negative balances flip to the opposite column (abs value). */
+function trialAmounts(a: Account) {
+  const bal = parseFloat(a.balance || "0");
+  const isDebit = ["asset", "expense"].includes(a.type);
+  if (isDebit) return bal >= 0 ? { debit: bal, credit: 0 } : { debit: 0, credit: -bal };
+  return bal >= 0 ? { debit: 0, credit: bal } : { debit: -bal, credit: 0 };
+}
+
 // ─── Print helper ─────────────────────────────────────────────────────────────
 function printReport(title: string, html: string, isRtl: boolean) {
   const w = window.open("", "_blank");
@@ -286,13 +294,12 @@ export function FinancialReportsTab() {
       <thead><tr><th>${isRtl?"الرمز":"Code"}</th><th>${isRtl?"اسم الحساب":"Account"}</th><th>${isRtl?"النوع":"Type"}</th><th style="text-align:${isRtl?"left":"right"}">${isRtl?"مدين":"Debit"}</th><th style="text-align:${isRtl?"left":"right"}">${isRtl?"دائن":"Credit"}</th></tr></thead>
       <tbody>
       ${leafAccs.map(a => {
-        const bal = parseFloat(a.balance || "0");
-        const isDebit = ["asset","expense"].includes(a.type);
-        return `<tr><td style="font-family:monospace;font-size:10px">${esc(a.code)}</td><td>${esc(isRtl?a.nameAr:(a.nameEn||a.nameAr))}</td><td>${esc(a.type)}</td><td style="text-align:${isRtl?"left":"right"};color:#166534">${isDebit && bal > 0 ? SAR(bal) : "—"}</td><td style="text-align:${isRtl?"left":"right"};color:#dc2626">${!isDebit && bal > 0 ? SAR(bal) : "—"}</td></tr>`;
+        const { debit, credit } = trialAmounts(a);
+        return `<tr><td style="font-family:monospace;font-size:10px">${esc(a.code)}</td><td>${esc(isRtl?a.nameAr:(a.nameEn||a.nameAr))}</td><td>${esc(a.type)}</td><td style="text-align:${isRtl?"left":"right"};color:#166534">${debit > 0 ? SAR(debit) : "—"}</td><td style="text-align:${isRtl?"left":"right"};color:#dc2626">${credit > 0 ? SAR(credit) : "—"}</td></tr>`;
       }).join("")}
       <tr class="grand-total"><td colspan="3">${isRtl?"الإجمالي":"Total"}</td>
-      <td style="text-align:${isRtl?"left":"right"}">${SAR(leafAccs.filter(a=>["asset","expense"].includes(a.type)).reduce((s,a)=>s+parseFloat(a.balance||"0"),0))}</td>
-      <td style="text-align:${isRtl?"left":"right"}">${SAR(leafAccs.filter(a=>["liability","equity","revenue"].includes(a.type)).reduce((s,a)=>s+parseFloat(a.balance||"0"),0))}</td>
+      <td style="text-align:${isRtl?"left":"right"}">${SAR(leafAccs.reduce((s,a)=>s+trialAmounts(a).debit,0))}</td>
+      <td style="text-align:${isRtl?"left":"right"}">${SAR(leafAccs.reduce((s,a)=>s+trialAmounts(a).credit,0))}</td>
       </tr></tbody></table>`;
     printReport(isRtl ? "ميزان المراجعة" : "Trial Balance", html, isRtl);
   };
@@ -613,7 +620,7 @@ export function FinancialReportsTab() {
                     .map(acc => {
                       const bal = parseFloat(acc.balance || "0");
                       if (bal === 0) return null;
-                      const isDebit = ["asset", "expense"].includes(acc.type);
+                      const { debit, credit } = trialAmounts(acc);
                       return (
                         <TableRow key={acc.id} className="hover:bg-muted/20">
                           <TableCell className="font-mono text-xs text-muted-foreground">{acc.code}</TableCell>
@@ -621,16 +628,16 @@ export function FinancialReportsTab() {
                           <TableCell>
                             <Badge variant="outline" className="text-[10px] font-normal capitalize">{acc.type}</Badge>
                           </TableCell>
-                          <TableCell className="text-emerald-700 font-medium">{isDebit && bal > 0 ? SAR(bal) : "—"}</TableCell>
-                          <TableCell className="text-red-600 font-medium">{!isDebit && bal > 0 ? SAR(bal) : "—"}</TableCell>
+                          <TableCell className="text-emerald-700 font-medium">{debit > 0 ? SAR(debit) : "—"}</TableCell>
+                          <TableCell className="text-red-600 font-medium">{credit > 0 ? SAR(credit) : "—"}</TableCell>
                         </TableRow>
                       );
                     })}
                   {/* Totals */}
                   {(() => {
                     const leafAccs = accounts.filter(a => !accounts.some(b => b.parentId === a.id));
-                    const totalDebit = leafAccs.filter(a => ["asset","expense"].includes(a.type)).reduce((s,a) => s + parseFloat(a.balance||"0"), 0);
-                    const totalCredit = leafAccs.filter(a => ["liability","equity","revenue"].includes(a.type)).reduce((s,a) => s + parseFloat(a.balance||"0"), 0);
+                    const totalDebit = leafAccs.reduce((s,a) => s + trialAmounts(a).debit, 0);
+                    const totalCredit = leafAccs.reduce((s,a) => s + trialAmounts(a).credit, 0);
                     return (
                       <TableRow className="bg-primary/5 font-bold border-t-2 border-primary/30">
                         <TableCell colSpan={3} className="text-sm font-bold">{isRtl ? "الإجمالي" : "Total"}</TableCell>
