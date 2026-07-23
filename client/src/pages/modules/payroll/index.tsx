@@ -66,7 +66,7 @@ const statusMeta = (s: string, isRtl: boolean) => ({
   paid:     { label: isRtl ? "مدفوعة"       : "Paid",       cls: "bg-emerald-500 text-white" },
 }[s] ?? { label: s, cls: "" });
 
-export default function PayrollModule() {
+export function PayrollContent() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
@@ -206,7 +206,7 @@ export default function PayrollModule() {
   const avgSalary = employees.length ? employees.reduce((s, e) => s + n(e.basicSalary), 0) / employees.length : 0;
 
   return (
-    <MainLayout>
+    <>
       <div className="flex flex-col gap-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -390,6 +390,14 @@ export default function PayrollModule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+export default function PayrollModule() {
+  return (
+    <MainLayout>
+      <PayrollContent />
     </MainLayout>
   );
 }

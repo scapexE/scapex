@@ -11,9 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Plus, Search, ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Edit, Trash2, BarChart3, Download, Loader2 } from "lucide-react";
+import { Package, Plus, Search, ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Edit, Trash2, BarChart3, Download, Loader2, Warehouse as WarehouseIcon, ArrowLeftRight, Tags } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { dbGetItem } from "@/lib/dbStorage";
+import { addNotification } from "@/lib/notifications";
 
 interface InventoryItem {
   id: string; code: string; nameAr: string; nameEn: string; category: string;
@@ -23,6 +25,17 @@ interface InventoryItem {
 interface StockMovement {
   id: string; itemId: string; itemName: string; type: "in" | "out" | "transfer";
   qty: number; date: string; reference: string; notes: string;
+}
+
+interface WarehouseRow {
+  id: number; nameAr: string; nameEn: string; location?: string | null; isActive?: boolean;
+}
+
+interface CustomCat { id: string; ar: string; en: string; }
+
+const CUSTOM_CATS_KEY = "scapex_inv_categories";
+function loadCustomCats(): CustomCat[] {
+  try { const v = JSON.parse(localStorage.getItem(CUSTOM_CATS_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
 }
 
 const CATS = [
@@ -103,15 +116,37 @@ export default function InventoryModule() {
   const [showDialog, setShowDialog] = useState(false); const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState<Partial<InventoryItem>>({});
   const [showMoveDialog, setShowMoveDialog] = useState(false);
-  const [moveForm, setMoveForm] = useState<{ itemId: string; type: "in" | "out"; qty: number; reference: string; notes: string }>({ itemId: "", type: "in", qty: 0, reference: "", notes: "" });
+  const [moveForm, setMoveForm] = useState<{ itemId: string; type: "in" | "out" | "transfer"; qty: number; reference: string; notes: string; toWarehouseId: string }>({ itemId: "", type: "in", qty: 0, reference: "", notes: "", toWarehouseId: "" });
   const [saving, setSaving] = useState(false);
+  const [warehouses, setWarehouses] = useState<WarehouseRow[]>([]);
+  const [showWhDialog, setShowWhDialog] = useState(false);
+  const [editWh, setEditWh] = useState<WarehouseRow | null>(null);
+  const [whForm, setWhForm] = useState<{ nameAr: string; nameEn: string; location: string }>({ nameAr: "", nameEn: "", location: "" });
+  const [customCats, setCustomCats] = useState<CustomCat[]>(loadCustomCats);
+  const [showCatsDialog, setShowCatsDialog] = useState(false);
+  const [newCatAr, setNewCatAr] = useState("");
+  const [newCatEn, setNewCatEn] = useState("");
+
+  const allCats = [...CATS, ...customCats];
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [iRes, mRes] = await Promise.all([fetch("/api/inventory-items"), fetch("/api/stock-movements")]);
+      const [iRes, mRes, wRes] = await Promise.all([fetch("/api/inventory-items"), fetch("/api/stock-movements"), fetch("/api/warehouses")]);
       const iData = await iRes.json();
       const mData = await mRes.json();
+      let wData = await wRes.json();
+
+      const cu = (() => { try { return JSON.parse(dbGetItem("user") || "null"); } catch { return null; } })();
+      const canSeed = cu?.role === "admin" || cu?.role === "manager";
+      if (canSeed && (!Array.isArray(wData) || wData.length === 0)) {
+        for (const w of WAREHOUSES) {
+          await fetch("/api/warehouses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nameAr: w.ar, nameEn: w.en, location: "" }) });
+        }
+        const wr2 = await fetch("/api/warehouses");
+        wData = await wr2.json();
+      }
+      setWarehouses(Array.isArray(wData) ? wData : []);
       if (Array.isArray(iData) && iData.length > 0) {
         setItems(iData.map(mapItem));
       } else {
@@ -138,16 +173,67 @@ export default function InventoryModule() {
 
   const lowStock = items.filter(i => i.onHand <= i.minStock);
   const stats = { total: items.length, lowStock: lowStock.length, totalValue: items.reduce((s, i) => s + i.onHand * i.unitCost, 0), movements: movements.length };
-  const catLabel = (id: string) => { const c = CATS.find(x => x.id === id); return c ? (isRtl ? c.ar : c.en) : id; };
+  const catLabel = (id: string) => { const c = allCats.find(x => x.id === id); return c ? (isRtl ? c.ar : c.en) : id; };
 
-  const openAdd = () => { setEditItem(null); setForm({ category: "safety", unit: "pcs", status: "active", warehouse: "main", onHand: 0, minStock: 0, unitCost: 0 }); setShowDialog(true); };
+  /* ── Warehouse helpers ── */
+  const whIdOf = (w?: string): string => {
+    if (!w) return "";
+    if (w.startsWith("wh_")) return w.slice(3);
+    const legacy = WAREHOUSES.find(x => x.id === w);
+    if (legacy) {
+      const seeded = warehouses.find(x => x.nameAr === legacy.ar || x.nameEn === legacy.en);
+      return seeded ? String(seeded.id) : "";
+    }
+    return "";
+  };
+  const whLabel = (w: string) => {
+    const id = whIdOf(w);
+    if (id) {
+      const wh = warehouses.find(x => String(x.id) === id);
+      if (wh) return isRtl ? wh.nameAr : (wh.nameEn || wh.nameAr);
+    }
+    const legacy = WAREHOUSES.find(x => x.id === w);
+    return legacy ? (isRtl ? legacy.ar : legacy.en) : (w || "—");
+  };
+  const whNameById = (id?: number | string | null) => {
+    if (!id) return "—";
+    const wh = warehouses.find(x => String(x.id) === String(id));
+    return wh ? (isRtl ? wh.nameAr : (wh.nameEn || wh.nameAr)) : "—";
+  };
+
+  /* ── Low-stock notifications (dedup per item) ── */
+  useEffect(() => {
+    if (loading || items.length === 0) return;
+    const low = items.filter(i => i.status === "active" && i.onHand <= i.minStock);
+    const key = "scapex_lowstock_notified";
+    let prev: string[] = [];
+    try { const v = JSON.parse(localStorage.getItem(key) || "[]"); prev = Array.isArray(v) ? v : []; } catch { /* ignore */ }
+    const newOnes = low.filter(i => !prev.includes(i.id));
+    if (newOnes.length > 0) {
+      const namesAr = newOnes.slice(0, 3).map(i => i.nameAr || i.nameEn).join("، ");
+      const namesEn = newOnes.slice(0, 3).map(i => i.nameEn || i.nameAr).join(", ");
+      addNotification({
+        titleEn: "Low stock alert",
+        titleAr: "تنبيه مخزون منخفض",
+        bodyEn: `${newOnes.length} item(s) below minimum stock: ${namesEn}${newOnes.length > 3 ? "…" : ""}`,
+        bodyAr: `${newOnes.length} صنف تحت الحد الأدنى: ${namesAr}${newOnes.length > 3 ? "…" : ""}`,
+        type: "warning",
+        module: "inventory",
+        link: "/inventory",
+      });
+    }
+    localStorage.setItem(key, JSON.stringify(low.map(i => i.id)));
+  }, [items, loading]);
+
+  const openAdd = () => { setEditItem(null); setForm({ category: "safety", unit: "pcs", status: "active", warehouse: warehouses[0] ? `wh_${warehouses[0].id}` : "main", onHand: 0, minStock: 0, unitCost: 0 }); setShowDialog(true); };
   const openEdit = (item: InventoryItem) => { setEditItem(item); setForm(item); setShowDialog(true); };
 
   const handleSave = async () => {
     if (!form.nameAr || !form.code) { toast({ title: isRtl ? "ادخل البيانات المطلوبة" : "Fill required fields", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const payload = { sku: form.code, nameAr: form.nameAr, nameEn: form.nameEn, category: form.category, unit: form.unit, currentQty: form.onHand, minQty: form.minStock, unitCost: form.unitCost };
+      const whId = whIdOf(form.warehouse);
+      const payload = { sku: form.code, nameAr: form.nameAr, nameEn: form.nameEn, category: form.category, unit: form.unit, currentQty: form.onHand, minQty: form.minStock, unitCost: form.unitCost, warehouseId: whId ? parseInt(whId) : null };
       if (editItem) {
         await fetch(`/api/inventory-items/${editItem.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       } else {
@@ -169,15 +255,79 @@ export default function InventoryModule() {
   };
 
   const handleMovement = async () => {
-    if (!moveForm.itemId || moveForm.qty <= 0) { toast({ title: isRtl ? "ادخل البيانات" : "Fill fields", variant: "destructive" }); return; }
+    const item = items.find(i => i.id === moveForm.itemId);
+    if (!moveForm.itemId || (moveForm.type !== "transfer" && moveForm.qty <= 0)) { toast({ title: isRtl ? "ادخل البيانات" : "Fill fields", variant: "destructive" }); return; }
+    if (moveForm.type === "transfer") {
+      if (!moveForm.toWarehouseId) { toast({ title: isRtl ? "اختر المستودع المستلم" : "Select destination warehouse", variant: "destructive" }); return; }
+      if (item && whIdOf(item.warehouse) === moveForm.toWarehouseId) { toast({ title: isRtl ? "المستودع المستلم هو نفس المستودع الحالي" : "Destination is the same as current warehouse", variant: "destructive" }); return; }
+    }
     setSaving(true);
     try {
-      await fetch("/api/stock-movements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(moveForm) });
+      const payload: any = {
+        itemId: moveForm.itemId, type: moveForm.type,
+        qty: moveForm.type === "transfer" ? (item?.onHand ?? 0) : moveForm.qty,
+        reference: moveForm.reference, notes: moveForm.notes,
+      };
+      const curWh = item ? whIdOf(item.warehouse) : "";
+      if (curWh) payload.warehouseId = parseInt(curWh);
+      if (moveForm.type === "transfer") payload.toWarehouseId = parseInt(moveForm.toWarehouseId);
+      const res = await fetch("/api/stock-movements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error("Failed");
       setShowMoveDialog(false);
-      toast({ title: isRtl ? "تم تسجيل الحركة" : "Movement recorded" });
+      toast({ title: moveForm.type === "transfer" ? (isRtl ? "تم تحويل الصنف بين المستودعات" : "Item transferred") : (isRtl ? "تم تسجيل الحركة" : "Movement recorded") });
       fetchData();
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
     finally { setSaving(false); }
+  };
+
+  /* ── Warehouse CRUD ── */
+  const openWhAdd = () => { setEditWh(null); setWhForm({ nameAr: "", nameEn: "", location: "" }); setShowWhDialog(true); };
+  const openWhEdit = (w: WarehouseRow) => { setEditWh(w); setWhForm({ nameAr: w.nameAr, nameEn: w.nameEn || "", location: w.location || "" }); setShowWhDialog(true); };
+  const handleSaveWh = async () => {
+    if (!whForm.nameAr) { toast({ title: isRtl ? "أدخل اسم المستودع" : "Enter warehouse name", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const payload = { nameAr: whForm.nameAr, nameEn: whForm.nameEn || whForm.nameAr, location: whForm.location };
+      const res = editWh
+        ? await fetch(`/api/warehouses/${editWh.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        : await fetch("/api/warehouses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error("Failed");
+      setShowWhDialog(false);
+      toast({ title: editWh ? (isRtl ? "تم تحديث المستودع" : "Warehouse updated") : (isRtl ? "تم إضافة المستودع" : "Warehouse added") });
+      fetchData();
+    } catch { toast({ title: isRtl ? "خطأ في الحفظ" : "Save error", variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+  const handleDeleteWh = async (w: WarehouseRow) => {
+    try {
+      const res = await fetch(`/api/warehouses/${w.id}`, { method: "DELETE" });
+      if (res.status === 400) {
+        toast({ title: isRtl ? "لا يمكن حذف المستودع — توجد أصناف مرتبطة به. انقل الأصناف أولاً." : "Cannot delete — items are linked to this warehouse.", variant: "destructive" });
+        return;
+      }
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: isRtl ? "تم حذف المستودع" : "Warehouse deleted" });
+      fetchData();
+    } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
+  };
+
+  /* ── Category management ── */
+  const saveCustomCats = (list: CustomCat[]) => {
+    setCustomCats(list);
+    localStorage.setItem(CUSTOM_CATS_KEY, JSON.stringify(list));
+  };
+  const handleAddCat = () => {
+    if (!newCatAr.trim()) { toast({ title: isRtl ? "أدخل اسم الفئة" : "Enter category name", variant: "destructive" }); return; }
+    const id = `cat_${Date.now()}`;
+    saveCustomCats([...customCats, { id, ar: newCatAr.trim(), en: (newCatEn || newCatAr).trim() }]);
+    setNewCatAr(""); setNewCatEn("");
+    toast({ title: isRtl ? "تمت إضافة الفئة" : "Category added" });
+  };
+  const handleDeleteCat = (id: string) => {
+    const used = items.filter(i => i.category === id).length;
+    if (used > 0) { toast({ title: isRtl ? `لا يمكن الحذف — ${used} صنف يستخدم هذه الفئة` : `Cannot delete — used by ${used} item(s)`, variant: "destructive" }); return; }
+    saveCustomCats(customCats.filter(c => c.id !== id));
+    toast({ title: isRtl ? "تم حذف الفئة" : "Category deleted" });
   };
 
   return (
@@ -190,7 +340,8 @@ export default function InventoryModule() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => printStockReport(items, isRtl)}><Download className="w-4 h-4 me-1.5" />{isRtl ? "تقرير PDF" : "Stock Report"}</Button>
-            <Button variant="outline" size="sm" onClick={() => { setMoveForm({ itemId: "", type: "in", qty: 0, reference: "", notes: "" }); setShowMoveDialog(true); }}>{isRtl ? "حركة مخزون" : "Stock Movement"}</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCatsDialog(true)} data-testid="button-manage-categories"><Tags className="w-4 h-4 me-1.5" />{isRtl ? "الفئات" : "Categories"}</Button>
+            <Button variant="outline" size="sm" onClick={() => { setMoveForm({ itemId: "", type: "in", qty: 0, reference: "", notes: "", toWarehouseId: "" }); setShowMoveDialog(true); }}>{isRtl ? "حركة مخزون" : "Stock Movement"}</Button>
             <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 me-1.5" />{isRtl ? "إضافة صنف" : "Add Item"}</Button>
           </div>
         </div>
@@ -221,6 +372,7 @@ export default function InventoryModule() {
         <Tabs defaultValue="items">
           <TabsList className="bg-secondary/50">
             <TabsTrigger value="items">{isRtl ? "الأصناف" : "Items"}</TabsTrigger>
+            <TabsTrigger value="warehouses">{isRtl ? "المستودعات" : "Warehouses"}</TabsTrigger>
             <TabsTrigger value="movements">{isRtl ? "حركة المخزون" : "Movements"}</TabsTrigger>
           </TabsList>
 
@@ -234,7 +386,7 @@ export default function InventoryModule() {
                 <SelectTrigger className="w-44 h-9 bg-secondary/30"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{isRtl ? "كل الفئات" : "All Categories"}</SelectItem>
-                  {CATS.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.ar : c.en}</SelectItem>)}
+                  {allCats.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.ar : c.en}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -250,6 +402,7 @@ export default function InventoryModule() {
                         <TableHead>{isRtl ? "الكود" : "Code"}</TableHead>
                         <TableHead>{isRtl ? "الصنف" : "Item"}</TableHead>
                         <TableHead>{isRtl ? "الفئة" : "Category"}</TableHead>
+                        <TableHead>{isRtl ? "المستودع" : "Warehouse"}</TableHead>
                         <TableHead>{isRtl ? "الكمية" : "On Hand"}</TableHead>
                         <TableHead>{isRtl ? "الحد الأدنى" : "Min Stock"}</TableHead>
                         <TableHead>{isRtl ? "سعر الوحدة" : "Unit Cost"}</TableHead>
@@ -260,12 +413,13 @@ export default function InventoryModule() {
                     </TableHeader>
                     <TableBody>
                       {filtered.length === 0 ? (
-                        <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{isRtl ? "لا توجد أصناف" : "No items found"}</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="text-center py-10 text-muted-foreground">{isRtl ? "لا توجد أصناف" : "No items found"}</TableCell></TableRow>
                       ) : filtered.map(item => (
                         <TableRow key={item.id} className={cn("hover:bg-muted/40", item.onHand <= item.minStock && "bg-red-50/30 dark:bg-red-900/10")} data-testid={`row-inventory-${item.id}`}>
                           <TableCell className="font-mono text-xs text-muted-foreground">{item.code}</TableCell>
                           <TableCell className="font-medium text-sm">{isRtl ? item.nameAr : item.nameEn}</TableCell>
                           <TableCell className="text-sm">{catLabel(item.category)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{whLabel(item.warehouse)}</TableCell>
                           <TableCell className="text-sm">
                             <span className={cn("font-semibold", item.onHand <= item.minStock && "text-red-600")}>{item.onHand}</span>
                             <span className="text-muted-foreground text-xs ms-1">{item.unit}</span>
@@ -277,8 +431,8 @@ export default function InventoryModule() {
                           <TableCell><Badge variant={item.status === "active" ? "default" : "secondary"}>{item.status === "active" ? (isRtl ? "نشط" : "Active") : (isRtl ? "غير نشط" : "Inactive")}</Badge></TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title={isRtl ? "إدخال مخزون" : "Stock In"} onClick={() => { setMoveForm({ itemId: item.id, type: "in", qty: 0, reference: "", notes: "" }); setShowMoveDialog(true); }}><ArrowDownToLine className="w-3.5 h-3.5 text-emerald-600" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title={isRtl ? "إخراج مخزون" : "Stock Out"} onClick={() => { setMoveForm({ itemId: item.id, type: "out", qty: 0, reference: "", notes: "" }); setShowMoveDialog(true); }}><ArrowUpFromLine className="w-3.5 h-3.5 text-amber-600" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title={isRtl ? "إدخال مخزون" : "Stock In"} onClick={() => { setMoveForm({ itemId: item.id, type: "in", qty: 0, reference: "", notes: "", toWarehouseId: "" }); setShowMoveDialog(true); }}><ArrowDownToLine className="w-3.5 h-3.5 text-emerald-600" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title={isRtl ? "إخراج مخزون" : "Stock Out"} onClick={() => { setMoveForm({ itemId: item.id, type: "out", qty: 0, reference: "", notes: "", toWarehouseId: "" }); setShowMoveDialog(true); }}><ArrowUpFromLine className="w-3.5 h-3.5 text-amber-600" /></Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(item)}><Edit className="w-3.5 h-3.5" /></Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                             </div>
@@ -290,6 +444,39 @@ export default function InventoryModule() {
                 </div>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="warehouses" className="mt-4 space-y-3">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={openWhAdd} data-testid="button-add-warehouse"><Plus className="w-4 h-4 me-1.5" />{isRtl ? "إضافة مستودع" : "Add Warehouse"}</Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {warehouses.map(w => {
+                const whItems = items.filter(i => whIdOf(i.warehouse) === String(w.id));
+                const whValue = whItems.reduce((s, i) => s + i.onHand * i.unitCost, 0);
+                return (
+                  <Card key={w.id} className="border-border/50 hover:border-primary/30 transition-colors" data-testid={`card-warehouse-${w.id}`}>
+                    <CardContent className="p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0"><WarehouseIcon className="w-5 h-5 text-emerald-600" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm">{isRtl ? w.nameAr : (w.nameEn || w.nameAr)}</p>
+                        {w.location && <p className="text-xs text-muted-foreground mt-0.5">{w.location}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {whItems.length} {isRtl ? "صنف" : "items"} — {whValue.toLocaleString()} {isRtl ? "ر.س" : "SAR"}
+                        </p>
+                      </div>
+                      <div className="flex gap-0.5 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openWhEdit(w)} data-testid={`button-edit-warehouse-${w.id}`}><Edit className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteWh(w)} data-testid={`button-delete-warehouse-${w.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              {warehouses.length === 0 && !loading && (
+                <p className="text-sm text-muted-foreground col-span-full text-center py-8">{isRtl ? "لا توجد مستودعات" : "No warehouses"}</p>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="movements" className="mt-4">
@@ -313,7 +500,13 @@ export default function InventoryModule() {
                       <TableRow key={m.id} className="hover:bg-muted/40">
                         <TableCell className="text-sm">{m.date}</TableCell>
                         <TableCell className="text-sm">{items.find(i => i.id === m.itemId)?.nameAr || m.itemName || m.itemId}</TableCell>
-                        <TableCell><Badge variant={m.type === "in" ? "default" : "secondary"}>{m.type === "in" ? (isRtl ? "وارد" : "In") : (isRtl ? "صادر" : "Out")}</Badge></TableCell>
+                        <TableCell>
+                          {m.type === "transfer" ? (
+                            <Badge variant="outline" className="border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400"><ArrowLeftRight className="w-3 h-3 me-1" />{isRtl ? "تحويل" : "Transfer"}</Badge>
+                          ) : (
+                            <Badge variant={m.type === "in" ? "default" : "secondary"}>{m.type === "in" ? (isRtl ? "وارد" : "In") : (isRtl ? "صادر" : "Out")}</Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-sm font-medium">{m.qty}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{m.reference}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{m.notes}</TableCell>
@@ -342,7 +535,14 @@ export default function InventoryModule() {
               <Label className="text-xs">{isRtl ? "الفئة" : "Category"}</Label>
               <Select value={form.category || "safety"} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
                 <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>{CATS.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.ar : c.en}</SelectItem>)}</SelectContent>
+                <SelectContent>{allCats.map(c => <SelectItem key={c.id} value={c.id}>{isRtl ? c.ar : c.en}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">{isRtl ? "المستودع" : "Warehouse"}</Label>
+              <Select value={whIdOf(form.warehouse) || ""} onValueChange={v => setForm(p => ({ ...p, warehouse: `wh_${v}` }))}>
+                <SelectTrigger className="mt-1 h-8 text-sm" data-testid="select-item-warehouse"><SelectValue placeholder={isRtl ? "اختر المستودع" : "Select warehouse"} /></SelectTrigger>
+                <SelectContent>{warehouses.map(w => <SelectItem key={w.id} value={String(w.id)}>{isRtl ? w.nameAr : (w.nameEn || w.nameAr)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
@@ -367,22 +567,103 @@ export default function InventoryModule() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">{isRtl ? "النوع" : "Type"}</Label>
-                <Select value={moveForm.type} onValueChange={v => setMoveForm(p => ({ ...p, type: v as any }))}>
-                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <Select value={moveForm.type} onValueChange={v => setMoveForm(p => ({ ...p, type: v as any, toWarehouseId: "" }))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="select-movement-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="in">{isRtl ? "وارد" : "Stock In"}</SelectItem>
                     <SelectItem value="out">{isRtl ? "صادر" : "Stock Out"}</SelectItem>
+                    <SelectItem value="transfer">{isRtl ? "تحويل بين مستودعات" : "Transfer"}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label className="text-xs">{isRtl ? "الكمية *" : "Quantity *"}</Label><Input type="number" className="mt-1 h-8 text-sm" value={moveForm.qty} onChange={e => setMoveForm(p => ({ ...p, qty: Number(e.target.value) }))} /></div>
+              <div>
+                <Label className="text-xs">{isRtl ? "الكمية *" : "Quantity *"}</Label>
+                {moveForm.type === "transfer" ? (
+                  <p className="mt-2.5 text-[11px] text-muted-foreground leading-tight">{isRtl ? "يتم تحويل كامل كمية الصنف إلى المستودع المستلم" : "The item's full quantity moves to the destination warehouse"}</p>
+                ) : (
+                  <Input type="number" className="mt-1 h-8 text-sm" value={moveForm.qty} onChange={e => setMoveForm(p => ({ ...p, qty: Number(e.target.value) }))} />
+                )}
+              </div>
             </div>
+            {moveForm.type === "transfer" && (
+              <div>
+                <Label className="text-xs">{isRtl ? "إلى المستودع *" : "To Warehouse *"}</Label>
+                {(() => {
+                  const item = items.find(i => i.id === moveForm.itemId);
+                  const curId = item ? whIdOf(item.warehouse) : "";
+                  return (
+                    <>
+                      {item && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{isRtl ? `المستودع الحالي: ${whLabel(item.warehouse)}` : `Current: ${whLabel(item.warehouse)}`}</p>
+                      )}
+                      <Select value={moveForm.toWarehouseId} onValueChange={v => setMoveForm(p => ({ ...p, toWarehouseId: v }))}>
+                        <SelectTrigger className="mt-1 h-8 text-sm" data-testid="select-to-warehouse"><SelectValue placeholder={isRtl ? "اختر المستودع المستلم" : "Select destination"} /></SelectTrigger>
+                        <SelectContent>
+                          {warehouses.filter(w => String(w.id) !== curId).map(w => <SelectItem key={w.id} value={String(w.id)}>{isRtl ? w.nameAr : (w.nameEn || w.nameAr)}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
             <div><Label className="text-xs">{isRtl ? "المرجع" : "Reference"}</Label><Input className="mt-1 h-8 text-sm" value={moveForm.reference} onChange={e => setMoveForm(p => ({ ...p, reference: e.target.value }))} /></div>
             <div><Label className="text-xs">{isRtl ? "ملاحظات" : "Notes"}</Label><Input className="mt-1 h-8 text-sm" value={moveForm.notes} onChange={e => setMoveForm(p => ({ ...p, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowMoveDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
             <Button onClick={handleMovement} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isRtl ? "تسجيل" : "Record")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Warehouse Dialog ── */}
+      <Dialog open={showWhDialog} onOpenChange={setShowWhDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{editWh ? (isRtl ? "تعديل المستودع" : "Edit Warehouse") : (isRtl ? "إضافة مستودع" : "Add Warehouse")}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label className="text-xs">{isRtl ? "الاسم بالعربية *" : "Arabic Name *"}</Label><Input className="mt-1 h-9 text-sm" value={whForm.nameAr} onChange={e => setWhForm(p => ({ ...p, nameAr: e.target.value }))} data-testid="input-warehouse-name-ar" /></div>
+            <div><Label className="text-xs">{isRtl ? "الاسم بالإنجليزية" : "English Name"}</Label><Input className="mt-1 h-9 text-sm" value={whForm.nameEn} onChange={e => setWhForm(p => ({ ...p, nameEn: e.target.value }))} data-testid="input-warehouse-name-en" /></div>
+            <div><Label className="text-xs">{isRtl ? "الموقع" : "Location"}</Label><Input className="mt-1 h-9 text-sm" value={whForm.location} onChange={e => setWhForm(p => ({ ...p, location: e.target.value }))} data-testid="input-warehouse-location" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWhDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={handleSaveWh} disabled={saving} data-testid="button-save-warehouse">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isRtl ? "حفظ" : "Save")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Categories Dialog ── */}
+      <Dialog open={showCatsDialog} onOpenChange={setShowCatsDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{isRtl ? "إدارة فئات الأصناف" : "Manage Categories"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="border border-border/60 rounded-md divide-y divide-border/40 max-h-56 overflow-y-auto">
+              {allCats.map(c => {
+                const isCustom = customCats.some(x => x.id === c.id);
+                const used = items.filter(i => i.category === c.id).length;
+                return (
+                  <div key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                    <Tags className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="flex-1">{isRtl ? c.ar : c.en}</span>
+                    <span className="text-xs text-muted-foreground">{used} {isRtl ? "صنف" : "items"}</span>
+                    {isCustom ? (
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteCat(c.id)} data-testid={`button-delete-category-${c.id}`}><Trash2 className="w-3 h-3" /></Button>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px]">{isRtl ? "أساسية" : "Built-in"}</Badge>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label className="text-xs">{isRtl ? "اسم الفئة بالعربية *" : "Arabic Name *"}</Label><Input className="mt-1 h-8 text-sm" value={newCatAr} onChange={e => setNewCatAr(e.target.value)} data-testid="input-new-category-ar" /></div>
+              <div><Label className="text-xs">{isRtl ? "بالإنجليزية" : "English Name"}</Label><Input className="mt-1 h-8 text-sm" value={newCatEn} onChange={e => setNewCatEn(e.target.value)} data-testid="input-new-category-en" /></div>
+            </div>
+            <Button size="sm" variant="outline" className="w-full" onClick={handleAddCat} data-testid="button-add-category"><Plus className="w-4 h-4 me-1.5" />{isRtl ? "إضافة فئة جديدة" : "Add Category"}</Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCatsDialog(false)}>{isRtl ? "إغلاق" : "Close"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -62,7 +62,7 @@ const LEAVE_TYPES = [
 
 const TODAY = new Date().toISOString().split("T")[0];
 
-export default function AttendanceModule() {
+export function AttendanceContent() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
   const { toast } = useToast();
@@ -203,7 +203,7 @@ export default function AttendanceModule() {
   const activeEmployees = employees.filter(e => e.status !== "terminated");
 
   return (
-    <MainLayout>
+    <>
       <div className="flex flex-col gap-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -400,6 +400,14 @@ export default function AttendanceModule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+export default function AttendanceModule() {
+  return (
+    <MainLayout>
+      <AttendanceContent />
     </MainLayout>
   );
 }

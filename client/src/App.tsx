@@ -26,8 +26,6 @@ import SalesModule from "@/pages/modules/sales/index";
 import AccountingModule from "@/pages/modules/accounting/index";
 import ClientPortalModule from "@/pages/modules/client-portal/index";
 import HRModule from "@/pages/modules/hr/index";
-import PayrollModule from "@/pages/modules/payroll/index";
-import AttendanceModule from "@/pages/modules/attendance/index";
 import PurchasesModule from "@/pages/modules/purchases/index";
 import InventoryModule from "@/pages/modules/inventory/index";
 import EquipmentModule from "@/pages/modules/equipment/index";
@@ -46,6 +44,18 @@ import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 
 function CompanySettingsRedirect() {
   return <Redirect to="/companies" />;
+}
+
+function PayrollRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  params.set("tab", "payroll");
+  return <Redirect to={`/hr?${params.toString()}`} />;
+}
+
+function AttendanceRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  params.set("tab", "attendance");
+  return <Redirect to={`/hr?${params.toString()}`} />;
 }
 
 function Router() {
@@ -80,8 +90,8 @@ function Router() {
 
       {/* HR & Personnel */}
       <ProtectedRoute path="/hr" component={HRModule} page="hr" />
-      <ProtectedRoute path="/payroll" component={PayrollModule} page="payroll" />
-      <ProtectedRoute path="/attendance" component={AttendanceModule} page="attendance" />
+      <Route path="/payroll" component={PayrollRedirect} />
+      <Route path="/attendance" component={AttendanceRedirect} />
       <ProtectedRoute path="/hse" component={HSEModule} page="hse" />
       <ProtectedRoute path="/mobile-app" component={MobileAppModule} page="mobile_app" />
 

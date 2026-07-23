@@ -3667,7 +3667,9 @@ export async function registerRoutes(
         nameAr: b.nameAr, nameEn: b.nameEn, employeeNumber: b.employeeNumber,
         nationalId: b.nationalId, nationality: b.nationality, phone: b.phone,
         email: b.email, joinDate: b.joinDate, departmentName: b.departmentName,
+        departmentId: b.departmentId ? parseInt(b.departmentId) : null,
         jobTitle: b.jobTitle, jobTitleAr: b.jobTitleAr, contractType: b.contractType,
+        contractEndDate: b.contractEndDate || null,
         basicSalary: b.basicSalary, housingAllowance: b.housingAllowance,
         transportAllowance: b.transportAllowance, status: b.status || "active",
         companyId: b.companyId ? parseInt(b.companyId) : null,
@@ -3690,7 +3692,9 @@ export async function registerRoutes(
         nameAr: b.nameAr, nameEn: b.nameEn, employeeNumber: b.employeeNumber,
         nationalId: b.nationalId, nationality: b.nationality, phone: b.phone,
         email: b.email, joinDate: b.joinDate, departmentName: b.departmentName,
+        departmentId: b.departmentId ? parseInt(b.departmentId) : null,
         jobTitle: b.jobTitle, jobTitleAr: b.jobTitleAr, contractType: b.contractType,
+        contractEndDate: b.contractEndDate || null,
         basicSalary: b.basicSalary, housingAllowance: b.housingAllowance,
         transportAllowance: b.transportAllowance, status: b.status,
         companyId: b.companyId ? parseInt(b.companyId) : null,
@@ -3721,14 +3725,23 @@ export async function registerRoutes(
   app.post("/api/departments", async (req, res) => {
     if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
-      const [row] = await db.insert(departments).values({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, isActive: true }).returning();
+      const [row] = await db.insert(departments).values({
+        nameAr: req.body.nameAr, nameEn: req.body.nameEn,
+        managerEmployeeId: req.body.managerEmployeeId ? parseInt(req.body.managerEmployeeId) : null,
+        parentId: req.body.parentId ? parseInt(req.body.parentId) : null,
+        isActive: true,
+      }).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.put("/api/departments/:id", async (req, res) => {
     if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
-      const [row] = await db.update(departments).set({ nameAr: req.body.nameAr, nameEn: req.body.nameEn }).where(eq(departments.id, parseInt(req.params.id))).returning();
+      const [row] = await db.update(departments).set({
+        nameAr: req.body.nameAr, nameEn: req.body.nameEn,
+        managerEmployeeId: req.body.managerEmployeeId ? parseInt(req.body.managerEmployeeId) : null,
+        parentId: req.body.parentId ? parseInt(req.body.parentId) : null,
+      }).where(eq(departments.id, parseInt(req.params.id))).returning();
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -3752,6 +3765,23 @@ export async function registerRoutes(
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
+  app.put("/api/warehouses/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const [row] = await db.update(warehouses).set({ nameAr: req.body.nameAr, nameEn: req.body.nameEn, location: req.body.location }).where(eq(warehouses.id, parseInt(req.params.id))).returning();
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.delete("/api/warehouses/:id", async (req, res) => {
+    if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const whId = parseInt(req.params.id);
+      const linked = await db.select({ id: inventoryItems.id }).from(inventoryItems).where(eq(inventoryItems.warehouseId, whId)).limit(1);
+      if (linked.length > 0) return res.status(400).json({ error: "WAREHOUSE_HAS_ITEMS" });
+      await db.delete(warehouses).where(eq(warehouses.id, whId));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
   app.get("/api/inventory-items", async (_req, res) => {
     try { res.json(await db.select().from(inventoryItems).orderBy(inventoryItems.createdAt)); }
     catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -3763,6 +3793,7 @@ export async function registerRoutes(
       const [row] = await db.insert(inventoryItems).values({
         sku: b.sku || b.code, nameAr: b.nameAr, nameEn: b.nameEn || b.nameAr,
         category: b.category, unit: b.unit,
+        warehouseId: b.warehouseId ? parseInt(b.warehouseId) : null,
         currentQty: String(b.currentQty ?? b.onHand ?? 0),
         minQty: String(b.minQty ?? b.minStock ?? 0),
         unitCost: String(b.unitCost ?? 0),
@@ -3779,6 +3810,7 @@ export async function registerRoutes(
       const [row] = await db.update(inventoryItems).set({
         sku: b.sku || b.code, nameAr: b.nameAr, nameEn: b.nameEn || b.nameAr,
         category: b.category, unit: b.unit,
+        warehouseId: b.warehouseId ? parseInt(b.warehouseId) : null,
         currentQty: String(b.currentQty ?? b.onHand ?? 0),
         minQty: String(b.minQty ?? b.minStock ?? 0),
         unitCost: String(b.unitCost ?? 0),
@@ -3797,14 +3829,33 @@ export async function registerRoutes(
     if (!(await isAdminOrManager(req))) return res.status(403).json({ error: "Forbidden" });
     try {
       const b = req.body;
-      const [row] = await db.insert(stockMovements).values({ itemId: b.itemId, type: b.type, qty: String(b.qty), reference: b.reference, notes: b.notes }).returning();
-      const item = await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.itemId));
-      if (item[0]) {
-        const cur = parseFloat(item[0].currentQty as string) || 0;
-        const delta = b.type === "in" ? parseFloat(b.qty) : -parseFloat(b.qty);
-        const newQty = Math.max(0, cur + delta);
-        await db.update(inventoryItems).set({ currentQty: String(newQty), totalValue: String(newQty * (parseFloat(item[0].unitCost as string) || 0)), updatedAt: new Date() }).where(eq(inventoryItems.id, b.itemId));
+      const itemId = parseInt(b.itemId);
+      const item = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId));
+      if (!item[0]) return res.status(404).json({ error: "Item not found" });
+
+      if (b.type === "transfer") {
+        const toWh = b.toWarehouseId ? parseInt(b.toWarehouseId) : null;
+        if (!toWh) return res.status(400).json({ error: "toWarehouseId required for transfer" });
+        const row = await db.transaction(async (tx) => {
+          const [mv] = await tx.insert(stockMovements).values({
+            itemId, type: "transfer", qty: String(b.qty),
+            warehouseId: toWh, reference: b.reference, notes: b.notes,
+          }).returning();
+          await tx.update(inventoryItems).set({ warehouseId: toWh, updatedAt: new Date() }).where(eq(inventoryItems.id, itemId));
+          return mv;
+        });
+        return res.json(row);
       }
+
+      const [row] = await db.insert(stockMovements).values({
+        itemId, type: b.type, qty: String(b.qty),
+        warehouseId: b.warehouseId ? parseInt(b.warehouseId) : (item[0].warehouseId ?? null),
+        reference: b.reference, notes: b.notes,
+      }).returning();
+      const cur = parseFloat(item[0].currentQty as string) || 0;
+      const delta = b.type === "in" ? parseFloat(b.qty) : -parseFloat(b.qty);
+      const newQty = Math.max(0, cur + delta);
+      await db.update(inventoryItems).set({ currentQty: String(newQty), totalValue: String(newQty * (parseFloat(item[0].unitCost as string) || 0)), updatedAt: new Date() }).where(eq(inventoryItems.id, itemId));
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });

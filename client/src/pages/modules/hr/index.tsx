@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { dbGetItem } from "@/lib/dbStorage";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { esc } from "@/lib/htmlEscape";
@@ -11,16 +12,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote, Layers, ShieldAlert, FileText, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, Building2, Download, Loader2, ClipboardList, Banknote, Layers, ShieldAlert, FileText, AlertTriangle, CheckCircle2, XCircle, Clock, User, Network } from "lucide-react";
 import { AdvancesTab } from "@/components/hr/AdvancesTab";
 import { ViolationsTab } from "@/components/hr/ViolationsTab";
+import { PayrollContent } from "@/pages/modules/payroll/index";
+import { AttendanceContent } from "@/pages/modules/attendance/index";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActivityScope } from "@/hooks/useActivityScope";
 
 interface Employee {
   id: string; empNo: string; nameAr: string; nameEn: string;
-  department: string; jobTitle: string; jobTitleAr: string;
+  department: string; departmentId?: number | null; jobTitle: string; jobTitleAr: string;
   nationality: string; iqama?: string; phone: string; email: string;
   hireDate: string; baseSalary: number; housingAllowance: number;
   transportAllowance: number; status: "active" | "inactive" | "on_leave";
@@ -32,6 +35,12 @@ interface Employee {
   passportNumber?: string;
   passportExpiry?: string;
   medicalInsuranceExpiry?: string;
+  contractEndDate?: string;
+}
+
+interface Department {
+  id: number; nameAr: string; nameEn: string;
+  managerEmployeeId?: number | null; parentId?: number | null;
 }
 
 interface SimpleCompany { id: number; nameAr: string; nameEn: string; }
@@ -63,6 +72,7 @@ function mapRow(r: any): Employee {
     nameAr: r.nameAr || "",
     nameEn: r.nameEn || "",
     department: r.departmentName || r.department || "engineering",
+    departmentId: r.departmentId ?? null,
     jobTitle: r.jobTitle || "",
     jobTitleAr: r.jobTitleAr || "",
     nationality: r.nationality || "Saudi",
@@ -82,6 +92,7 @@ function mapRow(r: any): Employee {
     passportNumber: r.passportNumber || "",
     passportExpiry: r.passportExpiry || "",
     medicalInsuranceExpiry: r.medicalInsuranceExpiry || "",
+    contractEndDate: r.contractEndDate || "",
   };
 }
 
@@ -157,22 +168,46 @@ export default function HRModule() {
   const [expandedDocEmpId, setExpandedDocEmpId] = useState<string | null>(null);
   const [docForm, setDocForm] = useState<{ iqamaExpiry: string; visaExpiry: string; passportNumber: string; passportExpiry: string; medicalInsuranceExpiry: string }>({ iqamaExpiry: "", visaExpiry: "", passportNumber: "", passportExpiry: "", medicalInsuranceExpiry: "" });
   const [savingDoc, setSavingDoc] = useState(false);
-  const [activeTab, setActiveTab] = useState("employees");
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return tab && ["employees", "departments", "documents", "advances", "violations", "payroll", "attendance"].includes(tab) ? tab : "employees";
+  });
+  const [dbDepartments, setDbDepartments] = useState<Department[]>([]);
+  const [showDeptDialog, setShowDeptDialog] = useState(false);
+  const [editDept, setEditDept] = useState<Department | null>(null);
+  const [deptForm, setDeptForm] = useState<{ nameAr: string; nameEn: string; managerEmployeeId: string; parentId: string }>({ nameAr: "", nameEn: "", managerEmployeeId: "", parentId: "" });
+  const [savingDept, setSavingDept] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const [empRes, compRes, actRes] = await Promise.all([
+      const [empRes, compRes, actRes, deptRes] = await Promise.all([
         fetch("/api/employees"),
         fetch("/api/companies"),
         fetch("/api/activities"),
+        fetch("/api/departments"),
       ]);
-      const [empData, compData, actData] = await Promise.all([
-        empRes.json(), compRes.json(), actRes.json(),
+      const [empData, compData, actData, deptData] = await Promise.all([
+        empRes.json(), compRes.json(), actRes.json(), deptRes.json(),
       ]);
 
       setCompanies(Array.isArray(compData) ? compData : []);
       setActivities(Array.isArray(actData) ? actData : []);
+
+      const cu = (() => { try { return JSON.parse(dbGetItem("user") || "null"); } catch { return null; } })();
+      const canSeed = cu?.role === "admin" || cu?.role === "manager";
+      if (Array.isArray(deptData) && deptData.length > 0) {
+        setDbDepartments(deptData);
+      } else if (canSeed) {
+        for (const d of DEPARTMENTS) {
+          await fetch("/api/departments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nameAr: d.ar, nameEn: d.en }) });
+        }
+        const dr2 = await fetch("/api/departments");
+        const dd2 = await dr2.json();
+        setDbDepartments(Array.isArray(dd2) ? dd2 : []);
+      } else {
+        setDbDepartments([]);
+      }
 
       if (Array.isArray(empData) && empData.length > 0) {
         setEmployeeList(empData.map(mapRow));
@@ -201,12 +236,25 @@ export default function HRModule() {
     return employeeList.filter(e => Array.isArray(e.activityIds) && e.activityIds.includes(activityId));
   }, [employeeList, activityId]);
 
+  /* ── Department helpers (DB depts + legacy code bridge) ── */
+  const legacyCodeOf = (dept: Department) => DEPARTMENTS.find(d => d.ar === dept.nameAr || d.en === dept.nameEn)?.id;
+  const empInDept = (e: Employee, dept: Department) => {
+    if (e.departmentId) return e.departmentId === dept.id;
+    const legacy = legacyCodeOf(dept);
+    return e.department === legacy || e.department === dept.nameAr || e.department === dept.nameEn;
+  };
+  const deptOfEmp = (e: Employee): Department | undefined =>
+    dbDepartments.find(d => empInDept(e, d));
+
   /* ── Filtered list (search + dept) within scoped pool ── */
   const filtered = useMemo(() => scopedEmployees.filter(e => {
     const q = search.toLowerCase();
-    return (!q || e.nameAr.includes(q) || e.nameEn.toLowerCase().includes(q) || e.empNo.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))
-      && (deptFilter === "all" || e.department === deptFilter);
-  }), [scopedEmployees, search, deptFilter]);
+    if (q && !(e.nameAr.includes(q) || e.nameEn.toLowerCase().includes(q) || e.empNo.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))) return false;
+    if (deptFilter === "all") return true;
+    const dept = dbDepartments.find(d => String(d.id) === deptFilter);
+    if (dept) return empInDept(e, dept);
+    return e.department === deptFilter;
+  }), [scopedEmployees, search, deptFilter, dbDepartments]);
 
   /* ── Stats from scoped pool ── */
   const stats = useMemo(() => ({
@@ -220,7 +268,7 @@ export default function HRModule() {
   const expirySummary = useMemo(() => {
     let expired = 0, critical = 0, warning = 0;
     for (const emp of scopedEmployees) {
-      const fields = [emp.iqamaExpiry, emp.visaExpiry, emp.passportExpiry, emp.medicalInsuranceExpiry];
+      const fields = [emp.iqamaExpiry, emp.visaExpiry, emp.passportExpiry, emp.medicalInsuranceExpiry, emp.contractEndDate];
       for (const f of fields) {
         if (!f) continue;
         const s = expiryStatus(f);
@@ -238,7 +286,13 @@ export default function HRModule() {
     setShowDialog(true);
   };
   const openEdit = (e: Employee) => { setEditEmp(e); setForm(e); setShowDialog(true); };
-  const deptLabel = (id: string) => { const d = DEPARTMENTS.find(x => x.id === id); return d ? (isRtl ? d.ar : d.en) : id; };
+
+  const deptLabel = (e: Employee) => {
+    const dbd = deptOfEmp(e);
+    if (dbd) return isRtl ? dbd.nameAr : (dbd.nameEn || dbd.nameAr);
+    const d = DEPARTMENTS.find(x => x.id === e.department);
+    return d ? (isRtl ? d.ar : d.en) : e.department;
+  };
   const statusColor = (s: string) => s === "active" ? "default" : s === "on_leave" ? "secondary" : "destructive";
   const statusLabel = (s: string) => s === "active" ? (isRtl ? "نشط" : "Active") : s === "on_leave" ? (isRtl ? "إجازة" : "On Leave") : (isRtl ? "غير نشط" : "Inactive");
 
@@ -283,11 +337,13 @@ export default function HRModule() {
     try {
       const payload = {
         employeeNumber: form.empNo, nameAr: form.nameAr, nameEn: form.nameEn,
-        departmentName: form.department, jobTitle: form.jobTitle, jobTitleAr: form.jobTitleAr,
+        departmentName: form.department, departmentId: form.departmentId || null,
+        jobTitle: form.jobTitle, jobTitleAr: form.jobTitleAr,
         nationality: form.nationality, nationalId: form.iqama, phone: form.phone,
         email: form.email, joinDate: form.hireDate, basicSalary: form.baseSalary,
         housingAllowance: form.housingAllowance, transportAllowance: form.transportAllowance,
         status: form.status, contractType: form.contractType,
+        contractEndDate: form.contractEndDate || null,
         companyId: form.companyId,
         activityIds: form.activityIds || [],
         iqamaExpiry: form.iqamaExpiry || null,
@@ -326,11 +382,13 @@ export default function HRModule() {
     try {
       const payload = {
         employeeNumber: emp.empNo, nameAr: emp.nameAr, nameEn: emp.nameEn,
-        departmentName: emp.department, jobTitle: emp.jobTitle, jobTitleAr: emp.jobTitleAr,
+        departmentName: emp.department, departmentId: emp.departmentId || null,
+        jobTitle: emp.jobTitle, jobTitleAr: emp.jobTitleAr,
         nationality: emp.nationality, nationalId: emp.iqama, phone: emp.phone,
         email: emp.email, joinDate: emp.hireDate, basicSalary: emp.baseSalary,
         housingAllowance: emp.housingAllowance, transportAllowance: emp.transportAllowance,
         status: emp.status, contractType: emp.contractType,
+        contractEndDate: emp.contractEndDate || null,
         companyId: emp.companyId, activityIds: emp.activityIds || [],
         iqamaExpiry: docForm.iqamaExpiry || null,
         visaExpiry: docForm.visaExpiry || null,
@@ -352,6 +410,59 @@ export default function HRModule() {
       toast({ title: isRtl ? "تم حذف الموظف" : "Employee deleted" });
       fetchAll();
     } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
+  };
+
+  /* ── Department CRUD ── */
+  const openDeptAdd = () => {
+    setEditDept(null);
+    setDeptForm({ nameAr: "", nameEn: "", managerEmployeeId: "", parentId: "" });
+    setShowDeptDialog(true);
+  };
+  const openDeptEdit = (d: Department) => {
+    setEditDept(d);
+    setDeptForm({ nameAr: d.nameAr, nameEn: d.nameEn || "", managerEmployeeId: d.managerEmployeeId ? String(d.managerEmployeeId) : "", parentId: d.parentId ? String(d.parentId) : "" });
+    setShowDeptDialog(true);
+  };
+  const handleSaveDept = async () => {
+    if (!deptForm.nameAr) { toast({ title: isRtl ? "أدخل اسم القسم" : "Enter department name", variant: "destructive" }); return; }
+    setSavingDept(true);
+    try {
+      const payload = {
+        nameAr: deptForm.nameAr, nameEn: deptForm.nameEn || deptForm.nameAr,
+        managerEmployeeId: deptForm.managerEmployeeId || null,
+        parentId: deptForm.parentId || null,
+      };
+      const res = editDept
+        ? await fetch(`/api/departments/${editDept.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        : await fetch("/api/departments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: editDept ? (isRtl ? "تم تحديث القسم" : "Department updated") : (isRtl ? "تم إضافة القسم" : "Department added") });
+      setShowDeptDialog(false);
+      fetchAll();
+    } catch { toast({ title: isRtl ? "خطأ في الحفظ" : "Save error", variant: "destructive" }); }
+    finally { setSavingDept(false); }
+  };
+  const handleDeleteDept = async (d: Department) => {
+    const count = employeeList.filter(e => empInDept(e, d)).length;
+    if (count > 0) {
+      toast({ title: isRtl ? `لا يمكن حذف القسم — به ${count} موظف. انقل الموظفين أولاً.` : `Cannot delete — ${count} employee(s) assigned. Reassign them first.`, variant: "destructive" });
+      return;
+    }
+    if (dbDepartments.some(x => x.parentId === d.id)) {
+      toast({ title: isRtl ? "لا يمكن حذف القسم — توجد أقسام فرعية تابعة له." : "Cannot delete — sub-departments exist under it.", variant: "destructive" });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/departments/${d.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: isRtl ? "تم حذف القسم" : "Department deleted" });
+      fetchAll();
+    } catch { toast({ title: isRtl ? "خطأ" : "Error", variant: "destructive" }); }
+  };
+  const managerName = (d: Department) => {
+    if (!d.managerEmployeeId) return null;
+    const emp = employeeList.find(e => e.id === String(d.managerEmployeeId));
+    return emp ? (isRtl ? emp.nameAr : emp.nameEn) : null;
   };
 
   /* ── Scope label ── */
@@ -437,6 +548,8 @@ export default function HRModule() {
             </TabsTrigger>
             <TabsTrigger value="advances"><Banknote className="w-3.5 h-3.5 me-1" />{isRtl ? "السلف" : "Advances"}</TabsTrigger>
             <TabsTrigger value="violations"><ShieldAlert className="w-3.5 h-3.5 me-1" />{isRtl ? "المخالفات" : "Violations"}</TabsTrigger>
+            <TabsTrigger value="payroll"><Banknote className="w-3.5 h-3.5 me-1" />{isRtl ? "الرواتب" : "Payroll"}</TabsTrigger>
+            <TabsTrigger value="attendance"><ClipboardList className="w-3.5 h-3.5 me-1" />{isRtl ? "الحضور والإجازات" : "Attendance"}</TabsTrigger>
           </TabsList>
 
           {/* ── EMPLOYEES TAB ── */}
@@ -458,7 +571,7 @@ export default function HRModule() {
                 <SelectTrigger className="w-44 h-9 bg-secondary/30"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{isRtl ? "كل الأقسام" : "All Departments"}</SelectItem>
-                  {DEPARTMENTS.map(d => <SelectItem key={d.id} value={d.id}>{isRtl ? d.ar : d.en}</SelectItem>)}
+                  {dbDepartments.map(d => <SelectItem key={d.id} value={String(d.id)}>{isRtl ? d.nameAr : (d.nameEn || d.nameAr)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -515,14 +628,14 @@ export default function HRModule() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm">{deptLabel(emp.department)}</TableCell>
+                          <TableCell className="text-sm">{deptLabel(emp)}</TableCell>
                           <TableCell className="text-sm">{isRtl ? emp.jobTitleAr : emp.jobTitle}</TableCell>
                           <TableCell className="text-sm font-medium">{emp.baseSalary.toLocaleString()} {isRtl ? "ر.س" : "SAR"}</TableCell>
                           <TableCell><Badge variant={statusColor(emp.status) as any}>{statusLabel(emp.status)}</Badge></TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title={isRtl ? "سجل الحضور" : "Attendance"} onClick={() => window.location.href = `/attendance?emp=${encodeURIComponent(emp.empNo)}`} data-testid={`button-attendance-employee-${emp.id}`}><ClipboardList className="w-3.5 h-3.5" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" title={isRtl ? "الرواتب" : "Payroll"} onClick={() => window.location.href = `/payroll?emp=${encodeURIComponent(emp.empNo)}`} data-testid={`button-payroll-employee-${emp.id}`}><Banknote className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title={isRtl ? "سجل الحضور" : "Attendance"} onClick={() => window.location.href = `/hr?tab=attendance&emp=${encodeURIComponent(emp.empNo)}`} data-testid={`button-attendance-employee-${emp.id}`}><ClipboardList className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" title={isRtl ? "الرواتب" : "Payroll"} onClick={() => window.location.href = `/hr?tab=payroll&emp=${encodeURIComponent(emp.empNo)}`} data-testid={`button-payroll-employee-${emp.id}`}><Banknote className="w-3.5 h-3.5" /></Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(emp)} data-testid={`button-edit-employee-${emp.id}`}><Edit className="w-3.5 h-3.5" /></Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(emp.id)} data-testid={`button-delete-employee-${emp.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
                             </div>
@@ -544,27 +657,80 @@ export default function HRModule() {
                 {isRtl ? `الأقسام مفلترة حسب النشاط: ${scopeLabel}` : `Departments filtered by activity: ${scopeLabel}`}
               </div>
             )}
+            <div className="flex justify-end mb-3">
+              <Button size="sm" onClick={openDeptAdd} data-testid="button-add-department"><Plus className="w-4 h-4 me-1.5" />{isRtl ? "إضافة قسم" : "Add Department"}</Button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {DEPARTMENTS.map(dept => {
-                const count = scopedEmployees.filter(e => e.department === dept.id && e.status === "active").length;
-                const total = scopedEmployees.filter(e => e.department === dept.id).length;
+              {dbDepartments.map(dept => {
+                const deptEmps = scopedEmployees.filter(e => empInDept(e, dept));
+                const count = deptEmps.filter(e => e.status === "active").length;
+                const total = deptEmps.length;
+                const mgr = managerName(dept);
+                const parent = dept.parentId ? dbDepartments.find(x => x.id === dept.parentId) : null;
                 return (
-                  <Card key={dept.id} className={cn("border-border/50 hover:border-primary/30 transition-colors", count === 0 && scopeLabel ? "opacity-50" : "")}>
-                    <CardContent className="p-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Building2 className="w-5 h-5 text-primary" /></div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm">{isRtl ? dept.ar : dept.en}</p>
+                  <Card key={dept.id} className={cn("border-border/50 hover:border-primary/30 transition-colors", count === 0 && scopeLabel ? "opacity-50" : "")} data-testid={`card-department-${dept.id}`}>
+                    <CardContent className="p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm">{isRtl ? dept.nameAr : (dept.nameEn || dept.nameAr)}</p>
                         <p className="text-xs text-muted-foreground">
                           {count} {isRtl ? "نشط" : "active"}
                           {total > count ? `, ${total - count} ${isRtl ? "غير نشط/إجازة" : "inactive/leave"}` : ""}
                         </p>
+                        {mgr && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1 mt-1"><User className="w-3 h-3" />{isRtl ? `المدير: ${mgr}` : `Manager: ${mgr}`}</p>
+                        )}
+                        {parent && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{isRtl ? `تابع لـ: ${parent.nameAr}` : `Under: ${parent.nameEn || parent.nameAr}`}</p>
+                        )}
                       </div>
-                      <Badge variant={count > 0 ? "secondary" : "outline"}>{count}</Badge>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <Badge variant={count > 0 ? "secondary" : "outline"}>{count}</Badge>
+                        <div className="flex gap-0.5">
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openDeptEdit(dept)} data-testid={`button-edit-department-${dept.id}`}><Edit className="w-3 h-3" /></Button>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteDept(dept)} data-testid={`button-delete-department-${dept.id}`}><Trash2 className="w-3 h-3" /></Button>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 );
               })}
             </div>
+
+            {/* ── Org chart ── */}
+            {dbDepartments.length > 0 && (
+              <Card className="border-border/50 mt-4">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Network className="w-4 h-4" />
+                    {isRtl ? "الهيكل التنظيمي" : "Organization Structure"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-2">
+                  <div className="flex flex-col gap-2">
+                    {dbDepartments.filter(d => !d.parentId || !dbDepartments.some(x => x.id === d.parentId)).map(root => {
+                      const renderNode = (dept: Department, depth: number): React.ReactElement => {
+                        const deptEmps = scopedEmployees.filter(e => empInDept(e, dept));
+                        const mgr = managerName(dept);
+                        const children = dbDepartments.filter(x => x.parentId === dept.id);
+                        return (
+                          <div key={dept.id} className="flex flex-col gap-2">
+                            <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border bg-secondary/20", depth > 0 && (isRtl ? "border-s-2 border-s-primary/40" : "border-l-2 border-l-primary/40"))} style={{ [isRtl ? "marginRight" : "marginLeft"]: `${depth * 24}px` }}>
+                              <Building2 className="w-4 h-4 text-primary shrink-0" />
+                              <span className="text-sm font-medium">{isRtl ? dept.nameAr : (dept.nameEn || dept.nameAr)}</span>
+                              {mgr && <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1"><User className="w-3 h-3" />{mgr}</span>}
+                              <Badge variant="outline" className="ms-auto text-[10px]">{deptEmps.length} {isRtl ? "موظف" : "emp"}</Badge>
+                            </div>
+                            {children.map(c => renderNode(c, depth + 1))}
+                          </div>
+                        );
+                      };
+                      return renderNode(root, 0);
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* ── DOCUMENT EXPIRY TAB ── */}
@@ -575,7 +741,7 @@ export default function HRModule() {
                 { label: isRtl ? "منتهية الصلاحية" : "Expired", value: expirySummary.expired, icon: XCircle, cls: "text-red-500", bg: "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800" },
                 { label: isRtl ? "تنتهي خلال 30 يوم" : "Expiring ≤30d", value: expirySummary.critical, icon: AlertTriangle, cls: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800" },
                 { label: isRtl ? "تنتهي خلال 90 يوم" : "Expiring ≤90d", value: expirySummary.warning, icon: Clock, cls: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800" },
-                { label: isRtl ? "سارية المفعول" : "Valid", value: scopedEmployees.filter(e => [e.iqamaExpiry, e.visaExpiry, e.passportExpiry, e.medicalInsuranceExpiry].every(f => !f || expiryStatus(f) === "ok")).length, icon: CheckCircle2, cls: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800" },
+                { label: isRtl ? "سارية المفعول" : "Valid", value: scopedEmployees.filter(e => [e.iqamaExpiry, e.visaExpiry, e.passportExpiry, e.medicalInsuranceExpiry, e.contractEndDate].every(f => !f || expiryStatus(f) === "ok")).length, icon: CheckCircle2, cls: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800" },
               ].map((s, i) => (
                 <Card key={i} className={cn("border", s.bg)}>
                   <CardContent className="p-4 flex items-center gap-3">
@@ -624,16 +790,22 @@ export default function HRModule() {
                           <span className="text-[10px] font-normal text-muted-foreground">{isRtl ? "تاريخ الانتهاء" : "Expiry"}</span>
                         </div>
                       </TableHead>
+                      <TableHead>
+                        <div className="flex flex-col">
+                          <span>{isRtl ? "نهاية العقد" : "Contract End"}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground">{isRtl ? "تاريخ الانتهاء" : "Expiry"}</span>
+                        </div>
+                      </TableHead>
                       <TableHead>{isRtl ? "الإجراء" : "Action"}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                     ) : scopedEmployees.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">{isRtl ? "لا يوجد موظفون" : "No employees found"}</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{isRtl ? "لا يوجد موظفون" : "No employees found"}</TableCell></TableRow>
                     ) : scopedEmployees.map(emp => {
-                      const anyAlert = [emp.iqamaExpiry, emp.visaExpiry, emp.passportExpiry, emp.medicalInsuranceExpiry]
+                      const anyAlert = [emp.iqamaExpiry, emp.visaExpiry, emp.passportExpiry, emp.medicalInsuranceExpiry, emp.contractEndDate]
                         .some(f => f && ["expired", "critical", "warning"].includes(expiryStatus(f)));
                       const isExpanded = expandedDocEmpId === emp.id;
                       return (
@@ -658,6 +830,7 @@ export default function HRModule() {
                               </div>
                             </TableCell>
                             <TableCell><ExpiryBadge dateStr={emp.medicalInsuranceExpiry || ""} isRtl={isRtl} /></TableCell>
+                            <TableCell><ExpiryBadge dateStr={emp.contractEndDate || ""} isRtl={isRtl} /></TableCell>
                             <TableCell>
                               <Button
                                 variant={isExpanded ? "secondary" : "ghost"}
@@ -672,7 +845,7 @@ export default function HRModule() {
                           </TableRow>
                           {isExpanded && (
                             <TableRow key={`${emp.id}-doc-edit`} className="bg-amber-50/40 dark:bg-amber-950/10 border-t border-amber-200/50 dark:border-amber-800/30">
-                              <TableCell colSpan={7} className="py-3 px-4">
+                              <TableCell colSpan={8} className="py-3 px-4">
                                 <div className="flex flex-col gap-3">
                                   <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                                     <FileText className="w-3.5 h-3.5" />
@@ -737,8 +910,68 @@ export default function HRModule() {
           <TabsContent value="violations" className="mt-4">
             <ViolationsTab />
           </TabsContent>
+
+          {/* ── PAYROLL TAB (embedded module) ── */}
+          <TabsContent value="payroll" className="mt-4">
+            <PayrollContent />
+          </TabsContent>
+
+          {/* ── ATTENDANCE TAB (embedded module) ── */}
+          <TabsContent value="attendance" className="mt-4">
+            <AttendanceContent />
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Add / Edit Department Dialog ── */}
+      <Dialog open={showDeptDialog} onOpenChange={setShowDeptDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editDept ? (isRtl ? "تعديل القسم" : "Edit Department") : (isRtl ? "إضافة قسم جديد" : "Add Department")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs font-semibold">{isRtl ? "اسم القسم بالعربية *" : "Arabic Name *"}</Label>
+              <Input className="mt-1 h-9 text-sm" value={deptForm.nameAr} onChange={e => setDeptForm(p => ({ ...p, nameAr: e.target.value }))} data-testid="input-dept-name-ar" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold">{isRtl ? "اسم القسم بالإنجليزية" : "English Name"}</Label>
+              <Input className="mt-1 h-9 text-sm" value={deptForm.nameEn} onChange={e => setDeptForm(p => ({ ...p, nameEn: e.target.value }))} data-testid="input-dept-name-en" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold">{isRtl ? "مدير القسم" : "Department Manager"}</Label>
+              <Select value={deptForm.managerEmployeeId || "none"} onValueChange={v => setDeptForm(p => ({ ...p, managerEmployeeId: v === "none" ? "" : v }))}>
+                <SelectTrigger className="mt-1 h-9 text-sm" data-testid="select-dept-manager"><SelectValue placeholder={isRtl ? "— بدون مدير —" : "— No manager —"} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{isRtl ? "— بدون مدير —" : "— No manager —"}</SelectItem>
+                  {employeeList.filter(e => e.status !== "inactive").map(e => (
+                    <SelectItem key={e.id} value={e.id}>{isRtl ? e.nameAr : e.nameEn} ({e.empNo})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold">{isRtl ? "القسم الأعلى (للهيكل التنظيمي)" : "Parent Department (org structure)"}</Label>
+              <Select value={deptForm.parentId || "none"} onValueChange={v => setDeptForm(p => ({ ...p, parentId: v === "none" ? "" : v }))}>
+                <SelectTrigger className="mt-1 h-9 text-sm" data-testid="select-dept-parent"><SelectValue placeholder={isRtl ? "— قسم رئيسي —" : "— Top level —"} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{isRtl ? "— قسم رئيسي —" : "— Top level —"}</SelectItem>
+                  {dbDepartments.filter(d => !editDept || d.id !== editDept.id).map(d => (
+                    <SelectItem key={d.id} value={String(d.id)}>{isRtl ? d.nameAr : (d.nameEn || d.nameAr)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeptDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={handleSaveDept} disabled={savingDept} data-testid="button-save-department">
+              {savingDept ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : null}
+              {isRtl ? "حفظ" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add / Edit Employee Dialog ── */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -806,10 +1039,28 @@ export default function HRModule() {
               ))}
               <div>
                 <Label className="text-xs font-semibold">{isRtl ? "القسم" : "Department"}</Label>
-                <Select value={form.department || "engineering"} onValueChange={v => setForm(p => ({ ...p, department: v }))}>
-                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>{DEPARTMENTS.map(d => <SelectItem key={d.id} value={d.id}>{isRtl ? d.ar : d.en}</SelectItem>)}</SelectContent>
+                <Select
+                  value={(() => {
+                    if (form.departmentId) return String(form.departmentId);
+                    const match = dbDepartments.find(d => {
+                      const legacy = DEPARTMENTS.find(x => x.ar === d.nameAr || x.en === d.nameEn)?.id;
+                      return form.department === legacy || form.department === d.nameAr || form.department === d.nameEn;
+                    });
+                    return match ? String(match.id) : "";
+                  })()}
+                  onValueChange={v => {
+                    const dept = dbDepartments.find(d => String(d.id) === v);
+                    const legacy = dept ? DEPARTMENTS.find(x => x.ar === dept.nameAr || x.en === dept.nameEn)?.id : undefined;
+                    setForm(p => ({ ...p, departmentId: dept ? dept.id : null, department: legacy || dept?.nameAr || p.department }));
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="select-employee-department"><SelectValue placeholder={isRtl ? "— اختر القسم —" : "— Select —"} /></SelectTrigger>
+                  <SelectContent>{dbDepartments.map(d => <SelectItem key={d.id} value={String(d.id)}>{isRtl ? d.nameAr : (d.nameEn || d.nameAr)}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold">{isRtl ? "تاريخ نهاية العقد" : "Contract End Date"}</Label>
+                <Input type="date" className="mt-1 h-8 text-sm" value={form.contractEndDate || ""} onChange={e => setForm(p => ({ ...p, contractEndDate: e.target.value }))} data-testid="input-contract-end-date" />
               </div>
               <div>
                 <Label className="text-xs font-semibold">{isRtl ? "نوع العقد" : "Contract Type"}</Label>

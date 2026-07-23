@@ -19,6 +19,17 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { addNotification } from "@/lib/notifications";
+
+const DEP_SETTINGS_KEY = "scapex_depreciation_settings";
+const DEFAULT_DEP_YEARS = 10;
+function loadDepYears(): Record<string, number> {
+  try { const v = JSON.parse(localStorage.getItem(DEP_SETTINGS_KEY) || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; }
+}
+function depPctOf(purchaseDate: string, years: number): number {
+  if (!purchaseDate || years <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round(((Date.now() - new Date(purchaseDate).getTime()) / (365.25 * 864e5)) / years * 100)));
+}
 
 interface Asset {
   id: string; assetNo: string; nameAr: string; nameEn: string; category: string;
@@ -115,7 +126,7 @@ function daysUntil(dateStr: string): number {
 }
 
 // ─── Analytics Dashboard ──────────────────────────────────────────────────────
-function EquipmentDashboard({ assets, maintenance, isRtl }: { assets: Asset[]; maintenance: MaintenanceLog[]; isRtl: boolean }) {
+function EquipmentDashboard({ assets, maintenance, isRtl, depYears }: { assets: Asset[]; maintenance: MaintenanceLog[]; isRtl: boolean; depYears: Record<string, number> }) {
   const [analytics, setAnalytics] = useState<EquipmentAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -149,8 +160,18 @@ function EquipmentDashboard({ assets, maintenance, isRtl }: { assets: Asset[]; m
     );
   }
 
-  const { kpis, months, depreciationData, byStatus } = analytics;
+  const { kpis, months, byStatus } = analytics;
   const maxMonthCost = Math.max(...months.map(m => m.cost), 1);
+
+  // Client-side depreciation using per-category settings
+  const depreciationData = assets
+    .filter(a => a.purchaseCost > 0 && a.purchaseDate)
+    .map(a => {
+      const years = depYears[a.category] || DEFAULT_DEP_YEARS;
+      const pct = depPctOf(a.purchaseDate, years);
+      const dep = Math.round(a.purchaseCost * pct / 100);
+      return { id: a.id, name: isRtl ? a.nameAr : (a.nameEn || a.nameAr), purchaseCost: a.purchaseCost, currentValue: a.purchaseCost - dep, depreciation: dep, depreciationPct: pct, years };
+    });
 
   return (
     <div className="space-y-5">
@@ -271,7 +292,7 @@ function EquipmentDashboard({ assets, maintenance, isRtl }: { assets: Asset[]; m
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <TrendingDown className="w-4 h-4 text-red-500" />
-              {isRtl ? "تقرير الإهلاك التلقائي (القسط الثابت — 10 سنوات)" : "Depreciation Report (Straight-Line — 10 Years)"}
+              {isRtl ? "تقرير الإهلاك التلقائي (القسط الثابت — حسب فئة الأصل)" : "Depreciation Report (Straight-Line — Per Category)"}
             </CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -279,6 +300,7 @@ function EquipmentDashboard({ assets, maintenance, isRtl }: { assets: Asset[]; m
               <TableHeader className="bg-secondary/40">
                 <TableRow>
                   <TableHead>{isRtl ? "الأصل" : "Asset"}</TableHead>
+                  <TableHead>{isRtl ? "مدة الإهلاك" : "Dep. Period"}</TableHead>
                   <TableHead>{isRtl ? "تكلفة الشراء" : "Purchase Cost"}</TableHead>
                   <TableHead>{isRtl ? "القيمة الحالية" : "Current Value"}</TableHead>
                   <TableHead>{isRtl ? "الإهلاك المتراكم" : "Accumulated Depreciation"}</TableHead>
@@ -289,6 +311,7 @@ function EquipmentDashboard({ assets, maintenance, isRtl }: { assets: Asset[]; m
                 {depreciationData.map(d => (
                   <TableRow key={d.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium text-sm">{d.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{d.years} {isRtl ? "سنوات" : "yrs"}</TableCell>
                     <TableCell className="text-sm tabular-nums">{formatSAR(d.purchaseCost)} {isRtl ? "ر.س" : "SAR"}</TableCell>
                     <TableCell className="text-sm tabular-nums text-emerald-600">{formatSAR(d.currentValue)} {isRtl ? "ر.س" : "SAR"}</TableCell>
                     <TableCell className="text-sm tabular-nums text-red-500">({formatSAR(d.depreciation)} {isRtl ? "ر.س" : "SAR"})</TableCell>
@@ -312,9 +335,9 @@ function EquipmentDashboard({ assets, maintenance, isRtl }: { assets: Asset[]; m
 }
 
 // ─── Asset Detail Drawer ──────────────────────────────────────────────────────
-function AssetDetailDrawer({ asset, maintenance, projects, isRtl, onClose, onEdit }: {
+function AssetDetailDrawer({ asset, maintenance, projects, isRtl, onClose, onEdit, depYears }: {
   asset: Asset; maintenance: MaintenanceLog[]; projects: { id: string; nameAr: string; nameEn: string }[];
-  isRtl: boolean; onClose: () => void; onEdit: () => void;
+  isRtl: boolean; onClose: () => void; onEdit: () => void; depYears: Record<string, number>;
 }) {
   const assetMaint = maintenance.filter(m => m.assetId === asset.id);
   const totalMaintCost = assetMaint.reduce((s, m) => s + m.cost, 0);
@@ -323,10 +346,9 @@ function AssetDetailDrawer({ asset, maintenance, projects, isRtl, onClose, onEdi
   const maintDays = asset.nextMaintenance ? daysUntil(asset.nextMaintenance) : null;
   const project = projects.find(p => p.id === asset.projectId);
 
-  // Depreciation
-  const depPct = asset.purchaseDate
-    ? Math.min(100, Math.round(((now.getTime() - new Date(asset.purchaseDate).getTime()) / (365.25 * 864e5)) / 10 * 100))
-    : 0;
+  // Depreciation (per-category period)
+  const depYearsCat = depYears[asset.category] || DEFAULT_DEP_YEARS;
+  const depPct = depPctOf(asset.purchaseDate, depYearsCat);
   const currentValue = Math.max(0, asset.purchaseCost * (1 - depPct / 100));
 
   const catLabel = CATS.find(c => c.id === asset.category);
@@ -492,6 +514,13 @@ export default function EquipmentModule() {
   const [maintForm, setMaintForm] = useState<Partial<MaintenanceLog & { assetId: string }>>({});
   const [saving, setSaving] = useState(false);
   const [viewAsset, setViewAsset] = useState<Asset | null>(null);
+  const [employees, setEmployees] = useState<{ id: string; nameAr: string; nameEn: string }[]>([]);
+  const [vendorsList, setVendorsList] = useState<{ id: string; nameAr: string; nameEn: string }[]>([]);
+  const [depYears, setDepYears] = useState<Record<string, number>>(loadDepYears);
+  const [showDepDialog, setShowDepDialog] = useState(false);
+  const [depDraft, setDepDraft] = useState<Record<string, number>>({});
+  const [techCustom, setTechCustom] = useState(false);
+  const [vendorCustom, setVendorCustom] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -504,17 +533,27 @@ export default function EquipmentModule() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [aRes, mRes, pRes] = await Promise.all([
+      const [aRes, mRes, pRes, eRes, vRes] = await Promise.all([
         fetch("/api/assets"),
         fetch("/api/maintenance-records"),
         fetch("/api/projects").catch(() => ({ ok: false, json: async () => [] })),
+        fetch("/api/employees").catch(() => ({ ok: false, json: async () => [] })),
+        fetch("/api/vendors").catch(() => ({ ok: false, json: async () => [] })),
       ]);
       const aData = await aRes.json();
       const mData = await mRes.json();
       const pData = pRes.ok ? await pRes.json() : [];
+      const eData = eRes.ok ? await eRes.json() : [];
+      const vData = vRes.ok ? await vRes.json() : [];
 
       if (Array.isArray(pData)) {
         setProjects(pData.map((p: any) => ({ id: String(p.id), nameAr: p.nameAr || "", nameEn: p.nameEn || p.nameAr || "" })));
+      }
+      if (Array.isArray(eData)) {
+        setEmployees(eData.map((e: any) => ({ id: String(e.id), nameAr: e.nameAr || e.name || "", nameEn: e.nameEn || e.nameAr || e.name || "" })));
+      }
+      if (Array.isArray(vData)) {
+        setVendorsList(vData.map((v: any) => ({ id: String(v.id), nameAr: v.nameAr || "", nameEn: v.nameEn || v.nameAr || "" })));
       }
 
       if (Array.isArray(aData) && aData.length > 0) {
@@ -563,6 +602,52 @@ export default function EquipmentModule() {
     const d = new Date(a.nextMaintenance); const now = new Date();
     return (d.getTime() - now.getTime()) < 30 * 864e5 && a.status === "active";
   });
+
+  /* ── Preventive maintenance reminders (dedup per asset + due date) ── */
+  useEffect(() => {
+    if (loading || assets.length === 0) return;
+    const due = assets.filter(a => a.nextMaintenance && a.status !== "out_of_service" && daysUntil(a.nextMaintenance) <= 30);
+    const key = "scapex_maint_notified";
+    let prev: Record<string, string> = {};
+    try { const v = JSON.parse(localStorage.getItem(key) || "{}"); prev = v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { /* ignore */ }
+    const newOnes = due.filter(a => prev[a.id] !== a.nextMaintenance);
+    for (const a of newOnes) {
+      const days = daysUntil(a.nextMaintenance);
+      const overdue = days <= 0;
+      addNotification({
+        titleEn: overdue ? "Maintenance overdue" : "Preventive maintenance due soon",
+        titleAr: overdue ? "صيانة متأخرة" : "صيانة وقائية قريبة",
+        bodyEn: `${a.nameEn || a.nameAr} (${a.assetNo}) — ${overdue ? `overdue since ${a.nextMaintenance}` : `due on ${a.nextMaintenance} (${days} days)`}`,
+        bodyAr: `${a.nameAr || a.nameEn} (${a.assetNo}) — ${overdue ? `متأخرة منذ ${a.nextMaintenance}` : `مستحقة في ${a.nextMaintenance} (${days} يوم)`}`,
+        type: overdue ? "error" : "warning",
+        module: "equipment",
+        link: "/equipment",
+      });
+    }
+    const next: Record<string, string> = {};
+    for (const a of due) next[a.id] = a.nextMaintenance;
+    localStorage.setItem(key, JSON.stringify(next));
+  }, [assets, loading]);
+
+  /* ── Depreciation settings ── */
+  const openDepSettings = () => {
+    const draft: Record<string, number> = {};
+    for (const c of CATS) draft[c.id] = depYears[c.id] || DEFAULT_DEP_YEARS;
+    setDepDraft(draft);
+    setShowDepDialog(true);
+  };
+  const handleSaveDepSettings = () => {
+    const clean: Record<string, number> = {};
+    for (const [k, v] of Object.entries(depDraft)) {
+      const n = Number(v);
+      if (n > 0 && n !== DEFAULT_DEP_YEARS) clean[k] = n;
+      else if (n > 0) clean[k] = n;
+    }
+    setDepYears(clean);
+    localStorage.setItem(DEP_SETTINGS_KEY, JSON.stringify(clean));
+    setShowDepDialog(false);
+    toast({ title: isRtl ? "تم حفظ إعدادات الإهلاك" : "Depreciation settings saved" });
+  };
 
   const stats = { total: assets.length, active: assets.filter(a => a.status === "active").length, maintenance: assets.filter(a => a.status === "maintenance").length, nearMaint: nearMaint.length };
 
@@ -634,7 +719,10 @@ export default function EquipmentModule() {
             <p className="text-muted-foreground text-sm mt-1">{isRtl ? "إدارة الأصول، المركبات، الصيانة الدورية والإهلاك" : "Manage assets, vehicles, maintenance schedules, and depreciation"}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setMaintForm({ type: "preventive" }); setShowMaintDialog(true); }}>
+            <Button variant="outline" size="sm" onClick={openDepSettings} data-testid="button-dep-settings">
+              <TrendingDown className="w-4 h-4 me-1.5" />{isRtl ? "إعدادات الإهلاك" : "Depreciation"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setMaintForm({ type: "preventive" }); setTechCustom(false); setVendorCustom(false); setShowMaintDialog(true); }}>
               <Wrench className="w-4 h-4 me-1.5" />{isRtl ? "تسجيل صيانة" : "Log Maintenance"}
             </Button>
             <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 me-1.5" />{isRtl ? "إضافة أصل" : "Add Asset"}</Button>
@@ -834,7 +922,7 @@ export default function EquipmentModule() {
 
           {/* ── Analytics Tab ── */}
           <TabsContent value="analytics" className="mt-4">
-            <EquipmentDashboard assets={assets} maintenance={maintenance} isRtl={isRtl} />
+            <EquipmentDashboard assets={assets} maintenance={maintenance} isRtl={isRtl} depYears={depYears} />
           </TabsContent>
         </Tabs>
       </div>
@@ -845,6 +933,7 @@ export default function EquipmentModule() {
           asset={viewAsset}
           maintenance={maintenance}
           projects={projects}
+          depYears={depYears}
           isRtl={isRtl}
           onClose={() => setViewAsset(null)}
           onEdit={() => { openEdit(viewAsset); setViewAsset(null); }}
@@ -962,11 +1051,41 @@ export default function EquipmentModule() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">{isRtl ? "الفني" : "Technician"}</Label>
-                <Input className="mt-1 h-8 text-sm" value={maintForm.technician || ""} onChange={e => setMaintForm(p => ({ ...p, technician: e.target.value }))} />
+                <Select
+                  value={techCustom ? "__custom__" : (employees.find(e => (isRtl ? e.nameAr : e.nameEn) === maintForm.technician || e.nameAr === maintForm.technician)?.id || "")}
+                  onValueChange={v => {
+                    if (v === "__custom__") { setTechCustom(true); setMaintForm(p => ({ ...p, technician: "" })); }
+                    else { setTechCustom(false); const emp = employees.find(e => e.id === v); setMaintForm(p => ({ ...p, technician: emp ? (isRtl ? emp.nameAr : (emp.nameEn || emp.nameAr)) : "" })); }
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="select-technician"><SelectValue placeholder={isRtl ? "اختر الفني" : "Select technician"} /></SelectTrigger>
+                  <SelectContent>
+                    {employees.map(e => <SelectItem key={e.id} value={e.id}>{isRtl ? e.nameAr : (e.nameEn || e.nameAr)}</SelectItem>)}
+                    <SelectItem value="__custom__">{isRtl ? "إدخال يدوي..." : "Enter manually..."}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {techCustom && (
+                  <Input className="mt-1.5 h-8 text-sm" placeholder={isRtl ? "اسم الفني" : "Technician name"} value={maintForm.technician || ""} onChange={e => setMaintForm(p => ({ ...p, technician: e.target.value }))} data-testid="input-technician-custom" />
+                )}
               </div>
               <div>
                 <Label className="text-xs">{isRtl ? "المورد / الورشة" : "Vendor / Workshop"}</Label>
-                <Input className="mt-1 h-8 text-sm" value={(maintForm as any).vendor || ""} onChange={e => setMaintForm(p => ({ ...p, vendor: e.target.value }))} />
+                <Select
+                  value={vendorCustom ? "__custom__" : (vendorsList.find(v => (isRtl ? v.nameAr : v.nameEn) === (maintForm as any).vendor || v.nameAr === (maintForm as any).vendor)?.id || "")}
+                  onValueChange={v => {
+                    if (v === "__custom__") { setVendorCustom(true); setMaintForm(p => ({ ...p, vendor: "" })); }
+                    else { setVendorCustom(false); const vn = vendorsList.find(x => x.id === v); setMaintForm(p => ({ ...p, vendor: vn ? (isRtl ? vn.nameAr : (vn.nameEn || vn.nameAr)) : "" })); }
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="select-vendor"><SelectValue placeholder={isRtl ? "اختر المورد" : "Select vendor"} /></SelectTrigger>
+                  <SelectContent>
+                    {vendorsList.map(v => <SelectItem key={v.id} value={v.id}>{isRtl ? v.nameAr : (v.nameEn || v.nameAr)}</SelectItem>)}
+                    <SelectItem value="__custom__">{isRtl ? "إدخال يدوي..." : "Enter manually..."}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {vendorCustom && (
+                  <Input className="mt-1.5 h-8 text-sm" placeholder={isRtl ? "اسم المورد / الورشة" : "Vendor / workshop name"} value={(maintForm as any).vendor || ""} onChange={e => setMaintForm(p => ({ ...p, vendor: e.target.value }))} data-testid="input-vendor-custom" />
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -985,6 +1104,33 @@ export default function EquipmentModule() {
             <Button onClick={handleSaveMaint} disabled={saving} data-testid="button-save-maintenance">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isRtl ? "تسجيل" : "Record")}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Depreciation Settings Dialog */}
+      <Dialog open={showDepDialog} onOpenChange={setShowDepDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{isRtl ? "إعدادات الإهلاك حسب الفئة" : "Depreciation Settings by Category"}</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">{isRtl ? "حدد عدد سنوات الإهلاك (القسط الثابت) لكل فئة من فئات الأصول." : "Set the straight-line depreciation period (years) for each asset category."}</p>
+          <div className="space-y-2 py-1">
+            {CATS.map(c => (
+              <div key={c.id} className="flex items-center gap-3">
+                <span className="flex-1 text-sm">{isRtl ? c.ar : c.en}</span>
+                <Input
+                  type="number" min={1} max={50}
+                  className="w-24 h-8 text-sm text-center"
+                  value={depDraft[c.id] ?? DEFAULT_DEP_YEARS}
+                  onChange={e => setDepDraft(p => ({ ...p, [c.id]: Number(e.target.value) }))}
+                  data-testid={`input-dep-years-${c.id}`}
+                />
+                <span className="text-xs text-muted-foreground w-12">{isRtl ? "سنوات" : "years"}</span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDepDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={handleSaveDepSettings} data-testid="button-save-dep-settings">{isRtl ? "حفظ" : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
