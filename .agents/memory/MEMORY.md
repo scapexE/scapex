@@ -7,5 +7,6 @@
 - [Send-to-client docs](send-to-client.md) — contact picker must hit /api/customers (no /api/contacts route); document HTML builders must be pure string fns so print & send share one source.
 - [Header-auth file links](header-auth-file-links.md) — x-session-token rides only the fetch wrapper; window.open/<a href> to API file endpoints 401s — use fetch → blob URL.
 - [Org structure tab](org-structure-tab.md) — companies.type/parentId live in settings JSON (not DB columns); structure tab must scope by permissions not active-activity or it blanks.
+- [Journal entries design](journal-entries.md) — posted entries immutable; balances applied atomically at post time; JE numbering uses advisory lock, not row counts.
 - [Deal → project auto-conversion](deal-project-conversion.md) — won deals auto-create one linked project (unique deal_id) and deal docs re-link to it in a transaction; prod DB needs manual ALTERs.
 - [Cross-page prefill keys](prefill-keys.md) — consume scapex_*_prefill only behind a URL trigger param (?new=1) or async app_data sync resurrects stale payloads; invoice list API returns no items — fetch detail before print/email/edit.

@@ -21,7 +21,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, contractPaymentSchedules, poPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, type SurveyQuestionDef } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, journalEntries, journalEntryLines, contractPaymentSchedules, poPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, type SurveyQuestionDef } from "@shared/schema";
 import { sendEmail, generateTempPassword, sendPortalWelcomeEmail } from "./email";
 import crypto from "crypto";
 import QRCode from "qrcode";
@@ -5935,6 +5935,165 @@ export async function registerRoutes(
       const children = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.parentId, id));
       if (children.length > 0) return res.status(400).json({ error: "Cannot delete account with sub-accounts" });
       await db.delete(chartOfAccounts).where(eq(chartOfAccounts.id, id));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // JOURNAL ENTRIES — real double-entry bookkeeping
+  // ═══════════════════════════════════════════════════════════════════════════
+  function normalizeJournalLines(rawLines: any[]): { lines: { accountId: number; descriptionAr: string | null; debit: string; credit: string; costCenter: string | null }[]; totalDebit: number; totalCredit: number } | { error: string } {
+    if (!Array.isArray(rawLines) || rawLines.length < 2) return { error: "At least 2 lines required" };
+    const lines = [];
+    let totalDebit = 0, totalCredit = 0;
+    for (const l of rawLines) {
+      const accountId = parseInt(l.accountId);
+      if (!accountId) return { error: "Each line must have an account" };
+      const debit = Math.round((parseFloat(l.debit) || 0) * 100) / 100;
+      const credit = Math.round((parseFloat(l.credit) || 0) * 100) / 100;
+      if (debit < 0 || credit < 0) return { error: "Amounts must be positive" };
+      if (debit > 0 && credit > 0) return { error: "A line cannot have both debit and credit" };
+      if (debit === 0 && credit === 0) return { error: "Each line must have a debit or credit amount" };
+      totalDebit += debit; totalCredit += credit;
+      lines.push({ accountId, descriptionAr: l.descriptionAr || null, debit: debit.toFixed(2), credit: credit.toFixed(2), costCenter: l.costCenter || null });
+    }
+    totalDebit = Math.round(totalDebit * 100) / 100;
+    totalCredit = Math.round(totalCredit * 100) / 100;
+    if (totalDebit !== totalCredit) return { error: "Entry is not balanced (debit ≠ credit)" };
+    if (totalDebit === 0) return { error: "Entry total cannot be zero" };
+    return { lines, totalDebit, totalCredit };
+  }
+
+  // Apply/revert a posted entry's effect on account balances (sign: asset/expense grow by debit; others by credit)
+  // Atomic SQL increment — safe under concurrent postings.
+  async function applyJournalToBalances(tx: any, entryId: number, direction: 1 | -1) {
+    const lines = await tx.select().from(journalEntryLines).where(eq(journalEntryLines.entryId, entryId));
+    for (const l of lines) {
+      if (!l.accountId) continue;
+      const [acc] = await tx.select({ type: chartOfAccounts.type }).from(chartOfAccounts).where(eq(chartOfAccounts.id, l.accountId));
+      if (!acc) continue;
+      const debit = parseFloat(l.debit || "0"), credit = parseFloat(l.credit || "0");
+      const natural = (acc.type === "asset" || acc.type === "expense") ? (debit - credit) : (credit - debit);
+      const delta = (direction * natural).toFixed(2);
+      await tx.update(chartOfAccounts)
+        .set({ balance: sql`COALESCE(${chartOfAccounts.balance}, 0) + ${delta}::numeric` })
+        .where(eq(chartOfAccounts.id, l.accountId));
+    }
+  }
+
+  async function loadScopedJournalEntry(req: any, res: any): Promise<any | null> {
+    const id = parseInt(req.params.id);
+    const companyId = parseInt((req.query.companyId as string) || (req.body?.companyId ? String(req.body.companyId) : "1"));
+    const [entry] = await db.select().from(journalEntries).where(eq(journalEntries.id, id));
+    if (!entry || entry.companyId !== companyId) { res.status(404).json({ error: "Not found" }); return null; }
+    return entry;
+  }
+
+  app.get("/api/journal-entries", async (req, res) => {
+    try {
+      const companyId = parseInt((req.query.companyId as string) || "1");
+      const rows = await db.select().from(journalEntries)
+        .where(eq(journalEntries.companyId, companyId))
+        .orderBy(desc(journalEntries.date), desc(journalEntries.id));
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/journal-entries/:id", async (req, res) => {
+    try {
+      const entry = await loadScopedJournalEntry(req, res);
+      if (!entry) return;
+      const lines = await db.select().from(journalEntryLines).where(eq(journalEntryLines.entryId, entry.id));
+      res.json({ ...entry, lines });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/journal-entries", async (req, res) => {
+    try {
+      const b = req.body;
+      if (!b.date) return res.status(400).json({ error: "Date is required" });
+      const norm = normalizeJournalLines(b.lines);
+      if ("error" in norm) return res.status(400).json({ error: norm.error });
+      const companyId = b.companyId ? parseInt(b.companyId) : 1;
+      const actorId = staffUserId(req);
+      const year = new Date().getFullYear();
+      const result = await db.transaction(async (tx) => {
+        // Advisory lock serializes numbering per company — no duplicates under concurrency
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(874512, ${companyId})`);
+        const maxRes: any = await tx.execute(sql`
+          SELECT COALESCE(MAX(CAST(SUBSTRING(entry_number FROM '[0-9]+$') AS int)), 0) AS maxnum
+          FROM journal_entries
+          WHERE company_id = ${companyId} AND entry_number LIKE ${`JE-${year}-%`}`);
+        const nextNum = (Number(maxRes.rows?.[0]?.maxnum) || 0) + 1;
+        const entryNumber = `JE-${year}-${String(nextNum).padStart(4, "0")}`;
+        const [entry] = await tx.insert(journalEntries).values({
+          companyId, entryNumber, date: b.date,
+          descriptionAr: b.descriptionAr || null, descriptionEn: b.descriptionEn || null,
+          reference: b.reference || null, status: "draft",
+          totalDebit: norm.totalDebit.toFixed(2), totalCredit: norm.totalCredit.toFixed(2),
+          createdBy: actorId || null,
+        }).returning();
+        for (const l of norm.lines) await tx.insert(journalEntryLines).values({ ...l, entryId: entry.id });
+        return entry;
+      });
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put("/api/journal-entries/:id", async (req, res) => {
+    try {
+      const b = req.body;
+      const existing = await loadScopedJournalEntry(req, res);
+      if (!existing) return;
+      const id = existing.id;
+      if (existing.status === "posted") return res.status(400).json({ error: "Posted entries cannot be edited" });
+      const norm = normalizeJournalLines(b.lines);
+      if ("error" in norm) return res.status(400).json({ error: norm.error });
+      const result = await db.transaction(async (tx) => {
+        const [entry] = await tx.update(journalEntries).set({
+          date: b.date || existing.date,
+          descriptionAr: b.descriptionAr ?? existing.descriptionAr,
+          descriptionEn: b.descriptionEn ?? existing.descriptionEn,
+          reference: b.reference ?? existing.reference,
+          totalDebit: norm.totalDebit.toFixed(2), totalCredit: norm.totalCredit.toFixed(2),
+        }).where(eq(journalEntries.id, id)).returning();
+        await tx.delete(journalEntryLines).where(eq(journalEntryLines.entryId, id));
+        for (const l of norm.lines) await tx.insert(journalEntryLines).values({ ...l, entryId: id });
+        return entry;
+      });
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/journal-entries/:id/post", async (req, res) => {
+    try {
+      const existing = await loadScopedJournalEntry(req, res);
+      if (!existing) return;
+      const id = existing.id;
+      if (existing.status === "posted") return res.status(400).json({ error: "Entry already posted" });
+      const actorId = staffUserId(req);
+      const result = await db.transaction(async (tx) => {
+        // Guard against double-posting races: only transition if still not posted
+        const [entry] = await tx.update(journalEntries).set({ status: "posted", approvedBy: actorId || null })
+          .where(and(eq(journalEntries.id, id), sql`${journalEntries.status} IS DISTINCT FROM 'posted'`)).returning();
+        if (!entry) throw new Error("Entry already posted");
+        await applyJournalToBalances(tx, id, 1);
+        return entry;
+      });
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/journal-entries/:id", async (req, res) => {
+    try {
+      const existing = await loadScopedJournalEntry(req, res);
+      if (!existing) return;
+      const id = existing.id;
+      if (existing.status === "posted") return res.status(400).json({ error: "Posted entries cannot be deleted" });
+      await db.transaction(async (tx) => {
+        await tx.delete(journalEntryLines).where(eq(journalEntryLines.entryId, id));
+        await tx.delete(journalEntries).where(eq(journalEntries.id, id));
+      });
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });

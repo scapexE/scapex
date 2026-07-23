@@ -423,12 +423,12 @@ export function ChartOfAccountsTab() {
 
             <div>
               <Label className="text-xs">{isRtl ? "الحساب الأب (اختياري)" : "Parent Account (optional)"}</Label>
-              <Select value={form.parentId} onValueChange={v => setForm(p => ({ ...p, parentId: v }))}>
+              <Select value={form.parentId || "none"} onValueChange={v => setForm(p => ({ ...p, parentId: v === "none" ? "" : v }))}>
                 <SelectTrigger className="mt-1 h-9 text-sm">
                   <SelectValue placeholder={isRtl ? "— حساب رئيسي —" : "— Root account —"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">{isRtl ? "— بدون حساب أب —" : "— No parent —"}</SelectItem>
+                  <SelectItem value="none">{isRtl ? "— بدون حساب أب —" : "— No parent —"}</SelectItem>
                   {accounts
                     .filter(a => a.id !== editAcc?.id)
                     .sort((a, b) => a.code.localeCompare(b.code))
