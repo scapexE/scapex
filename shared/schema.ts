@@ -1136,6 +1136,7 @@ export const documents = pgTable("documents", {
   description: text("description"),
   uploadedBy: varchar("uploaded_by").references(() => users.id),
   uploadedByName: text("uploaded_by_name"),
+  expiryDate: text("expiry_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   activityId: text("activity_id").references(() => businessActivities.id),

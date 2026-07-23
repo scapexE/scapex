@@ -29,12 +29,10 @@ import HRModule from "@/pages/modules/hr/index";
 import PurchasesModule from "@/pages/modules/purchases/index";
 import InventoryModule from "@/pages/modules/inventory/index";
 import EquipmentModule from "@/pages/modules/equipment/index";
-import HSEModule from "@/pages/modules/hse/index";
 import DMSModule from "@/pages/modules/dms/index";
 import BIModule from "@/pages/modules/bi/index";
 import AIControlModule from "@/pages/modules/ai-control/index";
 import CompaniesModule from "@/pages/modules/companies/index";
-import MobileAppModule from "@/pages/modules/mobile-app/index";
 import AboutModule from "@/pages/modules/about/index";
 import AuditLogModule from "@/pages/modules/audit-log/index";
 import BackupModule from "@/pages/modules/backup/index";
@@ -44,6 +42,10 @@ import SmartProposalModule from "@/pages/modules/smart-proposal/index";
 
 function CompanySettingsRedirect() {
   return <Redirect to="/companies" />;
+}
+
+function DashboardRedirect() {
+  return <Redirect to="/dashboard" />;
 }
 
 function PayrollRedirect() {
@@ -92,8 +94,8 @@ function Router() {
       <ProtectedRoute path="/hr" component={HRModule} page="hr" />
       <Route path="/payroll" component={PayrollRedirect} />
       <Route path="/attendance" component={AttendanceRedirect} />
-      <ProtectedRoute path="/hse" component={HSEModule} page="hse" />
-      <ProtectedRoute path="/mobile-app" component={MobileAppModule} page="mobile_app" />
+      <Route path="/hse" component={DashboardRedirect} />
+      <Route path="/mobile-app" component={DashboardRedirect} />
 
       {/* System & Portals */}
       <ProtectedRoute path="/dms" component={DMSModule} page="dms" />

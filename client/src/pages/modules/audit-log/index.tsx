@@ -12,9 +12,25 @@ import {
 } from "@/lib/auditLog";
 import { getUsers } from "@/lib/permissions";
 import {
-  FileText, Search, Trash2, Download, Clock, User, Shield, Activity, Printer, X, ChevronDown,
+  FileText, Search, Trash2, Download, Clock, User, Shield, Activity, Printer, X, ChevronDown, AlertTriangle,
 } from "lucide-react";
 import { exportAuditToPDF } from "@/lib/pdfExport";
+
+function mapServerRow(row: any): AuditEntry {
+  const details = row?.details && typeof row.details === "object" ? row.details : {};
+  const desc = details.description ?? details.descriptionEn ?? "";
+  return {
+    id: String(row.id),
+    timestamp: row.createdAt || new Date().toISOString(),
+    userId: row.userId || details.userName || "",
+    userName: details.userName || row.userName || row.userId || "",
+    userRole: details.userRole || "user",
+    action: row.action,
+    module: row.module || "",
+    details: desc,
+    detailsAr: details.descriptionAr ?? desc,
+  };
+}
 
 function AuditLogContent() {
   const { t, dir } = useLanguage();
@@ -30,10 +46,23 @@ function AuditLogContent() {
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(true);
   const [page, setPage] = useState(1);
+  const [serverError, setServerError] = useState(false);
   const perPage = 20;
 
   const allUsers = getUsers();
-  const refresh = useCallback(() => setLog(getAuditLog()), []);
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/audit-logs?limit=500");
+      if (!res.ok) throw new Error(String(res.status));
+      const rows = await res.json();
+      if (!Array.isArray(rows)) throw new Error("bad response");
+      setLog(rows.map(mapServerRow));
+      setServerError(false);
+    } catch {
+      setServerError(true);
+      setLog(getAuditLog());
+    }
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -152,13 +181,38 @@ function AuditLogContent() {
             {isRtl ? "تصدير CSV" : "Export CSV"}
           </Button>
           {isAdmin && (
-            <Button variant="destructive" size="sm" onClick={() => { clearAuditLog(); refresh(); }} data-testid="button-clear-audit">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await fetch("/api/audit-logs", { method: "DELETE" });
+                } catch {
+                  /* ignore */
+                }
+                clearAuditLog();
+                refresh();
+              }}
+              data-testid="button-clear-audit"
+            >
               <Trash2 className="w-4 h-4 me-1" />
               {isRtl ? "مسح السجل" : "Clear Log"}
             </Button>
           )}
         </div>
       </div>
+
+      {serverError && (
+        <div
+          className="flex items-center gap-2 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-sm"
+          data-testid="banner-server-error"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {isRtl
+            ? "تعذّر الاتصال بالخادم — يتم عرض السجلات المحفوظة محلياً."
+            : "Could not reach the server — showing locally cached records."}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[

@@ -10,10 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Search, Folder, Download, Lock, Globe, Edit, Trash2, File, FileImage, FileSpreadsheet, Link as LinkIcon, Users, Briefcase, Eye } from "lucide-react";
+import { FileText, Plus, Search, Folder, Download, Lock, Globe, Edit, Trash2, File, FileImage, FileSpreadsheet, Link as LinkIcon, Users, Briefcase, Eye, History, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { dbGetItem, dbSetItem } from "@/lib/dbStorage";
+import { addNotification } from "@/lib/notifications";
 
 // Fetch a document file with the authenticated fetch wrapper (adds x-session-token),
 // then view it in a new tab or trigger a download via a blob URL.
@@ -55,19 +57,28 @@ interface Doc {
   fileSize: number | null;
   projectId: number | null;
   companyId: number | null;
+  expiryDate?: string | null;
   hasFile?: boolean;
   createdAt: string;
+}
+
+interface DocVersion {
+  id: number;
+  version: number;
+  changeLog: string | null;
+  createdAt: string;
+  uploadedBy: string | null;
 }
 
 interface FormState {
   titleAr: string; titleEn: string; category: string; folder: string;
   status: string; version: string; accessLevel: string; description: string;
-  tags: string;
+  tags: string; expiryDate: string;
 }
 
 const EMPTY_FORM: FormState = {
   titleAr: "", titleEn: "", category: "general", folder: "root",
-  status: "draft", version: "1", accessLevel: "internal", description: "", tags: "",
+  status: "draft", version: "1", accessLevel: "internal", description: "", tags: "", expiryDate: "",
 };
 
 const CATS = [
@@ -75,7 +86,7 @@ const CATS = [
   { id: "hr", ar: "الموارد البشرية", en: "HR Documents", link: "/hr" },
   { id: "legal", ar: "قانونية", en: "Legal", link: null },
   { id: "financial", ar: "مالية", en: "Financial", link: "/accounting" },
-  { id: "hse", ar: "السلامة", en: "HSE", link: "/hse" },
+  { id: "hse", ar: "السلامة", en: "HSE", link: null },
   { id: "crm", ar: "علاقات العملاء", en: "CRM", link: "/crm" },
   { id: "general", ar: "عامة", en: "General", link: null },
 ];
@@ -118,6 +129,20 @@ function statusLabel(id: string, isRtl: boolean) {
   return s ? (isRtl ? s.ar : s.en) : id;
 }
 
+// Returns expiry state: "expired" | "soon" (within 30 days) | null
+function expiryState(expiryDate?: string | null): "expired" | "soon" | null {
+  if (!expiryDate) return null;
+  const exp = new Date(expiryDate);
+  if (isNaN(exp.getTime())) return null;
+  const now = new Date();
+  const days = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return "expired";
+  if (days <= 30) return "soon";
+  return null;
+}
+
+const EXPIRY_NOTIFIED_KEY = "scapex_doc_expiry_notified";
+
 export default function DMSModule() {
   const { dir } = useLanguage();
   const isRtl = dir === "rtl";
@@ -132,6 +157,8 @@ export default function DMSModule() {
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [versions, setVersions] = useState<DocVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -149,6 +176,58 @@ export default function DMSModule() {
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
+  // Sweep documents for expiry alerts (expired or expiring within 30 days)
+  useEffect(() => {
+    if (!docs.length) return;
+    let notified: Record<string, string> = {};
+    try { notified = JSON.parse(dbGetItem(EXPIRY_NOTIFIED_KEY) || "{}"); } catch { notified = {}; }
+    let changed = false;
+    for (const doc of docs) {
+      const state = expiryState(doc.expiryDate);
+      if (!state) continue;
+      const key = String(doc.id);
+      if (notified[key] === doc.expiryDate) continue;
+      const title = isRtl ? doc.titleAr : (doc.titleEn || doc.titleAr);
+      if (state === "expired") {
+        addNotification({
+          titleAr: "انتهت صلاحية وثيقة",
+          titleEn: "Document expired",
+          bodyAr: `الوثيقة "${doc.titleAr}" منتهية الصلاحية`,
+          bodyEn: `Document "${title}" has expired`,
+          type: "error",
+          module: "dms",
+          link: "/dms",
+        });
+      } else {
+        addNotification({
+          titleAr: "وثيقة قاربت على الانتهاء",
+          titleEn: "Document expiring soon",
+          bodyAr: `الوثيقة "${doc.titleAr}" ستنتهي صلاحيتها قريباً (${doc.expiryDate})`,
+          bodyEn: `Document "${title}" is expiring soon (${doc.expiryDate})`,
+          type: "warning",
+          module: "dms",
+          link: "/dms",
+        });
+      }
+      notified[key] = doc.expiryDate!;
+      changed = true;
+    }
+    if (changed) dbSetItem(EXPIRY_NOTIFIED_KEY, JSON.stringify(notified));
+  }, [docs, isRtl]);
+
+  const loadVersions = useCallback(async (id: number) => {
+    setVersionsLoading(true);
+    setVersions([]);
+    try {
+      const res = await fetch(`/api/documents/${id}/versions`);
+      if (res.ok) setVersions(await res.json());
+    } catch {
+      /* ignore — empty state shown */
+    } finally {
+      setVersionsLoading(false);
+    }
+  }, []);
+
   const filtered = docs.filter((d) => {
     const q = search.toLowerCase();
     return !q || (d.titleAr || "").includes(q) || (d.titleEn || "").toLowerCase().includes(q) || (d.docNo || "").toLowerCase().includes(q);
@@ -164,6 +243,7 @@ export default function DMSModule() {
   const openAdd = () => {
     setEditDoc(null);
     setForm(EMPTY_FORM);
+    setVersions([]);
     setShowDialog(true);
   };
 
@@ -179,8 +259,10 @@ export default function DMSModule() {
       accessLevel: d.accessLevel || "internal",
       description: d.description || "",
       tags: Array.isArray(d.tags) ? d.tags.join(", ") : "",
+      expiryDate: d.expiryDate || "",
     });
     setShowDialog(true);
+    loadVersions(d.id);
   };
 
   const handleSave = async () => {
@@ -200,6 +282,7 @@ export default function DMSModule() {
         accessLevel: form.accessLevel,
         description: form.description || null,
         tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+        expiryDate: form.expiryDate || null,
       };
       let res: Response;
       if (editDoc) {
@@ -345,7 +428,27 @@ export default function DMSModule() {
                             <div className="flex items-center gap-2">
                               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"><Icon className="w-4 h-4 text-primary" /></div>
                               <div>
-                                <p className="font-medium text-sm">{isRtl ? doc.titleAr : (doc.titleEn || doc.titleAr)}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="font-medium text-sm">{isRtl ? doc.titleAr : (doc.titleEn || doc.titleAr)}</p>
+                                  {(() => {
+                                    const es = expiryState(doc.expiryDate);
+                                    if (!es) return null;
+                                    return (
+                                      <Badge
+                                        data-testid={`badge-expiry-${doc.id}`}
+                                        className={cn(
+                                          "text-[10px] gap-0.5 border-0 text-white",
+                                          es === "expired" ? "bg-red-500" : "bg-orange-500"
+                                        )}
+                                      >
+                                        <AlertTriangle className="w-2.5 h-2.5" />
+                                        {es === "expired"
+                                          ? (isRtl ? "منتهية" : "Expired")
+                                          : (isRtl ? "قاربت الانتهاء" : "Expiring")}
+                                      </Badge>
+                                    );
+                                  })()}
+                                </div>
                                 {doc.description && <p className="text-xs text-muted-foreground truncate max-w-[180px]">{doc.description}</p>}
                               </div>
                             </div>
@@ -423,7 +526,6 @@ export default function DMSModule() {
                 { icon: Users, label: isRtl ? "الموارد البشرية" : "HR Documents", cat: "hr", link: "/hr", count: docs.filter((d) => d.category === "hr").length, color: "text-purple-500" },
                 { icon: Briefcase, label: isRtl ? "عقود العملاء" : "Client Contracts", cat: "contracts", link: "/sales", count: docs.filter((d) => d.category === "contracts").length, color: "text-blue-500" },
                 { icon: FileSpreadsheet, label: isRtl ? "التقارير المالية" : "Financial Reports", cat: "financial", link: "/accounting", count: docs.filter((d) => d.category === "financial").length, color: "text-rose-500" },
-                { icon: Lock, label: isRtl ? "وثائق السلامة (HSE)" : "HSE Documents", cat: "hse", link: "/hse", count: docs.filter((d) => d.category === "hse").length, color: "text-orange-500" },
               ].map((item) => (
                 <Card key={item.cat} className="border-border/50 hover:border-primary/30 transition-colors">
                   <CardContent className="p-4 flex items-center gap-3">
@@ -498,10 +600,42 @@ export default function DMSModule() {
               <Label className="text-xs font-semibold">{isRtl ? "الوسوم (مفصولة بفاصلة)" : "Tags (comma separated)"}</Label>
               <Input className="mt-1 h-8 text-sm" value={form.tags} onChange={f("tags")} placeholder="tag1, tag2" />
             </div>
+            <div>
+              <Label className="text-xs font-semibold">{isRtl ? "تاريخ انتهاء الصلاحية" : "Expiry Date"}</Label>
+              <Input className="mt-1 h-8 text-sm" type="date" value={form.expiryDate} onChange={f("expiryDate")} data-testid="input-doc-expiry" />
+            </div>
             <div className="col-span-2">
               <Label className="text-xs font-semibold">{isRtl ? "الوصف" : "Description"}</Label>
               <Input className="mt-1 h-8 text-sm" value={form.description} onChange={f("description")} />
             </div>
+
+            {editDoc && (
+              <div className="col-span-2 mt-2 border-t border-border/50 pt-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <History className="w-4 h-4 text-primary" />
+                  <Label className="text-xs font-semibold">{isRtl ? "سجل الإصدارات" : "Version History"}</Label>
+                </div>
+                {versionsLoading ? (
+                  <p className="text-xs text-muted-foreground py-2" data-testid="text-versions-loading">{isRtl ? "جارٍ التحميل..." : "Loading..."}</p>
+                ) : versions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2" data-testid="text-versions-empty">{isRtl ? "لا توجد إصدارات سابقة" : "No previous versions"}</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto" data-testid="list-versions">
+                    {versions.map((v) => (
+                      <div key={v.id} className="flex items-center gap-2 text-xs rounded-lg bg-secondary/40 px-2.5 py-1.5" data-testid={`version-row-${v.id}`}>
+                        <Badge variant="secondary" className="font-mono text-[10px] shrink-0">v{v.version}</Badge>
+                        <div className="flex-1 min-w-0">
+                          {v.changeLog && <p className="truncate">{v.changeLog}</p>}
+                          <p className="text-[10px] text-muted-foreground">
+                            {v.uploadedBy || "—"} · {new Date(v.createdAt).toLocaleDateString(isRtl ? "ar-SA" : "en-GB")}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>

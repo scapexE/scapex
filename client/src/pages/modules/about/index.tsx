@@ -55,7 +55,9 @@ export default function AboutModule() {
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
     if (!supportForm.category || !supportForm.subject || !supportForm.message) {
       toast({
         title: t("تنبيه", "Notice"),
@@ -65,20 +67,46 @@ export default function AboutModule() {
       return;
     }
 
-    const tickets = JSON.parse(dbGetItem("scapex_support_tickets") || "[]");
-    tickets.push({
-      id: `TKT-${Date.now()}`,
-      ...supportForm,
-      status: "open",
-      createdAt: new Date().toISOString(),
-    });
-    dbSetItem("scapex_support_tickets", JSON.stringify(tickets));
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/support-tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: supportForm.name,
+          email: supportForm.email,
+          subject: supportForm.subject,
+          message: supportForm.message,
+        }),
+      });
+      const data = await res.json().catch(() => ({ ok: false }));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "failed");
+      }
 
-    setSubmitted(true);
-    toast({
-      title: t("تم الإرسال بنجاح", "Submitted Successfully"),
-      description: t("سيتم التواصل معك في أقرب وقت", "We will contact you shortly"),
-    });
+      const tickets = JSON.parse(dbGetItem("scapex_support_tickets") || "[]");
+      tickets.push({
+        id: `TKT-${Date.now()}`,
+        ...supportForm,
+        status: "open",
+        createdAt: new Date().toISOString(),
+      });
+      dbSetItem("scapex_support_tickets", JSON.stringify(tickets));
+
+      setSubmitted(true);
+      toast({
+        title: t("تم الإرسال بنجاح", "Submitted Successfully"),
+        description: t("سيتم التواصل معك في أقرب وقت", "We will contact you shortly"),
+      });
+    } catch {
+      toast({
+        title: t("فشل الإرسال", "Submission Failed"),
+        description: t("تعذر إرسال الطلب، يرجى المحاولة لاحقاً", "Could not send your request, please try again later"),
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -241,9 +269,9 @@ export default function AboutModule() {
                       />
                     </div>
 
-                    <Button onClick={handleSubmit} className="w-full gap-2" data-testid="button-submit-support">
+                    <Button onClick={handleSubmit} disabled={submitting} className="w-full gap-2" data-testid="button-submit-support">
                       <Send className="w-4 h-4" />
-                      {t("إرسال الطلب", "Submit Request")}
+                      {submitting ? t("جارٍ الإرسال...", "Sending...") : t("إرسال الطلب", "Submit Request")}
                     </Button>
                   </div>
                 )}

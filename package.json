@@ -9,7 +9,9 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "version:minor": "node -e \"const fs=require('fs');const v=JSON.parse(fs.readFileSync('version.json','utf8'));v.minor+=1;v.patch=0;fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\\n');console.log('V'+v.major+'.'+v.minor+'.'+v.patch)\"",
+    "version:major": "node -e \"const fs=require('fs');const v=JSON.parse(fs.readFileSync('version.json','utf8'));v.major+=1;v.minor=0;v.patch=0;fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\\n');console.log('V'+v.major+'.'+v.minor+'.'+v.patch)\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

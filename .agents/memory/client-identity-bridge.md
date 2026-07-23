@@ -11,3 +11,7 @@ Two identity systems: staff/registered users in `users` (main login, email+passw
 **How to apply:** any future flow that links a user to a contact must prove ownership via the verified email, and must not mutate existing portal credentials.
 
 Also: dev has no RESEND_API_KEY — register has a dev-only email-verification bypass (`NODE_ENV==='development' && !RESEND_API_KEY`). Prod admin accounts are real Gmail accounts, NOT the dev demo credentials (admin@scapex.sa exists only in dev).
+
+## Portal ownership rule (2026-07-23)
+All /api/portal/* endpoints (lists, approve, sign, html, payment-schedule) must scope strictly by `contactId` (proposals may additionally match verified `clientEmail`). Never match by clientName — names are not unique and it created IDOR leaks that had to be purged twice.
+**How to apply:** any new portal endpoint gets `x.contactId === me.id` only.

@@ -32,8 +32,6 @@ const ALL_APPS = [
   { id: "hr",            icon: Users,        color: "bg-rose-100 dark:bg-rose-900/40",    iconColor: "text-rose-600 dark:text-rose-400",    path: "/hr" },
   { id: "payroll",       icon: Banknote,     color: "bg-orange-100 dark:bg-orange-900/40",  iconColor: "text-orange-600 dark:text-orange-400",  path: "/payroll" },
   { id: "attendance",    icon: MapPin,       color: "bg-fuchsia-100 dark:bg-fuchsia-900/40", iconColor: "text-fuchsia-600 dark:text-fuchsia-400", path: "/attendance" },
-  { id: "hse",           icon: ShieldAlert,  color: "bg-red-100 dark:bg-red-900/40",     iconColor: "text-red-600 dark:text-red-400",     path: "/hse" },
-  { id: "mobile_app",    icon: Smartphone,   color: "bg-violet-100 dark:bg-violet-900/40",  iconColor: "text-violet-600 dark:text-violet-400",  path: "/mobile-app" },
   { id: "bi",            icon: PieChart,     color: "bg-sky-100 dark:bg-sky-900/40",     iconColor: "text-sky-600 dark:text-sky-400",     path: "/bi" },
   { id: "ai_control",    icon: BrainCircuit, color: "bg-indigo-100 dark:bg-indigo-900/40",  iconColor: "text-indigo-600 dark:text-indigo-400",  path: "/ai-control" },
   { id: "multi_tenant",  icon: Building2,    color: "bg-slate-100 dark:bg-slate-800/60",   iconColor: "text-slate-600 dark:text-slate-400",   path: "/companies" },

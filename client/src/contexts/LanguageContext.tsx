@@ -34,9 +34,7 @@ const translations: Record<string, Record<Language, string>> = {
   
   'nav.hr': { en: 'HR', ar: 'الموارد البشرية' },
   'nav.payroll': { en: 'Payroll', ar: 'مسيرات الرواتب' },
-  'nav.mobile_app': { en: 'Engineers Mobile App', ar: 'تطبيق المهندسين' },
   'nav.attendance': { en: 'GPS Attendance', ar: 'الحضور عبر GPS' },
-  'nav.hse': { en: 'HSE', ar: 'الصحة والسلامة والبيئة' },
   
   'nav.dms': { en: 'Document Management', ar: 'إدارة المستندات (DMS)' },
   'nav.client_portal': { en: 'Client Portal', ar: 'بوابة العملاء' },

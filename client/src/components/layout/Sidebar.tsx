@@ -1,12 +1,12 @@
-import { dbGetItem, dbRemoveItem } from "@/lib/dbStorage";
+import { dbGetItem, dbSetItem, dbRemoveItem } from "@/lib/dbStorage";
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { getSystemSettings, type SystemSettings, DEFAULT_SYSTEM_SETTINGS } from "@/lib/companySettings";
 import {
-  LayoutDashboard, Smartphone, CalendarCheck,
-  Settings, ShieldAlert, BarChart3, BrainCircuit,
+  LayoutDashboard, CalendarCheck,
+  Settings, BarChart3, BrainCircuit,
   ShoppingBag, Truck, Calculator, Package, Building2,
   Globe2, HardDrive, LogOut, UserCog, Info,
   FolderOpen, UserRound, Wallet,
@@ -63,8 +63,6 @@ const menuCategories = [
       { id: "hr",         icon: UserRound,     path: "/hr" },
       { id: "payroll",    icon: Wallet,        path: "/payroll" },
       { id: "attendance", icon: CalendarCheck, path: "/attendance" },
-      { id: "mobile_app", icon: Smartphone,    path: "/mobile-app" },
-      { id: "hse",        icon: ShieldAlert,   path: "/hse" },
     ],
   },
   {
@@ -105,8 +103,6 @@ const NAV_LABELS: Record<string, { ar: string; en: string }> = {
   hr:               { ar: "الموارد البشرية",          en: "HR" },
   payroll:          { ar: "الرواتب",                 en: "Payroll" },
   attendance:       { ar: "الحضور والإجازات",         en: "Attendance" },
-  mobile_app:       { ar: "التطبيق الميداني",         en: "Mobile App" },
-  hse:              { ar: "السلامة والصحة المهنية",   en: "HSE" },
   audit_log:        { ar: "سجل النشاطات",             en: "Audit Log" },
   dms:              { ar: "إدارة الوثائق",            en: "DMS" },
   client_portal:    { ar: "بوابة العملاء",            en: "Client Portal" },
@@ -116,12 +112,15 @@ const NAV_LABELS: Record<string, { ar: string; en: string }> = {
   about:            { ar: "عن النظام",                en: "About" },
 };
 
-const SIDEBAR_ORDER_KEY = "scapex_sidebar_order";
+const LEGACY_SIDEBAR_ORDER_KEY = "scapex_sidebar_order";
 
-function readOrder(): string[] {
+function sidebarOrderKey(userId?: string | number | null): string {
+  return userId ? `scapex_sidebar_order::${userId}` : LEGACY_SIDEBAR_ORDER_KEY;
+}
+
+function parseOrder(raw: string | null): string[] {
   try {
-    const r = localStorage.getItem(SIDEBAR_ORDER_KEY);
-    return r ? (JSON.parse(r) as string[]) : [];
+    return raw ? (JSON.parse(raw) as string[]) : [];
   } catch { return []; }
 }
 
@@ -200,14 +199,32 @@ export function Sidebar({
     return () => window.removeEventListener("scapex_system_settings_update", onBrandUpdate);
   }, []);
 
-  const [itemOrder, setItemOrder] = useState<string[]>(readOrder);
+  const [itemOrder, setItemOrder] = useState<string[]>([]);
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
+  const userId = (currentUser as any)?.id ?? null;
+
+  useEffect(() => {
+    const key = sidebarOrderKey(userId);
+    let stored = parseOrder(dbGetItem(key));
+    if (stored.length === 0) {
+      const legacy = parseOrder(localStorage.getItem(LEGACY_SIDEBAR_ORDER_KEY));
+      if (legacy.length > 0) {
+        stored = legacy;
+        if (userId) {
+          try { dbSetItem(key, JSON.stringify(legacy)); } catch {}
+        }
+      }
+    }
+    setItemOrder(stored);
+  }, [userId]);
+
   const saveOrder = (newOrder: string[]) => {
     setItemOrder(newOrder);
-    try { localStorage.setItem(SIDEBAR_ORDER_KEY, JSON.stringify(newOrder)); } catch {}
+    const key = sidebarOrderKey(userId);
+    try { dbSetItem(key, JSON.stringify(newOrder)); } catch {}
   };
 
   const handleLogout = () => {

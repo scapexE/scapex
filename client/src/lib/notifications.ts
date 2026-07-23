@@ -114,15 +114,6 @@ export function seedDemoNotifications(): void {
       module: "client_portal",
       link: "/client-portal",
     },
-    {
-      titleEn: "HSE incident reported",
-      titleAr: "تم الإبلاغ عن حادثة سلامة",
-      bodyEn: "Minor incident reported at Site #7 - Riyadh",
-      bodyAr: "تم الإبلاغ عن حادثة بسيطة في الموقع رقم 7 - الرياض",
-      type: "warning",
-      module: "hse",
-      link: "/hse",
-    },
   ];
   demos.forEach((d, i) => {
     const list = getNotifications();

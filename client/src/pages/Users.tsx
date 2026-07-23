@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import {
   type SystemUser, type Role,
   ALL_MODULES, ROLE_DEFAULTS, ROLE_LABELS,
-  getUsers, saveUsers, canApproveRegistrations,
+  canApproveRegistrations,
   getPrimaryRole, mergePermissions, validateNationalId,
 } from "@/lib/permissions";
 import { useToast } from "@/hooks/use-toast";
@@ -386,7 +386,7 @@ export default function Users() {
   const isAdmin = currentUser?.role === "admin";
   const canApprove = canApproveRegistrations(currentUser);
 
-  const [users, setUsers] = useState<SystemUser[]>(() => getUsers());
+  const [users, setUsers] = useState<SystemUser[]>([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
@@ -477,7 +477,6 @@ export default function Users() {
         };
       });
       setUsers(mapped);
-      saveUsers(mapped);
     } catch (err) {
       console.error("Failed to fetch users from API:", err);
     }
@@ -501,7 +500,7 @@ export default function Users() {
     );
   }
 
-  const persist = (updated: SystemUser[]) => { setUsers(updated); saveUsers(updated); };
+  const persist = (updated: SystemUser[]) => { setUsers(updated); };
 
   // ── Activation ────────────────────────────────────────────────────────────
   const handleActivate = async (user: SystemUser, roles: Role[], permissions: string[]) => {
@@ -540,7 +539,6 @@ export default function Users() {
     }
     const updated = users.filter((u) => u.id !== user.id);
     setUsers(updated);
-    saveUsers(updated);
     toast({
       title: isRtl ? "تم الرفض" : "Rejected",
       description: isRtl ? `تم حذف طلب "${user.name}"` : `Request from "${user.name}" has been rejected`,

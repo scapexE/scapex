@@ -53,6 +53,28 @@ export function logAction(
   dbSetItem(STORAGE_KEY, JSON.stringify(log));
 
   window.dispatchEvent(new CustomEvent("scapex_audit_update"));
+
+  try {
+    fetch("/api/audit-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action,
+        module,
+        userId: entry.userId,
+        userName: entry.userName,
+        details: {
+          userName: entry.userName,
+          userRole: entry.userRole,
+          description: details,
+          descriptionEn: details,
+          descriptionAr: detailsAr,
+        },
+      }),
+    }).catch(() => {});
+  } catch {
+    /* never throw */
+  }
 }
 
 export function clearAuditLog(): void {

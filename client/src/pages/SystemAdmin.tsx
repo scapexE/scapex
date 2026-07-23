@@ -21,7 +21,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
-  ChevronDown, Check, Image, Link as LinkIcon, Ban, Building2, Info, MapPin, Globe,
+  ChevronDown, Check, Link as LinkIcon, Ban, Building2, Info, MapPin, Globe,
   MessageSquare, Mail, Loader2,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,6 +36,7 @@ import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { CompanyServicesManager } from "@/components/system-admin/CompanyServicesManager";
+import { Link } from "wouter";
 import { type AboutSettings, DEFAULT_ABOUT, getAboutData } from "@/lib/companySettings";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -276,55 +277,30 @@ function LogoUploadMini({
 }
 
 // ─── Company Branding Section (controlled by parent — reliable state) ─────────
-function CompanyBrandingSection({
-  nameAr, nameEn, logoUrl,
-  onNameAr, onNameEn, onLogo,
-}: {
-  nameAr: string; nameEn: string; logoUrl: string | null | undefined;
-  onNameAr: (v: string) => void; onNameEn: (v: string) => void;
-  onLogo: (v: string | null) => void;
-}) {
-  const { t, dir } = useLanguage();
+function CompanyBrandingSection() {
+  const { dir } = useLanguage();
+  const isRtl = dir === "rtl";
   return (
-    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4" dir={dir}>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
-          <Image className="w-3.5 h-3.5 text-primary" />
-        </div>
-        <h3 className="text-sm font-bold text-primary">{t("sa.form.company_id")}</h3>
-        <span className="text-xs text-muted-foreground">{t("sa.form.company_hint")}</span>
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-center gap-3" dir={dir}>
+      <div className="w-8 h-8 rounded-md bg-primary/20 flex items-center justify-center shrink-0">
+        <Building2 className="w-4 h-4 text-primary" />
       </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">{t("sa.form.name_ar_label")}</Label>
-          <input
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            value={nameAr}
-            onChange={(e) => onNameAr(e.target.value)}
-            placeholder="أدخل اسم الشركة بالعربي"
-            autoComplete="off"
-            data-testid="input-activity-company-name-ar"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">{t("sa.form.name_en_label")}</Label>
-          <input
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            style={{ direction: "ltr", textAlign: "left" }}
-            value={nameEn}
-            onChange={(e) => onNameEn(e.target.value)}
-            placeholder="Enter Company Name (English)"
-            autoComplete="off"
-            data-testid="input-activity-company-name-en"
-          />
-        </div>
+      <div className="flex-1 min-w-0">
+        <h3 className="text-sm font-bold text-primary">
+          {isRtl ? "هوية الشركة (الاسم والشعار)" : "Company Branding (Name & Logo)"}
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          {isRtl
+            ? "تُدار هوية الشركة الآن من صفحة إدارة الشركات."
+            : "Company branding is now managed from the Companies page."}
+        </p>
       </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">{t("sa.form.logo")}</Label>
-        <LogoUploadMini value={logoUrl} onChange={onLogo} />
-      </div>
+      <Link href="/companies">
+        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" data-testid="link-manage-branding">
+          <Building2 className="w-3.5 h-3.5" />
+          {isRtl ? "إدارة الشركات" : "Manage Companies"}
+        </Button>
+      </Link>
     </div>
   );
 }
@@ -1153,10 +1129,7 @@ function SystemAdminContent() {
               {apiCompanies.map((c) => (<option key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</option>))}
             </select>
           </div>
-          <CompanyBrandingSection
-            nameAr={addCompanyNameAr} nameEn={addCompanyNameEn} logoUrl={addCompanyLogoUrl}
-            onNameAr={setAddCompanyNameAr} onNameEn={setAddCompanyNameEn} onLogo={setAddCompanyLogoUrl}
-          />
+          <CompanyBrandingSection />
           <ActivityForm key={addOpen ? "add-open" : "add-closed"} ref={addFormRef} initialForm={emptyActivity()} />
           <DialogFooter className="flex-row-reverse gap-2">
             <Button onClick={handleAdd} data-testid="button-confirm-add-activity">{t("sa.save")}</Button>
@@ -1183,10 +1156,7 @@ function SystemAdminContent() {
               {apiCompanies.map((c) => (<option key={c.id} value={c.id}>{isRtl ? c.nameAr : c.nameEn}</option>))}
             </select>
           </div>
-          <CompanyBrandingSection
-            nameAr={editCompanyNameAr} nameEn={editCompanyNameEn} logoUrl={editCompanyLogoUrl}
-            onNameAr={setEditCompanyNameAr} onNameEn={setEditCompanyNameEn} onLogo={setEditCompanyLogoUrl}
-          />
+          <CompanyBrandingSection />
           {editActivity && (
             <ActivityForm key={editActivity.id} ref={editFormRef} initialForm={initialForm} />
           )}

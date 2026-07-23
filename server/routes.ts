@@ -21,7 +21,7 @@ import {
   isEmailVerified,
   consumeEmailVerification,
 } from "./email";
-import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, journalEntries, journalEntryLines, contractPaymentSchedules, poPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, type SurveyQuestionDef } from "@shared/schema";
+import { appData, companies, branches, contacts, deals, businessActivities, activityMembers, users, projects, projectMilestones, projectTasks, documents, invoices, invoiceItems, payments, notifications, portalRequests, employees, departments, vendors, purchaseOrders, purchaseOrderItems, inventoryItems, warehouses, stockMovements, assets, assetCategories, maintenanceRecords, payrollBatches, payrollItems, incidents, inspections, permits, governmentEntities, leaveRequests, attendanceRecords, safetyTrainings, employeeAdvances, employeeViolations, chartOfAccounts, journalEntries, journalEntryLines, contractPaymentSchedules, poPaymentSchedules, contracts, contractItems, partnerAccounts, emailLogs, surveys, surveyResponses, proposals, proposalItems, systemBackups, documentVersions, auditLogs, type SurveyQuestionDef } from "@shared/schema";
 import { sendEmail, generateTempPassword, sendPortalWelcomeEmail } from "./email";
 import crypto from "crypto";
 import QRCode from "qrcode";
@@ -2979,10 +2979,11 @@ export async function registerRoutes(
     const me = await requirePortalContact(req, res);
     if (!me) return;
     try {
+      // Security: match strictly by contactId (with verified email as the only
+      // fallback). Name-based matching removed — it could leak data between
+      // clients with identical names.
       const conds: ReturnType<typeof eq>[] = [eq(proposals.contactId, me.id)];
       if (me.email) conds.push(eq(proposals.clientEmail, me.email));
-      if (me.nameAr) conds.push(eq(proposals.clientName, me.nameAr));
-      if (me.nameEn) conds.push(eq(proposals.clientName, me.nameEn));
       const rows = await db.select().from(proposals)
         .where(or(...conds))
         .orderBy(desc(proposals.createdAt));
@@ -3025,10 +3026,7 @@ export async function registerRoutes(
       }
       const [p] = await db.select().from(proposals).where(eq(proposals.id, id));
       if (!p) return res.status(404).json({ error: "Not found" });
-      const allowed = p.contactId === me.id ||
-        (me.email && p.clientEmail === me.email) ||
-        p.clientName === me.nameAr ||
-        (me.nameEn && p.clientName === me.nameEn);
+      const allowed = p.contactId === me.id || (me.email && p.clientEmail === me.email);
       if (!allowed) return res.status(404).json({ error: "Not found" });
       if (p.status !== "sent") return res.status(400).json({ error: "Only proposals with status 'sent' can be approved" });
       await db.update(proposals).set({
@@ -3049,11 +3047,9 @@ export async function registerRoutes(
     const me = await requirePortalContact(req, res);
     if (!me) return;
     try {
-      const conds: ReturnType<typeof eq>[] = [eq(invoices.contactId, me.id)];
-      if (me.nameAr) conds.push(eq(invoices.clientName, me.nameAr));
-      if (me.nameEn) conds.push(eq(invoices.clientName, me.nameEn));
+      // Security: strict contactId scoping only (no name-based matching).
       const rows = await db.select().from(invoices)
-        .where(or(...conds))
+        .where(eq(invoices.contactId, me.id))
         .orderBy(desc(invoices.createdAt));
       res.json(rows.map((i) => ({
         id: i.id,
@@ -3104,10 +3100,8 @@ export async function registerRoutes(
     const me = await requirePortalContact(req, res);
     if (!me) return;
     try {
-      const ctrConds: ReturnType<typeof eq>[] = [eq(contracts.contactId, me.id)];
-      if (me.nameAr) ctrConds.push(eq(contracts.clientName, me.nameAr));
-      if (me.nameEn) ctrConds.push(eq(contracts.clientName, me.nameEn));
-      const myContracts = await db.select().from(contracts).where(or(...ctrConds));
+      // Security: strict contactId scoping only (no name-based matching).
+      const myContracts = await db.select().from(contracts).where(eq(contracts.contactId, me.id));
       const refs = Array.from(new Set(myContracts.map((c) => c.contractNumber)));
       // Only expose installments whose contract is provably owned by this contact
       // (no clientName-based schedule matching — names are not unique).
@@ -3139,11 +3133,9 @@ export async function registerRoutes(
     const me = await requirePortalContact(req, res);
     if (!me) return;
     try {
-      const conds: ReturnType<typeof eq>[] = [eq(contracts.contactId, me.id)];
-      if (me.nameAr) conds.push(eq(contracts.clientName, me.nameAr));
-      if (me.nameEn) conds.push(eq(contracts.clientName, me.nameEn));
+      // Security: strict contactId scoping only (no name-based matching).
       const rows = await db.select().from(contracts)
-        .where(or(...conds))
+        .where(eq(contracts.contactId, me.id))
         .orderBy(desc(contracts.createdAt));
       res.json(rows.map((c) => ({
         id: c.id,
@@ -3185,9 +3177,7 @@ export async function registerRoutes(
       }
       const [c] = await db.select().from(contracts).where(eq(contracts.id, id));
       if (!c) return res.status(404).json({ error: "Not found" });
-      const allowed = c.contactId === me.id ||
-        c.clientName === me.nameAr ||
-        (me.nameEn && c.clientName === me.nameEn);
+      const allowed = c.contactId === me.id;
       if (!allowed) return res.status(404).json({ error: "Not found" });
       if (c.clientSignedAt) return res.status(400).json({ error: "Contract already signed" });
       await db.update(contracts).set({
@@ -3331,9 +3321,7 @@ export async function registerRoutes(
       const id = Number(req.params.id);
       const [p] = await db.select().from(proposals).where(eq(proposals.id, id));
       if (!p) return res.status(404).json({ error: "Not found" });
-      const allowed = p.contactId === me.id ||
-        (me.email && p.clientEmail === me.email) ||
-        p.clientName === me.nameAr || (me.nameEn && p.clientName === me.nameEn);
+      const allowed = p.contactId === me.id || (me.email && p.clientEmail === me.email);
       if (!allowed) return res.status(404).json({ error: "Not found" });
       const items = await db.select().from(proposalItems).where(eq(proposalItems.proposalId, id)).orderBy(proposalItems.sortOrder);
       const STATUS_AR: Record<string, string> = { draft: "مسودة", sent: "مُرسل", approved: "مُوافق عليه", rejected: "مرفوض", converted_contract: "تحوّل لعقد", converted_invoice: "تحوّل لفاتورة" };
@@ -3359,7 +3347,7 @@ export async function registerRoutes(
       const id = Number(req.params.id);
       const [c] = await db.select().from(contracts).where(eq(contracts.id, id));
       if (!c) return res.status(404).json({ error: "Not found" });
-      const allowed = c.contactId === me.id || c.clientName === me.nameAr || (me.nameEn && c.clientName === me.nameEn);
+      const allowed = c.contactId === me.id;
       if (!allowed) return res.status(404).json({ error: "Not found" });
       const items = await db.select().from(contractItems).where(eq(contractItems.contractId, id)).orderBy(contractItems.sortOrder);
       const STATUS_AR: Record<string, string> = { draft: "مسودة", active: "نشط", expired: "منتهي", terminated: "مُنهى" };
@@ -3413,7 +3401,7 @@ export async function registerRoutes(
       const id = Number(req.params.id);
       const [inv] = await db.select().from(invoices).where(eq(invoices.id, id));
       if (!inv) return res.status(404).json({ error: "Not found" });
-      const allowed = inv.contactId === me.id || inv.clientName === me.nameAr || (me.nameEn && inv.clientName === me.nameEn);
+      const allowed = inv.contactId === me.id;
       if (!allowed) return res.status(404).json({ error: "Not found" });
       const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
       const STATUS_AR: Record<string, string> = { draft: "مسودة", sent: "مُرسلة", paid: "مدفوعة", overdue: "متأخرة", cancelled: "ملغاة" };
@@ -4762,6 +4750,7 @@ export async function registerRoutes(
         fileUrl: body.fileUrl || null,
         originalName: body.originalName || null,
         mimeType: body.mimeType || null,
+        expiryDate: body.expiryDate || null,
       } as any).returning();
       const { fileContent: _fc, fileUrl: _fu, ...docSafe } = doc as any;
       res.json({ ...docSafe, hasFile: Boolean((doc as any).fileContent || (doc as any).fileUrl) });
@@ -4772,21 +4761,175 @@ export async function registerRoutes(
     try {
       const id = Number(req.params.id);
       const body = req.body;
-      const [doc] = await db.update(documents).set({
-        titleAr: body.titleAr,
-        titleEn: body.titleEn || null,
-        category: body.category || "general",
-        folder: body.folder || "root",
-        status: body.status || "draft",
-        type: body.type || null,
-        version: body.version ? Number(body.version) : 1,
-        accessLevel: body.accessLevel || "internal",
-        tags: body.tags || [],
-        description: body.description || null,
-        updatedAt: new Date(),
-      }).where(eq(documents.id, id)).returning();
-      if (!doc) return res.status(404).json({ error: "Not found" });
-      res.json(doc);
+      const [existing] = await db.select().from(documents).where(eq(documents.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+
+      const newFile = typeof body.fileUrl === "string" && body.fileUrl.length > 0 && body.fileUrl !== (existing as any).fileUrl;
+      if (newFile) {
+        const MAX_FILE_BYTES = 15 * 1024 * 1024;
+        const b64 = body.fileUrl.includes(",") ? body.fileUrl.split(",").pop() : body.fileUrl;
+        if (Math.floor((b64?.length || 0) * 0.75) > MAX_FILE_BYTES) {
+          return res.status(413).json({ error: "File exceeds the 15MB limit" });
+        }
+      }
+
+      const doc = await db.transaction(async (tx) => {
+        let nextVersion = body.version ? Number(body.version) : (existing.version || 1);
+        if (newFile) {
+          // Archive the previous file into document_versions before replacing.
+          if ((existing as any).fileUrl || (existing as any).fileContent) {
+            await tx.insert(documentVersions).values({
+              documentId: id,
+              version: existing.version || 1,
+              fileUrl: (existing as any).fileUrl || (existing as any).fileContent || null,
+              changeLog: body.changeLog || `استبدال الملف — ${existing.originalName || ""}`.trim(),
+              uploadedBy: existing.uploadedBy || null,
+            });
+          }
+          nextVersion = (existing.version || 1) + 1;
+        }
+        const [updated] = await tx.update(documents).set({
+          titleAr: body.titleAr,
+          titleEn: body.titleEn || null,
+          category: body.category || "general",
+          folder: body.folder || "root",
+          status: body.status || "draft",
+          type: body.type || null,
+          version: nextVersion,
+          accessLevel: body.accessLevel || "internal",
+          tags: body.tags || [],
+          description: body.description || null,
+          expiryDate: body.expiryDate !== undefined ? (body.expiryDate || null) : (existing as any).expiryDate,
+          ...(newFile ? {
+            fileUrl: body.fileUrl,
+            // Clear legacy fileContent so the file endpoint serves the new file
+            // (it prioritizes fileContent over fileUrl).
+            fileContent: null,
+            originalName: body.originalName || existing.originalName,
+            mimeType: body.mimeType || existing.mimeType,
+            fileSize: body.fileSize ? Number(body.fileSize) : existing.fileSize,
+          } : {}),
+          updatedAt: new Date(),
+        }).where(eq(documents.id, id)).returning();
+        return updated;
+      });
+      const { fileContent: _fc, fileUrl: _fu, ...docSafe } = doc as any;
+      res.json({ ...docSafe, hasFile: Boolean((doc as any).fileContent || (doc as any).fileUrl) });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUDIT LOGS — centralized server-side activity log
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/audit-logs", async (req, res) => {
+    try {
+      const b = req.body || {};
+      if (!b.action) return res.status(400).json({ error: "action required" });
+      const staffId = (req as any).staffUserId || null;
+      const ip = (req.headers["x-forwarded-for"] as string || req.socket?.remoteAddress || "").split(",")[0].trim().slice(0, 45);
+      await db.insert(auditLogs).values({
+        userId: staffId,
+        action: String(b.action).slice(0, 50),
+        module: b.module ? String(b.module).slice(0, 100) : null,
+        entityType: b.entityType ? String(b.entityType).slice(0, 100) : null,
+        entityId: b.entityId ? String(b.entityId).slice(0, 100) : null,
+        details: b.details && typeof b.details === "object" ? b.details : null,
+        ipAddress: ip || null,
+        companyId: b.companyId ? Number(b.companyId) : null,
+      });
+      res.status(201).json({ ok: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/audit-logs", async (req, res) => {
+    try {
+      const limit = Math.min(2000, Math.max(1, parseInt(String(req.query.limit || "500"), 10) || 500));
+      const conds: any[] = [];
+      if (req.query.action) conds.push(eq(auditLogs.action, String(req.query.action)));
+      if (req.query.module) conds.push(eq(auditLogs.module, String(req.query.module)));
+      if (req.query.userId) conds.push(eq(auditLogs.userId, String(req.query.userId)));
+      const rows = await db.select().from(auditLogs)
+        .where(conds.length ? and(...conds) : undefined)
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(limit);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/audit-logs", async (req, res) => {
+    try {
+      const staffId = (req as any).staffUserId;
+      const roleRows = await db.select({ role: users.role }).from(users).where(eq(users.id, staffId)).limit(1);
+      if (roleRows[0]?.role !== "admin") return res.status(403).json({ error: "Admin access required" });
+      await db.delete(auditLogs);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SUPPORT TICKETS — emailed to the company inbox (About page form)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/support-tickets", async (req, res) => {
+    try {
+      const { name, email, subject, message } = req.body || {};
+      if (!subject || !message) return res.status(400).json({ ok: false, error: "subject and message required" });
+      // Recipient: company email from About settings, else first admin user.
+      let recipient = "";
+      try {
+        const [row] = await db.select().from(appData).where(eq(appData.key, "scapex_about_settings"));
+        const v: any = row?.value || {};
+        recipient = (v.email || v.contactEmail || v.supportEmail || "").trim();
+      } catch { /* ignore */ }
+      if (!recipient) {
+        const admins = await db.select({ email: users.email }).from(users).where(eq(users.role, "admin")).limit(1);
+        recipient = (admins[0]?.email || "").trim();
+      }
+      if (!recipient) return res.status(500).json({ ok: false, error: "No support recipient configured" });
+      const sent = await sendEmail({
+        to: recipient,
+        subject: `🎫 تذكرة دعم جديدة: ${String(subject).slice(0, 150)}`,
+        html: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+          <h2>تذكرة دعم جديدة من نظام Scapex</h2>
+          <p><b>المرسل:</b> ${String(name || "غير محدد").slice(0, 100)}</p>
+          <p><b>البريد:</b> ${String(email || "غير محدد").slice(0, 150)}</p>
+          <p><b>الموضوع:</b> ${String(subject).slice(0, 200)}</p>
+          <hr/>
+          <p style="white-space:pre-wrap">${String(message).slice(0, 5000)}</p>
+        </div>`,
+      });
+      if (!sent.success) {
+        return res.status(502).json({ ok: false, error: sent.error || "Email delivery failed" });
+      }
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  // Version history for a document (metadata only — no file blobs).
+  app.get("/api/documents/:id/versions", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select({
+        id: documentVersions.id,
+        version: documentVersions.version,
+        changeLog: documentVersions.changeLog,
+        uploadedBy: documentVersions.uploadedBy,
+        createdAt: documentVersions.createdAt,
+      }).from(documentVersions)
+        .where(eq(documentVersions.documentId, id))
+        .orderBy(desc(documentVersions.version));
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Download a specific archived version's file.
+  app.get("/api/documents/:id/versions/:versionId/file", async (req, res) => {
+    try {
+      const versionId = Number(req.params.versionId);
+      const docId = Number(req.params.id);
+      const [row] = await db.select().from(documentVersions)
+        .where(and(eq(documentVersions.id, versionId), eq(documentVersions.documentId, docId)));
+      if (!row || !row.fileUrl) return res.status(404).json({ error: "Version file not found" });
+      res.json({ fileUrl: row.fileUrl, version: row.version });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
