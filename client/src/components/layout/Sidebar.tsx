@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { getSystemSettings, type SystemSettings, DEFAULT_SYSTEM_SETTINGS } from "@/lib/companySettings";
 import {
   LayoutDashboard, CalendarCheck,
-  Settings, BarChart3, BrainCircuit,
+  Settings, BarChart3,
   ShoppingBag, Truck, Calculator, Package, Building2,
   Globe2, HardDrive, LogOut, UserCog, Info,
   FolderOpen, UserRound, Wallet,
@@ -29,7 +29,6 @@ const menuCategories = [
     labelEn: "Core",
     items: [
       { id: "dashboard",        icon: LayoutDashboard,    path: "/dashboard" },
-      { id: "ai_control",       icon: BrainCircuit,       path: "/ai-control" },
       { id: "bi",               icon: BarChart3,           path: "/bi" },
       { id: "multi_tenant",     icon: Building2,           path: "/companies" },
     ],
@@ -90,7 +89,6 @@ const menuCategories = [
 
 const NAV_LABELS: Record<string, { ar: string; en: string }> = {
   dashboard:        { ar: "لوحة التحكم",           en: "Dashboard" },
-  ai_control:       { ar: "مركز الذكاء الاصطناعي", en: "AI Control" },
   bi:               { ar: "تحليلات الأعمال",         en: "BI Analytics" },
   multi_tenant:     { ar: "إدارة الشركات",           en: "Companies" },
   crm:              { ar: "إدارة العملاء",            en: "CRM" },

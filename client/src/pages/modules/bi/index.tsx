@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PieChart, BarChart3, TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Download, RefreshCw, ArrowUpRight, ArrowDownRight, AlertTriangle, Package, Truck, ShieldAlert, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
+import { scopedFetch } from "@/lib/queryClient";
+import { AIInsightsPanel } from "@/components/shared/AIInsightsPanel";
 
 interface Analytics {
   employees: { total: number; active: number };
@@ -21,36 +23,42 @@ interface Analytics {
   alerts: { expiringPermits: number; expiringAssets: number; lowStockItems: number; openIncidents: number };
 }
 
-const MONTHLY_REVENUE = [
-  { month: "يناير", en: "Jan", value: 285000 }, { month: "فبراير", en: "Feb", value: 312000 },
-  { month: "مارس", en: "Mar", value: 298000 }, { month: "أبريل", en: "Apr", value: 425000 },
-  { month: "مايو", en: "May", value: 380000 }, { month: "يونيو", en: "Jun", value: 440000 },
-  { month: "يوليو", en: "Jul", value: 395000 }, { month: "أغسطس", en: "Aug", value: 462000 },
-  { month: "سبتمبر", en: "Sep", value: 510000 }, { month: "أكتوبر", en: "Oct", value: 485000 },
-  { month: "نوفمبر", en: "Nov", value: 530000 }, { month: "ديسمبر", en: "Dec", value: 620000 },
-];
+interface MonthlyRevenue { month: string; monthAr?: string; value: number; }
+interface ServiceBreakdownItem { label: string; labelAr?: string; value: number; color?: string; }
+interface Finance {
+  totalRevenue: number;
+  outstanding: number;
+  monthlyRevenue: MonthlyRevenue[];
+  serviceBreakdown: ServiceBreakdownItem[];
+}
 
-const SERVICE_BREAKDOWN = [
-  { label: "استشارات هندسية", en: "Engineering", value: 35, color: "#3b82f6" },
-  { label: "خدمات السلامة", en: "Safety", value: 28, color: "#ef4444" },
-  { label: "استشارات بيئية", en: "Environmental", value: 18, color: "#22c55e" },
-  { label: "مقاولات", en: "Contracting", value: 12, color: "#f59e0b" },
-  { label: "أخرى", en: "Other", value: 7, color: "#8b5cf6" },
-];
+const BREAKDOWN_COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#06b6d4", "#ec4899"];
+
+const fmtMoney = (n: number) =>
+  n >= 1_000_000 ? (n / 1_000_000).toFixed(2) + "M" :
+  n >= 1_000 ? (n / 1_000).toFixed(0) + "K" :
+  (n || 0).toLocaleString("en-SA");
 
 export default function BIModule() {
   const { dir } = useLanguage(); const isRtl = dir === "rtl";
   const [period, setPeriod] = useState("2026");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [finance, setFinance] = useState<Finance | null>(null);
   const [loading, setLoading] = useState(true);
-  const maxRevenue = Math.max(...MONTHLY_REVENUE.map(m => m.value));
+  const monthly = finance?.monthlyRevenue ?? [];
+  const breakdown = finance?.serviceBreakdown ?? [];
+  const maxRevenue = monthly.length ? Math.max(...monthly.map(m => m.value)) : 0;
+  const annualTotal = monthly.reduce((s, m) => s + m.value, 0);
 
   const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/analytics/summary");
-      const data = await res.json();
-      setAnalytics(data);
+      const [sumRes, finRes] = await Promise.all([
+        scopedFetch("/api/analytics/summary"),
+        scopedFetch("/api/analytics/finance"),
+      ]);
+      if (sumRes.ok) setAnalytics(await sumRes.json());
+      if (finRes.ok) setFinance(await finRes.json());
     } catch { } finally { setLoading(false); }
   }, []);
 
@@ -60,12 +68,12 @@ export default function BIModule() {
   const totalAlerts = a ? a.alerts.expiringPermits + a.alerts.expiringAssets + a.alerts.lowStockItems + a.alerts.openIncidents : 0;
 
   const kpis = [
-    { label: "Total Revenue", labelAr: "إجمالي الإيرادات", value: "5.14M", change: 23, unit: "SAR", trend: "up" as const, icon: DollarSign, color: "text-emerald-500" },
-    { label: "Active Projects", labelAr: "مشاريع نشطة", value: a ? String(a.projects.active) : "—", change: 12, unit: "", trend: "up" as const, icon: Briefcase, color: "text-blue-500" },
-    { label: "Total Employees", labelAr: "إجمالي الموظفين", value: a ? String(a.employees.total) : "—", change: 5, unit: "", trend: "up" as const, icon: Users, color: "text-purple-500" },
-    { label: "Total Clients", labelAr: "إجمالي العملاء", value: a ? String(a.clients.total) : "—", change: 8, unit: "", trend: "up" as const, icon: TrendingUp, color: "text-amber-500" },
-    { label: "Inventory Value", labelAr: "قيمة المخزون", value: a ? `${(a.inventory.totalValue / 1000).toFixed(0)}K` : "—", change: 3, unit: "SAR", trend: "up" as const, icon: Package, color: "text-cyan-500" },
-    { label: "Open Incidents", labelAr: "حوادث مفتوحة", value: a ? String(a.incidents.open) : "—", change: -2, unit: "", trend: a && a.incidents.open > 0 ? "down" as const : "up" as const, icon: ShieldAlert, color: a && a.incidents.open > 0 ? "text-red-500" : "text-emerald-500" },
+    { label: "Total Revenue", labelAr: "إجمالي الإيرادات", value: finance ? fmtMoney(finance.totalRevenue) : "—", change: 0, unit: "SAR", trend: "up" as const, icon: DollarSign, color: "text-emerald-500" },
+    { label: "Active Projects", labelAr: "مشاريع نشطة", value: a ? String(a.projects.active) : "—", change: 0, unit: "", trend: "up" as const, icon: Briefcase, color: "text-blue-500" },
+    { label: "Total Employees", labelAr: "إجمالي الموظفين", value: a ? String(a.employees.total) : "—", change: 0, unit: "", trend: "up" as const, icon: Users, color: "text-purple-500" },
+    { label: "Total Clients", labelAr: "إجمالي العملاء", value: a ? String(a.clients.total) : "—", change: 0, unit: "", trend: "up" as const, icon: TrendingUp, color: "text-amber-500" },
+    { label: "Inventory Value", labelAr: "قيمة المخزون", value: a ? `${(a.inventory.totalValue / 1000).toFixed(0)}K` : "—", change: 0, unit: "SAR", trend: "up" as const, icon: Package, color: "text-cyan-500" },
+    { label: "Open Incidents", labelAr: "حوادث مفتوحة", value: a ? String(a.incidents.open) : "—", change: 0, unit: "", trend: a && a.incidents.open > 0 ? "down" as const : "up" as const, icon: ShieldAlert, color: a && a.incidents.open > 0 ? "text-red-500" : "text-emerald-500" },
   ];
 
   return (
@@ -104,10 +112,12 @@ export default function BIModule() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className={cn("w-8 h-8 rounded-lg bg-secondary flex items-center justify-center", k.color)}><k.icon className="w-4 h-4" /></div>
-                  <div className={cn("flex items-center gap-0.5 text-xs", k.trend === "up" ? "text-emerald-500" : "text-red-500")}>
-                    {k.trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                    {Math.abs(k.change)}%
-                  </div>
+                  {k.change !== 0 && (
+                    <div className={cn("flex items-center gap-0.5 text-xs", k.trend === "up" ? "text-emerald-500" : "text-red-500")}>
+                      {k.trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                      {Math.abs(k.change)}%
+                    </div>
+                  )}
                 </div>
                 <p className="text-xl font-bold">{k.value}</p>
                 {k.unit && <p className="text-xs text-muted-foreground">{k.unit}</p>}
@@ -116,6 +126,8 @@ export default function BIModule() {
             </Card>
           ))}
         </div>
+
+        <AIInsightsPanel modules={["bi", "finance", "sales", "crm"]} />
 
         <Tabs defaultValue="overview">
           <TabsList className="bg-secondary/50">
@@ -155,22 +167,29 @@ export default function BIModule() {
               <Card className="border-border/50">
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">{isRtl ? "توزيع الخدمات" : "Service Breakdown"}</CardTitle></CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {SERVICE_BREAKDOWN.map((s, i) => (
-                      <div key={i} className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ background: s.color }} />
-                            <span>{isRtl ? s.label : s.en}</span>
+                  {breakdown.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">{isRtl ? "لا توجد بيانات" : "No data available"}</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {breakdown.map((s, i) => {
+                        const color = s.color || BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length];
+                        return (
+                          <div key={i} className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ background: color }} />
+                                <span>{isRtl ? (s.labelAr || s.label) : s.label}</span>
+                              </div>
+                              <span className="font-semibold">{s.value}%</span>
+                            </div>
+                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${s.value}%`, background: color }} />
+                            </div>
                           </div>
-                          <span className="font-semibold">{s.value}%</span>
-                        </div>
-                        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${s.value}%`, background: s.color }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -207,22 +226,28 @@ export default function BIModule() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-end gap-1 h-40">
-                  {MONTHLY_REVENUE.map((m, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full rounded-t-sm bg-primary/70 hover:bg-primary transition-colors cursor-pointer relative group" style={{ height: `${(m.value / maxRevenue) * 100}%` }}>
-                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-foreground text-background text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
-                          {(m.value / 1000).toFixed(0)}K SAR
+                {monthly.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-10 text-center">{isRtl ? "لا توجد بيانات إيرادات" : "No revenue data available"}</p>
+                ) : (
+                  <>
+                    <div className="flex items-end gap-1 h-40">
+                      {monthly.map((m, i) => (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full rounded-t-sm bg-primary/70 hover:bg-primary transition-colors cursor-pointer relative group" style={{ height: `${maxRevenue > 0 ? (m.value / maxRevenue) * 100 : 0}%` }}>
+                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-foreground text-background text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                              {fmtMoney(m.value)} SAR
+                            </div>
+                          </div>
+                          <span className="text-[9px] text-muted-foreground">{(isRtl ? (m.monthAr || m.month) : m.month).slice(0, 3)}</span>
                         </div>
-                      </div>
-                      <span className="text-[9px] text-muted-foreground">{isRtl ? m.month.slice(0, 3) : m.en}</span>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground mt-3 pt-3 border-t">
-                  <span>{isRtl ? "إجمالي السنة" : "Annual Total"}: <strong>{MONTHLY_REVENUE.reduce((s, m) => s + m.value, 0).toLocaleString()} {isRtl ? "ر.س" : "SAR"}</strong></span>
-                  <span>{isRtl ? "المتوسط الشهري" : "Monthly Avg"}: <strong>{(MONTHLY_REVENUE.reduce((s, m) => s + m.value, 0) / 12 / 1000).toFixed(0)}K {isRtl ? "ر.س" : "SAR"}</strong></span>
-                </div>
+                    <div className="flex justify-between text-xs text-muted-foreground mt-3 pt-3 border-t">
+                      <span>{isRtl ? "إجمالي السنة" : "Annual Total"}: <strong>{annualTotal.toLocaleString()} {isRtl ? "ر.س" : "SAR"}</strong></span>
+                      <span>{isRtl ? "المتوسط الشهري" : "Monthly Avg"}: <strong>{fmtMoney(annualTotal / monthly.length)} {isRtl ? "ر.س" : "SAR"}</strong></span>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -880,6 +880,33 @@ export async function registerRoutes(
     return { ok: true, actor, isPrivileged, activityId: effectiveActivity, allowedIds };
   }
 
+  // ── Company-level scope guard ─────────────────────────────────────────────
+  // Returns the set of companyIds the actor may read, derived from their
+  // activity memberships. Privileged users (admin/manager) are unrestricted
+  // (companyIds: null). Legacy rows with companyId == null are treated as
+  // belonging to the primary company and stay visible to any scoped member.
+  async function resolveCompanyScope(req: any): Promise<
+    | { ok: true; isPrivileged: boolean; companyIds: number[] | null }
+    | { ok: false; status: number; error: string }
+  > {
+    const actor = await identifyActor(req);
+    if (!actor) return { ok: false, status: 401, error: "Unauthorized" };
+    const isPrivileged = actor.roles.has("admin") || actor.roles.has("manager");
+    if (isPrivileged) return { ok: true, isPrivileged, companyIds: null };
+    const memberRows = await db.select().from(activityMembers).where(eq(activityMembers.userId, actor.id));
+    const actIds = memberRows.map((m) => m.activityId);
+    if (!actIds.length) return { ok: true, isPrivileged, companyIds: [] };
+    const acts = await db.select({ companyId: businessActivities.companyId })
+      .from(businessActivities).where(inArray(businessActivities.id, actIds));
+    const companyIds = Array.from(new Set(acts.map((a) => a.companyId).filter((c): c is number => c != null)));
+    return { ok: true, isPrivileged, companyIds };
+  }
+  // Filter helper: keep rows whose companyId is null (legacy/primary) or allowed.
+  function companyScoped<T extends { companyId: number | null }>(rows: T[], scope: { companyIds: number[] | null }): T[] {
+    if (scope.companyIds === null) return rows;
+    return rows.filter((r) => r.companyId == null || scope.companyIds!.includes(r.companyId));
+  }
+
   app.get("/api/customers", async (req, res) => {
     try {
       const scope = await resolveActivityScope(req);
@@ -3638,9 +3665,11 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   app.get("/api/employees", async (req, res) => {
     try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const activityId = req.query.activityId as string | undefined;
       const companyId  = req.query.companyId  ? parseInt(req.query.companyId as string) : null;
-      let rows = await db.select().from(employees).orderBy(employees.createdAt);
+      let rows = companyScoped(await db.select().from(employees).orderBy(employees.createdAt), scope);
       if (companyId)   rows = rows.filter(e => e.companyId === companyId);
       if (activityId)  rows = rows.filter(e => Array.isArray(e.activityIds) && (e.activityIds as string[]).includes(activityId));
       res.json(rows);
@@ -4492,8 +4521,12 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   // PERMITS & GOVERNMENT ENTITIES
   // ═══════════════════════════════════════════════════════════════════════════
-  app.get("/api/government-entities", async (_req, res) => {
-    try { res.json(await db.select().from(governmentEntities)); }
+  app.get("/api/government-entities", async (req, res) => {
+    try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      res.json(companyScoped(await db.select().from(governmentEntities), scope));
+    }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/government-entities", async (req, res) => {
@@ -4502,8 +4535,12 @@ export async function registerRoutes(
       res.json(row);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
-  app.get("/api/permits", async (_req, res) => {
-    try { res.json(await db.select().from(permits).orderBy(desc(permits.createdAt))); }
+  app.get("/api/permits", async (req, res) => {
+    try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      res.json(companyScoped(await db.select().from(permits).orderBy(desc(permits.createdAt)), scope));
+    }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/permits", async (req, res) => {
@@ -4528,8 +4565,12 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   // SAFETY TRAININGS
   // ═══════════════════════════════════════════════════════════════════════════
-  app.get("/api/safety-trainings", async (_req, res) => {
-    try { res.json(await db.select().from(safetyTrainings).orderBy(desc(safetyTrainings.createdAt))); }
+  app.get("/api/safety-trainings", async (req, res) => {
+    try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      res.json(companyScoped(await db.select().from(safetyTrainings).orderBy(desc(safetyTrainings.createdAt)), scope));
+    }
     catch (e: any) { res.status(500).json({ error: e.message }); }
   });
   app.post("/api/safety-trainings", async (req, res) => {
@@ -4543,9 +4584,11 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   // ANALYTICS — aggregated summary for BI dashboard
   // ═══════════════════════════════════════════════════════════════════════════
-  app.get("/api/analytics/summary", async (_req, res) => {
+  app.get("/api/analytics/summary", async (req, res) => {
     try {
-      const [empRows, projRows, incidentRows, invRows, vendorRows, poRows, assetRows, contactRows, permitRows] = await Promise.all([
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const [empRowsAll, projRowsAll, incidentRowsAll, invRowsAll, vendorRowsAll, poRowsAll, assetRowsAll, contactRowsAll, permitRowsAll] = await Promise.all([
         db.select().from(employees),
         db.select().from(projects),
         db.select().from(incidents),
@@ -4556,6 +4599,15 @@ export async function registerRoutes(
         db.select().from(contacts),
         db.select().from(permits),
       ]);
+      const empRows = companyScoped(empRowsAll, scope);
+      const projRows = companyScoped(projRowsAll, scope);
+      const incidentRows = companyScoped(incidentRowsAll, scope);
+      const invRows = companyScoped(invRowsAll, scope);
+      const vendorRows = companyScoped(vendorRowsAll, scope);
+      const poRows = companyScoped(poRowsAll, scope);
+      const assetRows = companyScoped(assetRowsAll, scope);
+      const contactRows = companyScoped(contactRowsAll, scope);
+      const permitRows = companyScoped(permitRowsAll, scope);
       const totalInventoryValue = invRows.reduce((s, i) => s + (parseFloat(i.totalValue as string) || 0), 0);
       const totalPOValue = poRows.reduce((s, o) => s + (parseFloat(o.total as string) || 0), 0);
       const activeProjects = projRows.filter(p => p.status === "active").length;
@@ -4577,6 +4629,205 @@ export async function registerRoutes(
         permits: { total: permitRows.length, expiring: expiringPermits },
         alerts: { expiringPermits, expiringAssets, lowStockItems, openIncidents },
       });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ANALYTICS — real finance figures (single source of truth: payments + invoices)
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.get("/api/analytics/finance", async (req, res) => {
+    try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const [payRows, invRows, itemRows] = await Promise.all([
+        db.select().from(payments),
+        db.select().from(invoices),
+        db.select().from(invoiceItems),
+      ]);
+      const pays = companyScoped(payRows, scope).filter((p) => p.type !== "paid_out" && p.type !== "sent");
+      const invs = companyScoped(invRows, scope);
+      const totalRevenue = pays.reduce((s, p) => s + (parseFloat(p.amount as string) || 0), 0);
+      // last 12 months
+      const months: { month: string; amount: number }[] = [];
+      const now = new Date();
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, amount: 0 });
+      }
+      for (const p of pays) {
+        const d = p.date ? new Date(p.date) : (p.createdAt ? new Date(p.createdAt) : null);
+        if (!d) continue;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const slot = months.find((m) => m.month === key);
+        if (slot) slot.amount += parseFloat(p.amount as string) || 0;
+      }
+      const MONTHS_EN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+      const monthlyRevenue = months.map((m) => {
+        const mi = parseInt(m.month.slice(5)) - 1;
+        return { month: MONTHS_EN[mi], monthAr: MONTHS_AR[mi], key: m.month, value: m.amount };
+      });
+      // service breakdown from invoice line items (top 6 by value)
+      const invIds = new Set(invs.map((i) => i.id));
+      const byService = new Map<string, number>();
+      for (const it of itemRows) {
+        if (!invIds.has(it.invoiceId)) continue;
+        const name = (it.descAr || it.descEn || "أخرى").trim();
+        byService.set(name, (byService.get(name) || 0) + (parseFloat(it.total as string) || 0));
+      }
+      const serviceBreakdown = Array.from(byService.entries())
+        .map(([label, value]) => ({ label, value }))
+        .sort((a, b) => b.value - a.value).slice(0, 6);
+      const outstanding = invs
+        .filter((i) => i.status !== "paid" && i.status !== "cancelled" && i.status !== "draft")
+        .reduce((s, i) => s + (parseFloat(i.total as string) || 0), 0);
+      res.json({ totalRevenue, monthlyRevenue, serviceBreakdown, outstanding, invoicesCount: invs.length });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AI INSIGHTS — real rule-based intelligence over live data, admin-toggleable
+  // ═══════════════════════════════════════════════════════════════════════════
+  const AI_SETTINGS_KEY = "scapex_ai_settings";
+  async function getAiSettings(): Promise<{ enabled: boolean }> {
+    try {
+      const [row] = await db.select().from(appData).where(eq(appData.key, AI_SETTINGS_KEY));
+      const v = row?.value as any;
+      const parsed = typeof v === "string" ? JSON.parse(v) : v;
+      return { enabled: parsed?.enabled !== false };
+    } catch { return { enabled: true }; }
+  }
+  app.get("/api/ai/settings", async (req, res) => {
+    const actor = await identifyActor(req);
+    if (!actor) return res.status(401).json({ error: "Unauthorized" });
+    res.json(await getAiSettings());
+  });
+  app.put("/api/ai/settings", async (req, res) => {
+    try {
+      const actor = await identifyActor(req);
+      if (!actor || !actor.roles.has("admin")) return res.status(403).json({ error: "Admin only" });
+      const enabled = req.body?.enabled !== false;
+      const value = JSON.stringify({ enabled });
+      const [existing] = await db.select().from(appData).where(eq(appData.key, AI_SETTINGS_KEY));
+      if (existing) await db.update(appData).set({ value, updatedAt: new Date() }).where(eq(appData.key, AI_SETTINGS_KEY));
+      else await db.insert(appData).values({ key: AI_SETTINGS_KEY, value });
+      res.json({ enabled });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/ai/insights", async (req, res) => {
+    try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+      const settings = await getAiSettings();
+      if (!settings.enabled) return res.json({ enabled: false, insights: [] });
+      const now = new Date();
+      const in30 = new Date(now.getTime() + 30 * 864e5);
+      const staleCutoff = new Date(now.getTime() - 30 * 864e5);
+      const [dealRows, invRows, docRows, permitRows, empRows, stockRows, schedRows] = await Promise.all([
+        db.select().from(deals),
+        db.select().from(invoices),
+        db.select().from(documents),
+        db.select().from(permits),
+        db.select().from(employees),
+        db.select().from(inventoryItems),
+        db.select().from(contractPaymentSchedules),
+      ]);
+      const insights: any[] = [];
+      const push = (i: any) => insights.push({ id: insights.length + 1, ...i });
+
+      // 1. Stale deals (open, untouched > 30 days)
+      const stale = companyScoped(dealRows, scope).filter((d) =>
+        d.status === "open" && d.updatedAt && new Date(d.updatedAt) < staleCutoff);
+      if (stale.length) push({
+        type: "stale_deals", severity: stale.length > 3 ? "high" : "medium", module: "crm", link: "/crm",
+        titleAr: `${stale.length} صفقة راكدة بلا تحديث منذ أكثر من 30 يوماً`,
+        titleEn: `${stale.length} stale deal(s) untouched for over 30 days`,
+        descriptionAr: `قيمتها الإجمالية ${stale.reduce((s, d) => s + (parseFloat(d.value as string) || 0), 0).toLocaleString()} ر.س — يُنصح بمتابعة العملاء أو تحديث حالة الصفقات.`,
+        descriptionEn: `Total value ${stale.reduce((s, d) => s + (parseFloat(d.value as string) || 0), 0).toLocaleString()} SAR — follow up with clients or update deal status.`,
+      });
+
+      // 2. Overdue invoices
+      const overdueInv = companyScoped(invRows, scope).filter((i) =>
+        i.status !== "paid" && i.status !== "cancelled" && i.status !== "draft" && i.dueDate && new Date(i.dueDate) < now);
+      if (overdueInv.length) push({
+        type: "overdue_invoices", severity: "high", module: "accounting", link: "/accounting?tab=invoices",
+        titleAr: `${overdueInv.length} فاتورة متأخرة عن السداد`,
+        titleEn: `${overdueInv.length} overdue invoice(s)`,
+        descriptionAr: `إجمالي المبالغ المتأخرة ${overdueInv.reduce((s, i) => s + (parseFloat(i.total as string) || 0), 0).toLocaleString()} ر.س — يُنصح بإرسال تذكيرات تحصيل.`,
+        descriptionEn: `Overdue total ${overdueInv.reduce((s, i) => s + (parseFloat(i.total as string) || 0), 0).toLocaleString()} SAR — consider sending collection reminders.`,
+      });
+
+      // 3. Overdue contract installments
+      const overdueSched = companyScoped(schedRows, scope).filter((s) =>
+        s.dueDate && new Date(s.dueDate) < now && (s as any).status !== "paid");
+      if (overdueSched.length) push({
+        type: "overdue_installments", severity: "high", module: "sales", link: "/sales?tab=contracts",
+        titleAr: `${overdueSched.length} دفعة عقد مستحقة لم تُحصَّل`,
+        titleEn: `${overdueSched.length} contract installment(s) past due`,
+        descriptionAr: "راجع جداول دفعات العقود وتابع التحصيل مع العملاء.",
+        descriptionEn: "Review contract payment schedules and follow up on collection.",
+      });
+
+      // 4. Expiring documents / permits (30 days)
+      const expDocs = companyScoped(docRows as any[], scope).filter((d: any) => d.expiryDate && new Date(d.expiryDate) <= in30);
+      const expPermits = companyScoped(permitRows, scope).filter((p) => p.expiryDate && new Date(p.expiryDate) <= in30 && p.status === "active");
+      if (expDocs.length + expPermits.length) push({
+        type: "expiring_documents", severity: "medium", module: "dms", link: "/dms",
+        titleAr: `${expDocs.length + expPermits.length} وثيقة/ترخيص تنتهي صلاحيتها خلال 30 يوماً`,
+        titleEn: `${expDocs.length + expPermits.length} document(s)/permit(s) expiring within 30 days`,
+        descriptionAr: "جدّد الوثائق والتراخيص قبل انتهائها لتجنب الغرامات وتوقف الأعمال.",
+        descriptionEn: "Renew documents and permits before expiry to avoid penalties and work stoppage.",
+      });
+
+      // 5. Employee iqama/insurance expiry (60 days)
+      const in60 = new Date(now.getTime() + 60 * 864e5);
+      const expEmp = companyScoped(empRows, scope).filter((e) =>
+        e.status === "active" && ((e.iqamaExpiry && new Date(e.iqamaExpiry) <= in60) || (e.medicalInsuranceExpiry && new Date(e.medicalInsuranceExpiry) <= in60)));
+      if (expEmp.length) push({
+        type: "employee_docs", severity: "medium", module: "hr", link: "/hr",
+        titleAr: `${expEmp.length} موظف تنتهي إقامته أو تأمينه الطبي خلال 60 يوماً`,
+        titleEn: `${expEmp.length} employee(s) with iqama or medical insurance expiring within 60 days`,
+        descriptionAr: "بادر بالتجديد لتفادي الغرامات النظامية.",
+        descriptionEn: "Renew promptly to avoid regulatory fines.",
+      });
+
+      // 6. Low stock
+      const lowStock = companyScoped(stockRows, scope).filter((i) =>
+        i.isActive !== false && parseFloat(i.currentQty as string) <= parseFloat((i.minQty as string) || "0") && parseFloat((i.minQty as string) || "0") > 0);
+      if (lowStock.length) push({
+        type: "low_stock", severity: lowStock.length > 5 ? "high" : "medium", module: "inventory", link: "/inventory",
+        titleAr: `${lowStock.length} صنف وصل حد إعادة الطلب`,
+        titleEn: `${lowStock.length} item(s) at or below reorder level`,
+        descriptionAr: "أنشئ أوامر شراء لتجنب نفاد المخزون.",
+        descriptionEn: "Create purchase orders to avoid stock-outs.",
+      });
+
+      // 7. Revenue trend (compare last month vs previous)
+      const payRows = companyScoped(await db.select().from(payments), scope);
+      const monthSum = (offset: number) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return payRows.reduce((s, p) => {
+          const pd = p.date ? new Date(p.date) : null;
+          if (!pd) return s;
+          const k = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, "0")}`;
+          return k === key ? s + (parseFloat(p.amount as string) || 0) : s;
+        }, 0);
+      };
+      const lastM = monthSum(1), prevM = monthSum(2);
+      if (prevM > 0) {
+        const pct = Math.round(((lastM - prevM) / prevM) * 100);
+        if (Math.abs(pct) >= 15) push({
+          type: "revenue_trend", severity: pct < 0 ? "high" : "low", module: "bi", link: "/bi",
+          titleAr: pct < 0 ? `انخفاض التحصيل ${Math.abs(pct)}% مقارنة بالشهر السابق` : `نمو التحصيل ${pct}% مقارنة بالشهر السابق`,
+          titleEn: pct < 0 ? `Collections dropped ${Math.abs(pct)}% vs previous month` : `Collections grew ${pct}% vs previous month`,
+          descriptionAr: `الشهر الماضي: ${lastM.toLocaleString()} ر.س مقابل ${prevM.toLocaleString()} ر.س قبله.`,
+          descriptionEn: `Last month: ${lastM.toLocaleString()} SAR vs ${prevM.toLocaleString()} SAR before it.`,
+        });
+      }
+
+      res.json({ enabled: true, insights });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
@@ -5610,17 +5861,31 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════════════
   app.get("/api/invoices", async (req, res) => {
     try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const rows = await db.select().from(invoices).orderBy(desc(invoices.createdAt));
-      res.json(rows);
+      res.json(companyScoped(rows, scope));
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  // Loads an invoice and enforces company scope (404 to avoid ID probing).
+  async function loadScopedInvoice(req: any, res: any) {
+    const scope = await resolveCompanyScope(req);
+    if (!scope.ok) { res.status(scope.status).json({ error: scope.error }); return null; }
+    const id = parseInt(req.params.id);
+    const [inv] = await db.select().from(invoices).where(eq(invoices.id, id));
+    if (!inv || companyScoped([inv], scope).length === 0) {
+      res.status(404).json({ error: "Not found" });
+      return null;
+    }
+    return inv;
+  }
+
   app.get("/api/invoices/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      const [inv] = await db.select().from(invoices).where(eq(invoices.id, id));
-      if (!inv) return res.status(404).json({ error: "Not found" });
-      const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+      const inv = await loadScopedInvoice(req, res);
+      if (!inv) return;
+      const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, inv.id));
       res.json({ ...inv, items });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -5662,7 +5927,9 @@ export async function registerRoutes(
 
   app.put("/api/invoices/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const existing = await loadScopedInvoice(req, res);
+      if (!existing) return;
+      const id = existing.id;
       const b = req.body;
       const subtotal = b.subtotal !== undefined ? parseFloat(b.subtotal) : undefined;
       const vatAmount = b.vatAmount !== undefined ? parseFloat(b.vatAmount) : undefined;
@@ -5701,9 +5968,10 @@ export async function registerRoutes(
 
   app.delete("/api/invoices/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
-      await db.delete(invoices).where(eq(invoices.id, id));
+      const existing = await loadScopedInvoice(req, res);
+      if (!existing) return;
+      await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, existing.id));
+      await db.delete(invoices).where(eq(invoices.id, existing.id));
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -6225,7 +6493,12 @@ export async function registerRoutes(
 
   app.get("/api/journal-entries", async (req, res) => {
     try {
+      const scope = await resolveCompanyScope(req);
+      if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
       const companyId = parseInt((req.query.companyId as string) || "1");
+      if (scope.companyIds !== null && !scope.companyIds.includes(companyId)) {
+        return res.status(403).json({ error: "Forbidden: company not in your scope" });
+      }
       const rows = await db.select().from(journalEntries)
         .where(eq(journalEntries.companyId, companyId))
         .orderBy(desc(journalEntries.date), desc(journalEntries.id));

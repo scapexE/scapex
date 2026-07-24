@@ -22,7 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Settings2, Plus, Pencil, Trash2, Shield, Users, Layers, Upload, X, UserCheck,
   ChevronDown, Check, Link as LinkIcon, Ban, Building2, Info, MapPin, Globe,
-  MessageSquare, Mail, Loader2,
+  MessageSquare, Mail, Loader2, Sparkles,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { ALL_MODULES, ROLE_LABELS, getUsers, type SystemUser } from "@/lib/permissions";
 import { readFileAsDataUrl } from "@/lib/settings";
 import { useToast } from "@/hooks/use-toast";
+import { scopedFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { CompanyServicesManager } from "@/components/system-admin/CompanyServicesManager";
 import { Link } from "wouter";
@@ -584,6 +585,9 @@ function PortalOtpSettings() {
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiLoading, setAiLoading] = useState(true);
+  const [aiSaving, setAiSaving] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -592,8 +596,38 @@ function PortalOtpSettings() {
       .then((cfg) => { if (alive) setSmsEnabled(!!(cfg && cfg.smsEnabled)); })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
+    scopedFetch("/api/ai/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => { if (alive) setAiEnabled(!!(cfg && cfg.enabled)); })
+      .catch(() => {})
+      .finally(() => { if (alive) setAiLoading(false); });
     return () => { alive = false; };
   }, []);
+
+  const handleAiToggle = async (next: boolean) => {
+    setAiSaving(true);
+    const prev = aiEnabled;
+    setAiEnabled(next);
+    try {
+      const r = await scopedFetch("/api/ai/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!r.ok) throw new Error("save failed");
+      toast({
+        title: t2("تم الحفظ", "Saved"),
+        description: next
+          ? t2("تم تفعيل تحليلات ورؤى الذكاء الاصطناعي", "AI analytics & insights enabled")
+          : t2("تم إيقاف تحليلات الذكاء الاصطناعي", "AI analytics disabled"),
+      });
+    } catch {
+      setAiEnabled(prev);
+      toast({ title: t2("تعذّر الحفظ", "Save failed"), variant: "destructive" });
+    } finally {
+      setAiSaving(false);
+    }
+  };
 
   const handleToggle = async (next: boolean) => {
     setSaving(true);
@@ -684,6 +718,44 @@ function PortalOtpSettings() {
                   "Clients currently receive the verification code by email only.")}
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            {t2("تحليلات ورؤى الذكاء الاصطناعي", "AI Analytics & Insights")}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            {t2("عند التفعيل، تظهر رؤى الذكاء الاصطناعي في لوحات التحكم والتحليلات بناءً على بياناتك الحية.",
+                "When enabled, AI-generated insights appear across dashboards and analytics based on your live data.")}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-950/40 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{t2("رؤى الذكاء الاصطناعي", "AI Insights")}</p>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  {t2("تفعيل توليد الرؤى والتوصيات الذكية عبر النظام. عند الإيقاف تُخفى كل عناصر الذكاء الاصطناعي.",
+                      "Enable smart insights and recommendations across the system. When off, all AI widgets are hidden.")}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {(aiLoading || aiSaving) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+              <Switch
+                checked={aiEnabled}
+                disabled={aiLoading || aiSaving}
+                onCheckedChange={handleAiToggle}
+                data-testid="switch-ai-analytics"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

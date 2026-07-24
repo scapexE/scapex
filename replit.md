@@ -126,7 +126,7 @@ service_categories, services
 ### Core & Analytics
 - **Dashboard** (`/dashboard`) — Overview, KPIs, recent activity
 - **BI Analytics** (`/bi`) — Revenue charts, service breakdown, top clients, KPI bars
-- **AI Control Center** (`/ai-control`) — AI insights, automation rules
+- **AI Insights (contextual)** — old `/ai-control` module deleted (redirects to dashboard). Real rule-based insights via `GET /api/ai/insights` (stale deals >30d, overdue invoices/installments, expiring docs/permits, iqama/insurance expiry, low stock, revenue trend), rendered by shared `AIInsightsPanel` inside Dashboard, BI, and CRM. Admin on/off toggle in System Admin (`/api/ai/settings`, stored in app_data key `scapex_ai_settings`). BI/Dashboard financials come from real `GET /api/analytics/finance` (payments + invoices) — no mock numbers.
 - **Company Management** (`/companies`) — Multi-tenant: companies, branches, org structure
 - **Company Info & Settings** — Merged into Company Management (`/companies`) as a dedicated tab ("معلومات وإعدادات الشركة"). Per-company: identity/description/working-hours/social (معلومات الشركة), system settings — branding/time/date/font (إعدادات النظام), and print templates — footers/headers (قوالب الطباعة). The old standalone `/company-settings` route now redirects to `/companies`. Component: `client/src/components/companies/CompanySettingsPanel.tsx`.
 

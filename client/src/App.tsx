@@ -31,7 +31,6 @@ import InventoryModule from "@/pages/modules/inventory/index";
 import EquipmentModule from "@/pages/modules/equipment/index";
 import DMSModule from "@/pages/modules/dms/index";
 import BIModule from "@/pages/modules/bi/index";
-import AIControlModule from "@/pages/modules/ai-control/index";
 import CompaniesModule from "@/pages/modules/companies/index";
 import AboutModule from "@/pages/modules/about/index";
 import AuditLogModule from "@/pages/modules/audit-log/index";
@@ -73,7 +72,7 @@ function Router() {
       <ProtectedRoute path="/system-admin" component={SystemAdmin} page="system_admin" />
 
       {/* Core & Analytics */}
-      <ProtectedRoute path="/ai-control" component={AIControlModule} page="ai_control" />
+      <Route path="/ai-control" component={DashboardRedirect} />
       <ProtectedRoute path="/bi" component={BIModule} page="bi" />
       <ProtectedRoute path="/companies" component={CompaniesModule} page="multi_tenant" />
 

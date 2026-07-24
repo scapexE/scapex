@@ -65,9 +65,24 @@ export function CustomerCard({ customer, open, onClose, onCreateProposal }: Cust
   useEffect(() => {
     if (!customer || !open) return;
     const name = customer.name.toLowerCase();
+    const salesContactId = Number(customer.id);
+    const hasContactId = Number.isFinite(salesContactId);
+    const matchName = (clientName: string) => {
+      const cn = clientName.toLowerCase();
+      return cn.includes(name) || name.includes(cn);
+    };
     const applySales = () => {
-      setProposals(getProposals().filter(p => p.clientName.toLowerCase().includes(name) || name.includes(p.clientName.toLowerCase())));
-      setContracts(getContracts().filter(c => c.clientName.toLowerCase().includes(name) || name.includes(c.clientName.toLowerCase())));
+      const allProposals = getProposals();
+      const matchedProposals = allProposals.filter(p =>
+        hasContactId && p.crmContactId != null
+          ? p.crmContactId === salesContactId
+          : matchName(p.clientName)
+      );
+      setProposals(matchedProposals);
+      const matchedProposalIds = new Set(matchedProposals.map(p => p.id));
+      setContracts(getContracts().filter(c =>
+        (c.proposalId && matchedProposalIds.has(c.proposalId)) || matchName(c.clientName)
+      ));
     };
     applySales();
     hydrateSalesData().then(applySales);

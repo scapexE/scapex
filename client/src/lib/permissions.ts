@@ -66,7 +66,6 @@ export function mergePermissions(roles: Role[]): string[] {
 
 export const ALL_MODULES = [
   { id: "dashboard",            labelAr: "لوحة التحكم",            labelEn: "Dashboard",          category: "core" },
-  { id: "ai_control",           labelAr: "مركز الذكاء الاصطناعي",  labelEn: "AI Control",         category: "core" },
   { id: "bi",                   labelAr: "تحليلات الأعمال",         labelEn: "BI Analytics",       category: "core" },
   { id: "multi_tenant",         labelAr: "إدارة الشركات",           labelEn: "Companies",          category: "core" },
   { id: "crm",                  labelAr: "إدارة العملاء",           labelEn: "CRM",                category: "business" },

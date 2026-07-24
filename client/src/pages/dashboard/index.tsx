@@ -15,7 +15,8 @@ import {
 import { MainLayout } from "../../components/layout/MainLayout";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { ProjectActivity } from "../../components/dashboard/ProjectActivity";
-import { AIInsights } from "../../components/dashboard/AIInsights";
+import { AIInsightsPanel } from "@/components/shared/AIInsightsPanel";
+import { scopedFetch } from "@/lib/queryClient";
 import { useBusinessActivity } from "@/contexts/BusinessActivityContext";
 import { useActiveRole } from "@/contexts/ActiveRoleContext";
 import { ROLE_DEFAULTS, getUsers, type SystemUser } from "@/lib/permissions";
@@ -33,7 +34,6 @@ const ALL_APPS = [
   { id: "payroll",       icon: Banknote,     color: "bg-orange-100 dark:bg-orange-900/40",  iconColor: "text-orange-600 dark:text-orange-400",  path: "/payroll" },
   { id: "attendance",    icon: MapPin,       color: "bg-fuchsia-100 dark:bg-fuchsia-900/40", iconColor: "text-fuchsia-600 dark:text-fuchsia-400", path: "/attendance" },
   { id: "bi",            icon: PieChart,     color: "bg-sky-100 dark:bg-sky-900/40",     iconColor: "text-sky-600 dark:text-sky-400",     path: "/bi" },
-  { id: "ai_control",    icon: BrainCircuit, color: "bg-indigo-100 dark:bg-indigo-900/40",  iconColor: "text-indigo-600 dark:text-indigo-400",  path: "/ai-control" },
   { id: "multi_tenant",  icon: Building2,    color: "bg-slate-100 dark:bg-slate-800/60",   iconColor: "text-slate-600 dark:text-slate-400",   path: "/companies" },
   { id: "dms",           icon: FileText,     color: "bg-gray-100 dark:bg-gray-800/60",    iconColor: "text-gray-600 dark:text-gray-400",    path: "/dms" },
   { id: "client_portal", icon: Globe,        color: "bg-emerald-100 dark:bg-emerald-900/40", iconColor: "text-emerald-600 dark:text-emerald-400", path: "/client-portal" },
@@ -46,6 +46,12 @@ function DashboardContent() {
   const { activeActivity } = useBusinessActivity();
   const { activeRole, isMultiRole } = useActiveRole();
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [summary, setSummary] = useState<{
+    employees: { total: number; active: number };
+    projects: { total: number; active: number };
+    clients: { total: number };
+  } | null>(null);
+  const [collectedRevenue, setCollectedRevenue] = useState<number | null>(null);
 
   const currentUser: SystemUser | null = JSON.parse(dbGetItem("user") || "null");
   const isAdmin = currentUser?.role === "admin";
@@ -75,6 +81,24 @@ function DashboardContent() {
     window.addEventListener("scapex_audit_update", handler);
     return () => window.removeEventListener("scapex_audit_update", handler);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    scopedFetch("/api/analytics/summary")
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (active && d) setSummary(d); })
+      .catch(() => {});
+    scopedFetch("/api/crm/analytics")
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (active && d?.kpis) setCollectedRevenue(Number(d.kpis.totalCollected) || 0); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [activeActivity?.id]);
+
+  const fmtMoney = (n: number) =>
+    n >= 1_000_000 ? (n / 1_000_000).toFixed(2) + "M" :
+    n >= 1_000 ? (n / 1_000).toFixed(1) + "K" :
+    n.toLocaleString("en-SA");
 
   const allUsers = getUsers();
   const todayStr = new Date().toDateString();
@@ -144,31 +168,27 @@ function DashboardContent() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title={t("dash.active_projects")}
-          value="42"
-          trend={t("dash.trend_projects")}
+          value={summary ? summary.projects.active : "—"}
+          trend={summary ? (isRtl ? `${summary.projects.total} مشروع إجمالاً` : `${summary.projects.total} total projects`) : ""}
           icon={Briefcase}
-          trendUp={true}
         />
         <StatCard
-          title={t("dash.pending_approvals")}
-          value="128"
-          trend={t("dash.trend_approvals")}
-          icon={CheckCircle2}
-          trendUp={false}
+          title={isRtl ? "إجمالي العملاء" : "Total Clients"}
+          value={summary ? summary.clients.total : "—"}
+          trend={isRtl ? "في قاعدة البيانات" : "in database"}
+          icon={Users}
         />
         <StatCard
-          title={t("dash.engineers_field")}
-          value="340"
-          trend={t("dash.trend_engineers")}
+          title={isRtl ? "الموظفون النشطون" : "Active Employees"}
+          value={summary ? summary.employees.active : "—"}
+          trend={summary ? (isRtl ? `${summary.employees.total} موظف إجمالاً` : `${summary.employees.total} total staff`) : ""}
           icon={MapPin}
-          trendUp={true}
         />
         <StatCard
-          title={t("dash.revenue")}
-          value="12.4M ر.س"
-          trend={t("dash.trend_revenue")}
+          title={isRtl ? "الإيرادات المحصّلة" : "Collected Revenue"}
+          value={collectedRevenue !== null ? `${fmtMoney(collectedRevenue)} ${isRtl ? "ر.س" : "SAR"}` : "—"}
+          trend={isRtl ? "إجمالي المبالغ المحصّلة" : "Total payments received"}
           icon={TrendingUp}
-          trendUp={true}
         />
       </div>
 
@@ -190,7 +210,7 @@ function DashboardContent() {
               <Package className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold" data-testid="text-active-modules">22</p>
+              <p className="text-2xl font-bold" data-testid="text-active-modules">{visibleApps.length}</p>
               <p className="text-xs text-muted-foreground">{t("dash.stat.modules")}</p>
             </div>
           </CardContent>
@@ -209,11 +229,11 @@ function DashboardContent() {
         <Card className="shadow-sm border-border/50">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-green-100 dark:bg-green-900/40">
-              <Heart className="w-5 h-5 text-green-600 dark:text-green-400" />
+              <Briefcase className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-600" data-testid="text-system-health">98%</p>
-              <p className="text-xs text-muted-foreground">{t("dash.stat.system_health")}</p>
+              <p className="text-2xl font-bold text-green-600" data-testid="text-active-projects">{summary ? summary.projects.active : "—"}</p>
+              <p className="text-xs text-muted-foreground">{isRtl ? "المشاريع النشطة" : "Active Projects"}</p>
             </div>
           </CardContent>
         </Card>
@@ -230,47 +250,7 @@ function DashboardContent() {
         </Card>
 
         <div className="space-y-6">
-          <Card className="border-accent/30 shadow-md bg-accent/5 overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <BrainCircuit className="w-24 h-24 text-accent" />
-            </div>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2 text-accent-foreground">
-                <BrainCircuit className="w-5 h-5 text-accent" />
-                {t("dash.ai_insights")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10">
-              <AIInsights />
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm border-border/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                {t("dash.alert_title")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/50">
-                  <Clock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">{t("dash.alert_payroll")}</p>
-                    <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">{t("dash.alert_payroll_desc")}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100 dark:bg-red-950/20 dark:border-red-900/50">
-                  <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-red-900 dark:text-red-200">{t("dash.alert_stock")}</p>
-                    <p className="text-xs text-red-700/80 dark:text-red-400/80 mt-1">{t("dash.alert_stock_desc")}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <AIInsightsPanel title={t("dash.ai_insights")} />
         </div>
       </div>
 

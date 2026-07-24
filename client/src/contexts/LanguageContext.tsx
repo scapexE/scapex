@@ -19,7 +19,6 @@ const translations: Record<string, Record<Language, string>> = {
 
   // Navigation Items
   'nav.dashboard': { en: 'Dashboard', ar: 'لوحة القيادة' },
-  'nav.ai_control': { en: 'AI Control Center', ar: 'مركز تحكم الذكاء الاصطناعي' },
   'nav.bi': { en: 'BI Analytics', ar: 'تحليلات البيانات' },
   'nav.multi_tenant': { en: 'Company Management', ar: 'إدارة الشركات والفروع' },
   

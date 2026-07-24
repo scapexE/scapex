@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
+import { AIInsightsPanel } from "@/components/shared/AIInsightsPanel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface EmployeeStat {
@@ -192,6 +193,8 @@ export function CRMDashboard() {
 
   return (
     <div className="flex flex-col gap-6 pb-8" dir={dir}>
+
+      <AIInsightsPanel modules={["crm", "sales"]} />
 
       {/* ── Section: KPI Cards ─────────────────────────────────────────────── */}
       <div>
