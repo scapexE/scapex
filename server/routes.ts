@@ -6484,10 +6484,15 @@ export async function registerRoutes(
   }
 
   async function loadScopedJournalEntry(req: any, res: any): Promise<any | null> {
+    const scope = await resolveCompanyScope(req);
+    if (!scope.ok) { res.status(scope.status).json({ error: scope.error }); return null; }
     const id = parseInt(req.params.id);
     const companyId = parseInt((req.query.companyId as string) || (req.body?.companyId ? String(req.body.companyId) : "1"));
     const [entry] = await db.select().from(journalEntries).where(eq(journalEntries.id, id));
-    if (!entry || entry.companyId !== companyId) { res.status(404).json({ error: "Not found" }); return null; }
+    if (!entry || entry.companyId !== companyId || companyScoped([entry], scope).length === 0) {
+      res.status(404).json({ error: "Not found" });
+      return null;
+    }
     return entry;
   }
 
